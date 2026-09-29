@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthese van Ruimte en Tijd</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    
+    <!-- Google Fonts: Playfair Display (Serif) and Lora -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --magritte-sky: #7eb6d5;
+            --magritte-cloud: #e4f2f8;
+            --sharp-dark: #1a202c;
+            --paper-bg: #fdfcf8;
+            --accent-blue: #2c5282;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Lora', serif;
+            background: var(--magritte-sky);
+            color: var(--sharp-dark);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        @media (min-width: 1024px) {
+            body { flex-direction: row; }
+        }
+
+        /* Map Section */
+        .map-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(135deg, var(--magritte-sky) 0%, var(--magritte-cloud) 100%);
+            padding: 1.5rem;
+            display: flex;
+        }
+
+        .map-frame {
+            flex-grow: 1;
+            border: 10px solid var(--sharp-dark);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2), 10px 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+            background: #fff;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #e5e5e5;
+            /* Slight sepia for a vintage/surreal feel */
+            filter: sepia(10%) contrast(1.05); 
+        }
+
+        .magritte-pipe {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 1.3rem;
+            color: var(--sharp-dark);
+            background: rgba(253, 252, 248, 0.9);
+            padding: 0.5rem 2rem;
+            border-radius: 50px;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            white-space: nowrap;
+        }
+
+        /* Theory Section */
+        .theory-container {
+            flex: 1;
+            background: var(--paper-bg);
+            border-left: 4px solid var(--sharp-dark);
+            overflow-y: auto;
+            padding: 2rem 3rem;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .theory-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 4px 4px 0px rgba(26, 32, 44, 0.1);
+            position: relative;
+        }
+
+        .theory-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 6px 6px 0px rgba(26, 32, 44, 0.2);
+            border-color: var(--accent-blue);
+        }
+
+        .theory-card.active {
+            background: var(--sharp-dark);
+            color: var(--paper-bg);
+            box-shadow: 2px 2px 0px rgba(26, 32, 44, 0.8);
+            border-color: var(--sharp-dark);
+        }
+
+        .theory-card.active h2 {
+            color: var(--magritte-sky);
+        }
+
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-left: 4px solid var(--accent-blue);
+            color: var(--sharp-dark);
+            overflow-x: auto;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--paper-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--sharp-dark); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="map-container">
+        <div class="map-frame">
+            <div id="map"></div>
+            <div class="magritte-pipe">Ceci n'est pas une carte.</div>
+        </div>
+    </div>
+
+    <div class="theory-container">
+        <h1 class="text-3xl font-bold mb-2 text-gray-900">De Integrale Synthese</h1>
+        <p class="text-md text-gray-600 mb-8 pb-4 border-b-2 border-gray-300">
+            Selecteer een theorema om de ruimtelijke en temporele navigatie te projecteren op de geodetische matrix.
+        </p>
+
+        <!-- Card 1 -->
+        <div class="theory-card" data-action="navigatieketen">
+            <h2 class="text-xl font-bold mb-2">1. De Analoge Navigatieketen</h2>
+            <p class="text-sm leading-relaxed mb-3 opacity-90">
+                Transformatie van abstracte hoeken naar zeekaartvectoren. De sextant gehoorzaamt aan Fermat's principe. De positiecirkel (LOP) bakent de geometrie af, gecorrigeerd voor parallax op de plotter, waarna de planimeter de oppervlakte integreert.
+            </p>
+            <div class="math-block text-sm">
+                Sextant: \(\delta \int dt = 0\) <br><br>
+                Positiecirkel: \(r = \frac{AB}{2 \sin \alpha}\) <br><br>
+                Parallax: \(p = d \cdot \tan \phi\) <br><br>
+                Planimeter: \(\oint_C (P\,dx + Q\,dy) = \iint_D dA\)
+            </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="theory-card" data-action="manhattan">
+            <h2 class="text-xl font-bold mb-2">2. Het Geodetische Manhattan Grid</h2>
+            <p class="text-sm leading-relaxed mb-3 opacity-90">
+                WTC 1 (\(40.712361, -74.013028\)) functioneert als cartografisch nulpunt in een gesloten geometrisch netwerk van het stadsraster.
+            </p>
+            <ul class="list-disc pl-5 text-sm opacity-90 mb-3 space-y-1">
+                <li><strong>29°:</strong> Grid Tilt (Commissioners' Plan)</li>
+                <li><strong>91°:</strong> Inslag- & Datumhoek</li>
+                <li><strong>122°:</strong> Cross-Street Vector</li>
+                <li><strong>331°:</strong> Meridiaanse Spiegelas</li>
+            </ul>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="theory-card" data-action="tijdnavigatie">
+            <h2 class="text-xl font-bold mb-2">3. Tijdnavigatie: 12-Uurs Spiegeling</h2>
+            <p class="text-sm leading-relaxed mb-3 opacity-90">
+                Een astronomisch-geografische as van gebeurtenissen weeft kloktijden en zonnecycli samen rond de symmetrie van het 12-uurs interval.
+            </p>
+            <div class="math-block text-sm">
+                New York: 08:46 EDT<br>
+                Amsterdam: 08:46 CET / 20:46 MET<br>
+                Stockholm: 20:46:01 MET (Einde Eclips)
+            </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="theory-card" data-action="duodecimaal">
+            <h2 class="text-xl font-bold mb-2">4. Duodecimale Algebra</h2>
+            <p class="text-sm leading-relaxed mb-3 opacity-90">
+                Het 12-daagse interval herbergt 17.280 minuten. In grondtal 12 (\(12^3 = 1728\)) vormt dit een harmonische perfectie. 1728 fungeert in de complexe algebra tevens als de modulaire normalisatieconstante.
+            </p>
+            <div class="math-block text-sm">
+                \(17.280_{10} = \text{A}000_{12}\)<br><br>
+                \(j(\tau) = 1728 \frac{g_2(\tau)^3}{g_2(\tau)^3 - 27 g_3(\tau)^2}\)
+            </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="theory-card" data-action="tzolkin">
+            <h2 class="text-xl font-bold mb-2">5. De As van de Gevederde Slang</h2>
+            <p class="text-sm leading-relaxed mb-3 opacity-90">
+                Binnen de Meso-Amerikaanse Tzolk'in-matrix (\(13 \times 20\)) resulteert de 12-daagse sprong vanuit de avonddrempel (Kin 12) in een mathematische verdubbeling naar Kin 24 tijdens de equinox.
+            </p>
+            <div class="math-block text-sm">
+                Kin 12 \(\xrightarrow{\Delta 12 \text{ dagen}}\) Kin 24
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let map;
+        let activeDrawLayer;
+
+        // Base Coordinates
+        const COORDS = {
+            WTC: [40.712361, -74.013028],
+            AMS: [52.3676, 4.9041],
+            STO: [59.3293, 18.0686],
+            MEX: [20.6843, -88.5678] // Chichen Itza roughly
+        };
+
+        // Helper: Calculate destination point given start, bearing (degrees), and distance (km)
+        function getDestinationPoint(lat, lng, bearingDeg, distanceKm) {
+            const R = 6371; // Earth radius in km
+            const d = distanceKm / R; 
+            const brng = bearingDeg * (Math.PI / 180);
+            const lat1 = lat * (Math.PI / 180);
+            const lon1 = lng * (Math.PI / 180);
+
+            const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+            const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+
+            return [lat2 * (180 / Math.PI), lon2 * (180 / Math.PI)];
+        }
+
+        // Initialize the Map
+        function initMap() {
+            map = L.map('map', {
+                center: [35, -40], // Transatlantic view
+                zoom: 3,
+                zoomControl: true,
+                attributionControl: false // Custom style, hiding default for cleaner look
+            });
+
+            // Esri World Light Gray Canvas (No API Key needed)
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 16
+            }).addTo(map);
+
+            activeDrawLayer = L.layerGroup().addTo(map);
+        }
+
+        // Define map drawing actions for each card
+        const mapActions = {
+            
+            navigatieketen: () => {
+                map.flyTo(COORDS.WTC, 13, {duration: 1.5});
+                
+                // LOP Circle
+                L.circle(COORDS.WTC, {
+                    radius: 2000, color: '#2c5282', weight: 2, fillOpacity: 0.1, dashArray: '5, 5'
+                }).addTo(activeDrawLayer).bindTooltip("Positiecirkel (r)", {permanent: true, direction: 'right'});
+
+                // Sextant Zichtlijn
+                const p2 = getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], 150, 4);
+                L.polyline([COORDS.WTC, p2], {color: '#1a202c', weight: 2}).addTo(activeDrawLayer).bindTooltip("Sextantmeting (AB)", {permanent: true});
+
+                // Planimeter Area (Abstract polygon)
+                const poly = [
+                    getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], 210, 2),
+                    getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], 240, 3),
+                    getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], 270, 2.5),
+                    getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], 220, 1.5)
+                ];
+                L.polygon(poly, {
+                    color: '#7eb6d5', fillColor: '#7eb6d5', weight: 2, fillOpacity: 0.5
+                }).addTo(activeDrawLayer).bindTooltip("Planimeter Integratie (\u222C)", {direction: 'bottom'});
+            },
+
+            manhattan: () => {
+                map.flyTo(COORDS.WTC, 14, {duration: 1.5});
+                L.circleMarker(COORDS.WTC, {color: '#e53e3e', radius: 6, fillOpacity: 1}).addTo(activeDrawLayer).bindTooltip("WTC 1", {permanent:true});
+
+                const vectors = [
+                    { angle: 29, label: "29° (Grid)", color: '#7eb6d5' },
+                    { angle: 91, label: "91° (Impact)", color: '#e53e3e' },
+                    { angle: 122, label: "122° (Cross)", color: '#4a5568' },
+                    { angle: 331, label: "331° (Mirror)", color: '#1a202c' }
+                ];
+
+                vectors.forEach(v => {
+                    const end = getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], v.angle, 2.5);
+                    L.polyline([COORDS.WTC, end], {
+                        color: v.color, 
+                        weight: v.angle === 91 || v.angle === 331 ? 4 : 2,
+                        dashArray: v.angle === 331 ? '8, 8' : ''
+                    }).addTo(activeDrawLayer).bindTooltip(v.label, {permanent: true, direction: 'auto'});
+                });
+            },
+
+            tijdnavigatie: () => {
+                map.flyTo([48, -30], 4, {duration: 2}); // View showing NY, AMS, STO
+                
+                L.circleMarker(COORDS.WTC, {color: '#1a202c', radius: 5, fillOpacity:1}).addTo(activeDrawLayer).bindTooltip("New York<br>08:46", {permanent:true});
+                L.circleMarker(COORDS.AMS, {color: '#1a202c', radius: 5, fillOpacity:1}).addTo(activeDrawLayer).bindTooltip("Amsterdam<br>08:46 / 20:46", {permanent:true, direction: 'bottom'});
+                L.circleMarker(COORDS.STO, {color: '#2c5282', radius: 5, fillOpacity:1}).addTo(activeDrawLayer).bindTooltip("Stockholm<br>20:46:01", {permanent:true, direction: 'top'});
+
+                // Connect NY to AMS
+                L.polyline([COORDS.WTC, COORDS.AMS], {color: '#7eb6d5', weight: 3, dashArray: '5, 10'}).addTo(activeDrawLayer);
+                // Connect AMS to STO
+                L.polyline([COORDS.AMS, COORDS.STO], {color: '#2c5282', weight: 3}).addTo(activeDrawLayer);
+            },
+
+            duodecimaal: () => {
+                map.flyTo(COORDS.WTC, 13, {duration: 1.5});
+                L.circleMarker(COORDS.WTC, {color: '#1a202c', radius: 4, fillOpacity: 1}).addTo(activeDrawLayer);
+                
+                // Radius = 1728 meters
+                L.circle(COORDS.WTC, {
+                    radius: 1728, 
+                    color: '#2c5282', weight: 2, fillColor: '#7eb6d5', fillOpacity: 0.2
+                }).addTo(activeDrawLayer).bindTooltip("1728 meter (12³)", {permanent: true, direction: 'bottom'});
+                
+                // Plot 12 points on the circle
+                for(let i=0; i<12; i++) {
+                    const pt = getDestinationPoint(COORDS.WTC[0], COORDS.WTC[1], i * 30, 1.728);
+                    L.circleMarker(pt, {color: '#1a202c', radius: 3, fillOpacity: 1}).addTo(activeDrawLayer);
+                }
+            },
+
+            tzolkin: () => {
+                map.flyTo([30, -40], 3, {duration: 2}); // Atlantic wide view
+                
+                L.circleMarker(COORDS.WTC, {color: '#1a202c', radius: 4, fillOpacity:1}).addTo(activeDrawLayer);
+                L.circleMarker(COORDS.AMS, {color: '#1a202c', radius: 4, fillOpacity:1}).addTo(activeDrawLayer);
+                
+                L.circleMarker(COORDS.MEX, {color: '#d69e2e', radius: 6, fillOpacity:1}).addTo(activeDrawLayer).bindTooltip("Meso-Amerika<br>Kin 12 \u2192 24", {permanent:true, direction:'left'});
+
+                // Draw central axis
+                L.polyline([COORDS.AMS, COORDS.MEX], {color: '#d69e2e', weight: 2}).addTo(activeDrawLayer);
+                L.polyline([COORDS.WTC, COORDS.MEX], {color: '#d69e2e', weight: 2, dashArray: '5,5'}).addTo(activeDrawLayer);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+
+            const cards = document.querySelectorAll('.theory-card');
+            cards.forEach(card => {
+                card.addEventListener('click', function() {
+                    // Update active state
+                    cards.forEach(c => c.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // Clear map and draw new features
+                    activeDrawLayer.clearLayers();
+                    const action = this.getAttribute('data-action');
+                    if(mapActions[action]) {
+                        mapActions[action]();
+                    }
+                });
+            });
+
+            // Handle window resize for Leaflet
+            window.addEventListener('resize', () => {
+                if(map) map.invalidateSize();
+            });
+        });
+    </script>
+</body>
+</html>
