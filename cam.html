@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Traffic Cameras - Dual Viewport Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Viewport 1: Linker schermhelft (Camera Feed & Details) */
+        .viewport-preview {
+            flex: 1;
+            background: #1a202c;
+            border-right: 2px solid #2d3748;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            text-align: center;
+        }
+        .preview-container {
+            width: 100%;
+            max-width: 600px;
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .preview-container h2 {
+            font-size: 1.2rem;
+            color: #60a5fa;
+            margin-bottom: 15px;
+        }
+        .camera-screen {
+            width: 100%;
+            height: 320px;
+            background: #000;
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #4a5568;
+        }
+        .camera-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .camera-info {
+            margin-top: 15px;
+            font-size: 0.95rem;
+            color: #9ca3af;
+            text-align: left;
+        }
+        .camera-info span {
+            color: #f3f4f6;
+            font-weight: bold;
+        }
+
+        /* Viewport 2: Rechter schermhelft (Lijst & Categorieën) */
+        .viewport-list {
+            flex: 1;
+            background: #111827;
+            padding: 30px;
+            overflow-y: auto;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #f7fafc;
+            border-bottom: 2px solid #374151;
+            padding-bottom: 10px;
+        }
+        .accordion {
+            background-color: #1f2937;
+            color: #f3f4f6;
+            cursor: pointer;
+            padding: 15px;
+            width: 100%;
+            text-align: left;
+            border: 1px solid #374151;
+            outline: none;
+            transition: 0.3s;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 8px;
+            border-radius: 6px;
+        }
+        .active, .accordion:hover {
+            background-color: #374151;
+            color: #60a5fa;
+        }
+        .panel {
+            padding: 10px 15px;
+            background-color: #1a202c;
+            display: none;
+            overflow: hidden;
+            border: 1px solid #374151;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            margin-bottom: 5px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        ul {
+            list-style-type: none;
+        }
+        li {
+            margin: 8px 0;
+        }
+        li a {
+            color: #93c5fd;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        li a:hover {
+            color: #60a5fa;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+                height: auto;
+                overflow: auto;
+            }
+            .viewport-preview {
+                height: 450px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- VIEWPORT 1: Live Feed & Details -->
+    <div class="viewport-preview">
+        <div class="preview-container">
+            <h2 id="cam-title">Selecteer een Camera</h2>
+            <div class="camera-screen" id="cam-screen-container">
+                <p style="color: #718096;">Geen feed geselecteerd</p>
+            </div>
+            <div class="camera-info" id="cam-details">
+                Locatie: <span>-</span><br>
+                Coördinaten: <span>-</span><br>
+                Status: <span>-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEWPORT 2: Dashboard & Camera Lijsten per Gebied -->
+    <div class="viewport-list">
+        <h1>NYC Traffic Cameras</h1>
+        
+        <button class="accordion">Manhattan</button>
+        <div class="panel"><ul id="manhattan"></ul></div>
+        
+        <button class="accordion">Brooklyn</button>
+        <div class="panel"><ul id="brooklyn"></ul></div>
+        
+        <button class="accordion">Queens</button>
+        <div class="panel"><ul id="queens"></ul></div>
+
+        <button class="accordion">Bronx</button>
+        <div class="panel"><ul id="bronx"></ul></div>
+
+        <button class="accordion">Staten Island</button>
+        <div class="panel"><ul id="statenIsland"></ul></div>
+
+        <button class="accordion">Derry City</button>
+        <div class="panel"><ul id="derryCity"></ul></div>
+    </div>
+
+    <script>
+        const allCameras = [
+            {"id":"8d2b3ae9-da68-4d37-8ae2-d3bc014f827b","name":"WBB - 2 NOR @ ABOVE BEDFORD AVE & S 5 St","latitude":40.710983,"longitude":-73.963168,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/8d2b3ae9-da68-4d37-8ae2-d3bc014f827b/image"},
+            {"id":"0bbea8bd-10f1-4126-b3c5-9e9432eab749","name":"Atlantic Ave @ Pennsylvania Ave","latitude":40.675787,"longitude":-73.896898,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/0bbea8bd-10f1-4126-b3c5-9e9432eab749/image"},
+            {"id":"07b8616e-373e-4ec9-89cc-11cad7d59fcb","name":"Worth St @ Centre St","latitude":40.715157,"longitude":-74.00213,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/07b8616e-373e-4ec9-89cc-11cad7d59fcb/image"},
+            {"id":"c5040f93-f4ec-4803-8370-8b931b0443e2","name":"FDR Dr @ 64 St","latitude":40.761186,"longitude":-73.955676,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/c5040f93-f4ec-4803-8370-8b931b0443e2/image"},
+            {"id":"ddc62c2f-dab2-48e0-918e-742e62e78ec1","name":"Fort Hamilton Pkwy @ 60 St","latitude":40.6332,"longitude":-74.0057,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/ddc62c2f-dab2-48e0-918e-742e62e78ec1/image"},
+            {"id":"1b874f5c-e1c6-481d-bb85-8d7d92c1793b","name":"Rogers Ave @ Montgomery St","latitude":40.6656,"longitude":-73.9536,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/1b874f5c-e1c6-481d-bb85-8d7d92c1793b/image"},
+            {"id":"88895623-f6fa-4509-a927-8eae076725da","name":"Ft. Hamilton Pkwy @ McDonald Ave","latitude":40.647697,"longitude":-73.980373,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/88895623-f6fa-4509-a927-8eae076725da/image"},
+            {"id":"52399045-4691-4258-8f82-12000f5719a8","name":"Jamaica Ave @ 168 St","latitude":40.706371,"longitude":-73.792539,"area":"Queens","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/52399045-4691-4258-8f82-12000f5719a8/image"},
+            {"id":"04ffc69c-92a7-4c02-aa18-2b16e7ba81f2","name":"FDR Dr @ 36 St","latitude":40.744441,"longitude":-73.971242,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/04ffc69c-92a7-4c02-aa18-2b16e7ba81f2/image"},
+            {"id":"03a8a2da-3ac2-45aa-a5ba-4ff7d1ecbd22","name":"5 Ave @ 47 St","latitude":40.756725,"longitude":-73.97883,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/03a8a2da-3ac2-45aa-a5ba-4ff7d1ecbd22/image"},
+            {"id":"fb588f5e-c90e-4136-9817-ed4201267d97","name":"C1-MDE-14-NB_at_Mosholu_Pkwy-Ex12","latitude":40.889129,"longitude":-73.888492,"area":"Bronx","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/fb588f5e-c90e-4136-9817-ed4201267d97/image"},
+            {"id":"a8805cdb-e305-42d0-b011-cb825380cf8e","name":"Bushwick Ave @ Cooper St","latitude":40.684818,"longitude":-73.910158,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/a8805cdb-e305-42d0-b011-cb825380cf8e/image"},
+            {"id":"53d62ac5-34f9-4d8f-82b9-0cecebc9c55a","name":"4 Ave @ Union St - 66.130","latitude":40.677393,"longitude":-73.982988,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/53d62ac5-34f9-4d8f-82b9-0cecebc9c55a/image"},
+            {"id":"04e09ed5-2d97-4e29-8438-b87748850dbb","name":"Columbus Ave @ 65 St","latitude":40.772156,"longitude":-73.981719,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/04e09ed5-2d97-4e29-8438-b87748850dbb/image"},
+            {"id":"db028e65-b4b4-4f83-a427-6be6cb3f2ace","name":"Riverside DR. @ Pedestrian Crossing NOF 181 St","latitude":40.852383,"longitude":-73.941088,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/db028e65-b4b4-4f83-a427-6be6cb3f2ace/image"},
+            {"id":"0039e6bf-5244-4b4e-b7dc-d02056bbfdc9","name":"Atlantic Ave @ 111 St","latitude":40.692157,"longitude":-73.834927,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/0039e6bf-5244-4b4e-b7dc-d02056bbfdc9/image"},
+            {"id":"41397b64-d035-4b41-a03e-170fe4103d89","name":"Park Ave @ 79 St","latitude":40.775652,"longitude":-73.96035,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/41397b64-d035-4b41-a03e-170fe4103d89/image"},
+            {"id":"d88837a0-5f2d-4800-b4c8-57970aa929cd","name":"Rockaway Blvd @ Lefferts Blvd","latitude":40.676012,"longitude":-73.818977,"area":"Queens","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/d88837a0-5f2d-4800-b4c8-57970aa929cd/image"},
+            {"id":"05468f62-4092-4ff5-9bb6-0f70e56ff544","name":"2 Ave @ 49 St","latitude":40.754259,"longitude":-73.968991,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/05468f62-4092-4ff5-9bb6-0f70e56ff544/image"},
+            {"id":"f388803c-7e1b-4d67-ad61-87b25934a8a2","name":"10 Ave @ 23 St","latitude":40.747694,"longitude":-74.004174,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/f388803c-7e1b-4d67-ad61-87b25934a8a2/image"},
+            {"id":"62ecb539-5e6c-40ff-a771-ea77153cc4ed","name":"Rockefeller Plz @ 48 St","latitude":40.7584,"longitude":-73.9792,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/62ecb539-5e6c-40ff-a771-ea77153cc4ed/image"},
+            {"id":"821d0c4e-f43f-4968-ad2d-566e40e53df6","name":"Atlantic Ave @ Henry St","latitude":40.690718,"longitude":-73.996235,"area":"Brooklyn","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/821d0c4e-f43f-4968-ad2d-566e40e53df6/image"},
+            {"id":"09afb231-ef10-470f-bf54-0f44fc2dc18f","name":"Pelham Shore Rd @ City Island Rd","latitude":40.864552,"longitude":-73.813781,"area":"Bronx","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/09afb231-ef10-470f-bf54-0f44fc2dc18f/image"},
+            {"id":"16d86749-6ec5-4594-8ccc-56c9507fedc3","name":"Rockaway Blvd @ S. Conduit Ave","latitude":40.6668,"longitude":-73.779833,"area":"Queens","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/16d86749-6ec5-4594-8ccc-56c9507fedc3/image"},
+            {"id":"156b0613-239a-4e77-aa0e-0a4becfc0b05","name":"Lenox Ave @ 125 St","latitude":40.80798,"longitude":-73.945472,"area":"Manhattan","isOnline":"true","imageUrl":"https://webcams.nyctmc.org/api/cameras/156b0613-239a-4e77-aa0e-0a4becfc0b05/image"},
+            {"id":"f09ab02e-8c25-431d-8547-e8b86e9e357b","name":"Great James Street @ A2 Rd","latitude":54.999389,"longitude":-7.321861,"area":"Derry City","isOnline":"true","imageUrl":"https://cctv.trafficwatchni.com/3292.jpg"}
+        ];
+
+        // Sorteer alfabetisch
+        allCameras.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Vul lijsten in per stadsdeel
+        allCameras.forEach(camera => {
+            let el = document.createElement('li');
+            let link = document.createElement('a');
+            link.innerText = camera.name;
+            link.onclick = () => selectCamera(camera);
+            el.appendChild(link);
+
+            switch (camera.area) {
+                case 'Manhattan': document.getElementById("manhattan").appendChild(el); break;
+                case 'Brooklyn': document.getElementById("brooklyn").appendChild(el); break;
+                case 'Queens': document.getElementById("queens").appendChild(el); break;
+                case 'Bronx': document.getElementById("bronx").appendChild(el); break;
+                case 'Staten Island': document.getElementById("statenIsland").appendChild(el); break;
+                case 'Derry City': document.getElementById("derryCity").appendChild(el); break;
+            }
+        });
+
+        function selectCamera(camera) {
+            document.getElementById("cam-title").innerText = camera.name;
+            
+            // Voeg een unieke tijdstempel toe om caching te voorkomen en de feed te forceren
+            let feedUrl = camera.imageUrl.includes('?') ? camera.imageUrl + '&t=' + new Date().getTime() : camera.imageUrl + '?t=' + new Date().getTime();
+            
+            document.getElementById("cam-screen-container").innerHTML = `
+                <img src="${feedUrl}" alt="${camera.name}" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x320?text=Feed+Niet+Beschikbaar+%28Mogelijk+Geo-blokkade%29';">
+            `;
+            
+            document.getElementById("cam-details").innerHTML = `
+                Locatie: <span>${camera.area}</span><br>
+                Coördinaten: <span>${camera.latitude}, ${camera.longitude}</span><br>
+                Status: <span style="color: #4ade80;">Online</span>
+            `;
+        }
+
+        // Accordeon functionaliteit
+        var acc = document.getElementsByClassName("accordion");
+        for (let i = 0; i < acc.length; i++) {
+            acc[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                var panel = this.nextElementSibling;
+                panel.style.display = panel.style.display === "block" ? "none" : "block";
+            });
+        }
+    </script>
+</body>
+</html>
