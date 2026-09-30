@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="nl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthese: Cartografische & Mathematica Viewports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate900: '#0b0f19',
+                        slate800: '#111827',
+                        slate700: '#1f2937',
+                        amberGlow: '#d97706',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .magritte-caption {
+            font-family: serif;
+            font-style: italic;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-amber-500 selection:text-black">
+
+    <header class="border-b border-slate-800 bg-slate900/80 backdrop-blur-md px-6 py-4 flex justify-between items-center z-10">
+        <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></div>
+            <h1 class="text-lg font-semibold tracking-wide text-slate-200">SYNTHESE // Dual Viewport Interface</h1>
+        </div>
+        <div class="text-xs text-slate-400 flex items-center space-x-4">
+            <span class="bg-slate-800 px-3 py-1 rounded-full border border-slate-700">WTC 1 / True North Datum</span>
+            <span class="text-amber-500 font-mono">17.280 min (12³ = 1728)</span>
+        </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 lg:p-6 h-[calc(100vh-5rem)]">
+        
+        <section class="bg-slate800/60 border border-slate-700/60 rounded-xl flex flex-col overflow-hidden relative shadow-2xl backdrop-blur-sm">
+            <div class="bg-slate800/90 px-4 py-3 border-b border-slate-700/80 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    <h2 class="text-sm font-medium text-slate-200">Viewport 1: Geodesic Vector Projectie</h2>
+                </div>
+                <div class="text-xs text-slate-400 font-mono">Zoom: <span id="zoomLevel">1.0</span>x</div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative flex-1 bg-slate900 overflow-hidden cursor-grab active:cursor-grabbing" id="canvasContainer">
+                <canvas id="cartoCanvas"></canvas>
+                
+                <!-- Magritte watermark box -->
+                <div class="absolute bottom-4 left-4 bg-slate900/90 border border-slate-700 px-4 py-2 rounded-lg shadow-lg pointer-events-none">
+                    <p class="magritte-caption text-xs text-slate-300">Ceci n'est pas une carte.</p>
+                </div>
+
+                <!-- Interactive Overlays -->
+                <div class="absolute top-4 right-4 bg-slate900/90 border border-slate-700 p-3 rounded-lg text-xs space-y-1 shadow-lg backdrop-blur">
+                    <div class="font-semibold text-amber-400 mb-1">Actieve Assen:</div>
+                    <div class="flex items-center justify-between space-x-4"><span class="text-slate-400">Hoofdas:</span> <span class="font-mono text-slate-200">151° / 331°</span></div>
+                    <div class="flex items-center justify-between space-x-4"><span class="text-slate-400">Orthogonaal:</span> <span class="font-mono text-slate-200">91°</span></div>
+                    <div class="flex items-center justify-between space-x-4"><span class="text-slate-400">Basis:</span> <span class="font-mono text-slate-200">29°</span></div>
+                    <div class="flex items-center justify-between space-x-4"><span class="text-slate-400">Broadway:</span> <span class="font-mono text-amber-400">22° Diagonaal</span></div>
+                </div>
+            </div>
+
+            <!-- Viewport Controls -->
+            <div class="p-3 bg-slate800/80 border-t border-slate-700 flex items-center justify-between">
+                <div class="flex space-x-2">
+                    <button id="resetView" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-200 transition">Reset Zoom</button>
+                    <button id="toggleVectors" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-200 transition">Toggle Raster</button>
+                </div>
+                <div class="text-xs text-slate-400">Sleep om te pannen, scroll om te zoomen</div>
+            </div>
+        </section>
+
+        <section class="bg-slate800/60 border border-slate-700/60 rounded-xl flex flex-col overflow-hidden shadow-2xl backdrop-blur-sm">
+            <div class="bg-slate800/90 px-4 py-3 border-b border-slate-700/80 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    <h2 class="text-sm font-medium text-slate-200">Viewport 2: Mathematica & Duodecimale Matrix</h2>
+                </div>
+                <div class="text-xs text-amber-500 font-mono">J(τ) Normalisatie Actief</div>
+            </div>
+
+            <!-- Dashboard Content Container -->
+            <div class="flex-1 p-5 overflow-y-auto space-y-5">
+                
+                <!-- Tzolkin & 12-Uurs Spiegeling Card -->
+                <div class="bg-slate900/80 border border-slate-700/80 rounded-xl p-4 shadow-inner">
+                    <h3 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">3. Tijdnavigatie: 12-Uurs Spiegeling</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed mb-3">Een astronomisch-geografische as van gebeurtenissen weeft kloktijden en zonnecycli samen rond de symmetrie van het 12-uurs interval.</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs font-mono bg-slate800/80 p-3 rounded-lg border border-slate-700">
+                        <div><span class="text-slate-400">New York:</span> <span class="text-slate-200">08:46 EDT</span></div>
+                        <div><span class="text-slate-400">Amsterdam:</span> <span class="text-slate-200">08:46 CET</span></div>
+                        <div class="col-span-2 pt-1 border-t border-slate-700 text-amber-300">Stockholm: 20:46:01 MET (Einde Eclips)</div>
+                    </div>
+                </div>
+
+                <!-- Duodecimal Algebra Card -->
+                <div class="bg-slate900/80 border border-slate-700/80 rounded-xl p-4 shadow-inner">
+                    <h3 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">4. Duodecimale Algebra & $j(\tau)$</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed mb-3">Het 12-daagse interval herbergt 17.280 minuten. In grondtal 12 ($12^3 = 1728$) vormt dit een harmonische perfectie.</p>
+                    <div class="bg-slate800/80 p-3 rounded-lg border border-slate-700 font-mono text-xs space-y-2">
+                        <div class="text-slate-300">17.280₁₀ = <span class="text-amber-400 font-bold">A000₁₂</span></div>
+                        <div class="text-slate-400 text-[11px] overflow-x-auto py-1">j(τ) = 1728 · [ g₂(τ)³ / (g₂(τ)³ - 27g₃(τ)²) ]</div>
+                    </div>
+                </div>
+
+                <!-- Geodesic Matrix Calculator -->
+                <div class="bg-slate900/80 border border-slate-700/80 rounded-xl p-4 shadow-inner">
+                    <h3 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">5. Real-Time Hoekcompensatie Matrix</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-300 mb-1">
+                                <span>Selecteer Vector Hoek (θ):</span>
+                                <span id="angleValue" class="font-mono text-amber-400">22°</span>
+                            </div>
+                            <input type="range" id="angleRange" min="0" max="360" value="22" class="w-full accent-amber-500 bg-slate-700 h-1.5 rounded-lg cursor-pointer">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono bg-slate800/80 p-3 rounded-lg border border-slate-700">
+                            <div><span class="text-slate-400">cos(θ):</span> <span id="cosVal" class="text-slate-200">0.9272</span></div>
+                            <div><span class="text-slate-400">sin(θ):</span> <span id="sinVal" class="text-slate-200">0.3746</span></div>
+                            <div><span class="text-slate-400">Kin Jump:</span> <span class="text-amber-300">Kin 12 → 24</span></div>
+                            <div><span class="text-slate-400">Convergentie:</span> <span class="text-slate-200">+2.4°</span></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer status -->
+            <div class="p-3 bg-slate800/80 border-t border-slate-700 flex justify-between items-center text-xs text-slate-400">
+                <span>Ott Poolplanimeter sync: Actief</span>
+                <span class="text-emerald-400 font-mono">● Geoptimaliseerd</span>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('cartoCanvas');
+            const ctx = canvas.getContext('2d');
+            const container = document.getElementById('canvasContainer');
+            
+            let width, height;
+            let scale = 1;
+            let panX = 0;
+            let panY = 0;
+            let isDragging = false;
+            let startX, startY;
+            let showGrid = true;
+            let activeAngle = 22;
+
+            function resize() {
+                width = container.clientWidth;
+                height = container.clientHeight;
+                canvas.width = width * window.devicePixelRatio;
+                canvas.height = height * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                draw();
+            }
+
+            window.addEventListener('resize', resize);
+
+            // Mouse interaction for panning and zooming
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+                draw();
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = 1.1;
+                if (e.deltaY < 0) {
+                    scale *= zoomFactor;
+                } else {
+                    scale /= zoomFactor;
+                }
+                scale = Math.max(0.5, Math.min(5, scale));
+                document.getElementById('zoomLevel').textContent = scale.toFixed(1);
+                draw();
+            });
+
+            document.getElementById('resetView').addEventListener('click', () => {
+                scale = 1;
+                panX = 0;
+                panY = 0;
+                document.getElementById('zoomLevel').textContent = '1.0';
+                draw();
+            });
+
+            document.getElementById('toggleVectors').addEventListener('click', () => {
+                showGrid = !showGrid;
+                draw();
+            });
+
+            const angleRange = document.getElementById('angleRange');
+            angleRange.addEventListener('input', (e) => {
+                activeAngle = parseInt(e.target.value);
+                document.getElementById('angleValue').textContent = activeAngle + '°';
+                const rad = activeAngle * Math.PI / 180;
+                document.getElementById('cosVal').textContent = Math.cos(rad).toFixed(4);
+                document.getElementById('sinVal').textContent = Math.sin(rad).toFixed(4);
+                draw();
+            });
+
+            function draw() {
+                ctx.clearRect(0, 0, width, height);
+
+                ctx.save();
+                ctx.translate(width / 2 + panX, height / 2 + panY);
+                ctx.scale(scale, scale);
+
+                const radius = Math.min(width, height) * 0.35;
+
+                // Draw background grid circles
+                if (showGrid) {
+                    ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+                    ctx.lineWidth = 1;
+                    [0.3, 0.6, 1.0].forEach(rFactor => {
+                        ctx.beginPath();
+                        ctx.arc(0, 0, radius * rFactor, 0, Math.PI * 2);
+                        ctx.stroke();
+                    });
+
+                    // Meridian lines
+                    for (let angle = 0; angle < 360; angle += 30) {
+                        const rad = angle * Math.PI / 180;
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(Math.cos(rad) * radius, Math.sin(rad) * radius);
+                        ctx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
+                        ctx.stroke();
+                    }
+                }
+
+                // Draw main outer coordinate circle
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = 'rgba(217, 119, 6, 0.3)';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Draw standard angles: 151°, 331°, 91°, 29°
+                const standardAngles = [151, 331, 91, 29];
+                standardAngles.forEach(deg => {
+                    const rad = (deg - 90) * Math.PI / 180;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(rad) * radius * 0.9, Math.sin(rad) * radius * 0.9);
+                    ctx.strokeStyle = deg === 151 || deg === 331 ? '#38bdf8' : '#94a3b8';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    // Angle label
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = '10px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(deg + '°', Math.cos(rad) * radius * 0.98, Math.sin(rad) * radius * 0.98);
+                });
+
+                // Draw Interactive Broadway / Dynamic Vector (activeAngle)
+                const activeRad = (activeAngle - 90) * Math.PI / 180;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(activeRad) * radius, Math.sin(activeRad) * radius);
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Center WTC 1 marker node
+                ctx.beginPath();
+                ctx.arc(0, 0, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.font = 'bold 11px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('WTC 1 (0,0)', 10, -10);
+
+                ctx.restore();
+            }
+
+            resize();
+        });
+    </script>
+</body>
+</html>
