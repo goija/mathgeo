@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="nl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodetische & Cartografische Matrix | Lower Manhattan & Hudson-vallei</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darker: '#030712',
+                        cardBg: '#0f172a',
+                        accentCyan: '#06b6d4',
+                        accentEmerald: '#10b981',
+                        accentAmber: '#f59e0b',
+                        accentRose: '#f43f5e',
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts for technical typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    </style>
+</head>
+<body class="bg-darker text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-black">
+
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <span class="inline-block w-3 h-3 rounded-full bg-cyan-500 animate-pulse"></span>
+                <h1 class="text-xl lg:text-2xl font-bold tracking-tight text-white uppercase font-mono">Geodetische & Cartografische Matrix</h1>
+                <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 font-mono">v2.6.4 PRO</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1 font-mono">Lower Manhattan Hoekensysteem • Commissioners' Plan 1811 & Maya-projectie Synthese</p>
+        </div>
+        
+        <!-- Live Telemetry Bar -->
+        <div class="flex flex-wrap items-center gap-4 bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 text-xs font-mono">
+            <div><span class="text-slate-500">LAT:</span> <span id="telemetry-lat" class="text-cyan-400">40.7128° N</span></div>
+            <div class="w-px h-3 bg-slate-800"></div>
+            <div><span class="text-slate-500">LON:</span> <span id="telemetry-lon" class="text-cyan-400">74.0060° W</span></div>
+            <div class="w-px h-3 bg-slate-800"></div>
+            <div><span class="text-slate-500">ACTIEF TRACÉ:</span> <span id="telemetry-vector" class="text-emerald-400">Broadway-diagonaal (22°)</span></div>
+        </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 lg:p-6 max-w-[1800px] w-full mx-auto">
+        
+        <!-- Left Sidebar: Controls & Matrix Table -->
+        <section class="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
+            
+            <!-- Control Panel Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider font-mono mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                    Vector Inspectie & Animaties
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-2 font-mono">Selecteer Geodetische Vector:</label>
+                        <div class="grid grid-cols-3 gap-2" id="vector-buttons">
+                            <button onclick="selectVector(22)" data-angle="22" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-sm">22° Broadway</button>
+                            <button onclick="selectVector(23)" data-angle="23" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500">23° Komp.</button>
+                            <button onclick="selectVector(29)" data-angle="29" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500">29° Grid Tilt</button>
+                            <button onclick="selectVector(91)" data-angle="91" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500">91° WTC 1</button>
+                            <button onclick="selectVector(122)" data-angle="122" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500">122° Cross</button>
+                            <button onclick="selectVector(331)" data-angle="331" class="vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500">331° Spiegel</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-800">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs text-slate-400 font-mono">Rotatiehoek Simulatie:</span>
+                            <span id="angle-display" class="text-xs font-mono text-cyan-400 font-bold">22.0°</span>
+                        </div>
+                        <input type="range" id="angle-slider" min="0" max="360" step="0.5" value="22" 
+                            class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            oninput="updateAngleSlider(this.value)">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-2">
+                        <button onclick="toggleAnimation()" id="anim-btn" class="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-semibold transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Start Animatie
+                        </button>
+                        <button onclick="resetView()" class="w-full py-2.5 px-4 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-semibold transition-all border border-slate-700">
+                            Reset Weergave
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cartographic Matrix Data Table -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-xl flex-1 flex flex-col">
+                <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider font-mono mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Cartografische Matrix Overzicht
+                </h2>
+                
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-slate-400 font-mono">
+                                <th class="py-2.5 px-3">Graad</th>
+                                <th class="py-2.5 px-3">Oorsprong</th>
+                                <th class="py-2.5 px-3">Status & Functie</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60 font-sans" id="matrix-table-body">
+                            <tr onclick="selectVector(22)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-cyan-400">22°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">Broadway-diagonaal (NY)</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Pre-koloniaal Wickquasgeck-tracé. Afwijking $\Delta\theta = -6,9^\circ$.</td>
+                            </tr>
+                            <tr onclick="selectVector(23)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-cyan-400">23°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">Gecomprimeerde Vector</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Transformatiematrix $C = R(1^\circ)$ op Broadway. Obliquiteit $23,44^\circ$.</td>
+                            </tr>
+                            <tr onclick="selectVector(29)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-cyan-400">29°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">Manhattan Grid Tilt</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Commissioners' Plan 1811 ($\approx 29^\circ$). Primaire glyph-ankering.</td>
+                            </tr>
+                            <tr onclick="selectVector(91)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-amber-400">91°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">WTC 1 Inslag-as (9/11)</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Inslagvector AA11 op noordgevel. Haakse hoek ($90^\circ + 1^\circ$).</td>
+                            </tr>
+                            <tr onclick="selectVector(122)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-cyan-400">122°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">Cross-Street Vector</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Dwarsstraten Lower Manhattan ($118,9^\circ$ tot $122,0^\circ$).</td>
+                            </tr>
+                            <tr onclick="selectVector(331)" class="cursor-pointer hover:bg-slate-800/40 transition-colors group">
+                                <td class="py-3 px-3 font-mono font-bold text-cyan-400">331°</td>
+                                <td class="py-3 px-3 font-medium text-slate-200">Meridiaanse Spiegelas</td>
+                                <td class="py-3 px-3 text-slate-400 text-[11px]">Cartesische spiegeling over meridiaan ($360^\circ - 28,9^\circ$).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
+            
+            <!-- Canvas Container Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col min-h-[650px] relative overflow-hidden">
+                
+                <!-- Canvas Overlay Header Tools -->
+                <div class="absolute top-6 left-6 right-6 z-10 flex justify-between items-center pointer-events-none">
+                    <div class="bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono pointer-events-auto flex items-center gap-2 shadow-lg">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span id="active-vector-title" class="text-white font-semibold">Broadway-diagonaal • Tracé Lower Manhattan ➔ Sleepy Hollow</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 pointer-events-auto">
+                        <button onclick="zoomCanvas(1.2)" class="p-2 rounded-lg bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-slate-300 transition-colors shadow-lg" title="Inzoomen">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                        <button onclick="zoomCanvas(0.8)" class="p-2 rounded-lg bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-slate-300 transition-colors shadow-lg" title="Uitzoomen">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interactive Canvas -->
+                <div class="flex-1 w-full h-full relative rounded-lg overflow-hidden bg-[#070d19] border border-slate-800/80 flex items-center justify-center">
+                    <canvas id="matrixCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+                    
+                    <!-- Vector Details HUD Tooltip (Bottom Left) -->
+                    <div id="canvas-hud" class="absolute bottom-4 left-4 bg-slate-950/90 backdrop-blur-md border border-slate-800/90 p-3 rounded-lg text-xs font-mono shadow-xl max-w-xs pointer-events-none">
+                        <div class="text-cyan-400 font-bold mb-1" id="hud-title">Vector 22°: Broadway</div>
+                        <div class="text-slate-300 text-[11px]" id="hud-desc">Pre-koloniaal Wickquasgeck-tracé met hoekafwijking ten opzichte van het latere grid.</div>
+                        <div class="mt-2 pt-2 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
+                            <span>TRANSFORM: MATRIX C</span>
+                            <span id="hud-status" class="text-emerald-400">ACTIEF</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Legend -->
+                <div class="mt-3 flex flex-wrap items-center justify-between text-xs text-slate-400 font-mono px-1">
+                    <div class="flex items-center gap-4">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-red-500 inline-block rounded"></span> Wickquasgeck-Tracé</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-cyan-400 inline-block rounded"></span> Hudson Rivier</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-amber-400 inline-block rounded"></span> WTC Vector (91°)</span>
+                    </div>
+                    <div>Sleepy Hollow (Noord) ➔ Lower Manhattan (Zuid)</div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // --- Application State ---
+        let currentAngle = 22;
+        let isAnimating = false;
+        let animationFrameId = null;
+        let zoomLevel = 1.0;
+        let panOffset = { x: 0, y: 0 };
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+
+        const vectorData = {
+            22: { title: "Broadway-diagonaal (NY)", desc: "Pre-koloniaal Wickquasgeck-tracé. Veroorzaakt afwijking van Delta theta = -6.9° t.o.v. Grid Avenues.", status: "Bevestigd" },
+            23: { title: "Gecomprimeerde Vector", desc: "Uitkomst transformatiematrix C = R(1°) op Broadway. Weerspiegelt astronomische obliquiteit (23.44°).", status: "Te verwachten" },
+            29: { title: "Manhattan Grid Tilt & Glyph-Anker", desc: "Officiële rotatie Commissioners' Plan 1811 (ongeveer 29°). Primair referentiepunt voor glyph-ankering.", status: "Opgehelderd" },
+            91: { title: "WTC 1 Inslag-as (9/11)", desc: "Inslagvector AA11 op noordgevel WTC 1. Haakse hoek (90°) met 1° orthogonale afwijking.", status: "Cruciaal" },
+            122: { title: "Cross-Street Vector", desc: "Dwarsstraten Lower Manhattan. Theoretisch 118.9° (28.9° + 90°), lokaal uitlopend naar 122.0° door oeverlijn.", status: "Opgehelderd" },
+            331: { title: "Meridiaanse Spiegelas", desc: "Cartesische spiegeling grid-rotatie over noord-zuidmeridiaan (360° - 28.9° approx 331°).", status: "Symmetrisch" }
+        };
+
+        // Canvas setup
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawMatrixVisualization();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Canvas Drawing Engine ---
+        function drawMatrixVisualization() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const cx = canvas.width / 2 + panOffset.x;
+            const cy = canvas.height / 2 + panOffset.y;
+            const scale = Math.min(canvas.width, canvas.height) * 0.45 * zoomLevel;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            // 1. Draw Background Grid & Coordinates
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            const gridSize = 40 * zoomLevel;
+            ctx.beginPath();
+            for (let x = -canvas.width; x < canvas.width; x += gridSize) {
+                ctx.moveTo(x, -canvas.height);
+                ctx.lineTo(x, canvas.height);
+            }
+            for (let y = -canvas.height; y < canvas.height; y += gridSize) {
+                ctx.moveTo(-canvas.width, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            // 2. Draw Compass / Meridian axes (331° Mirror axis)
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.15)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, scale * 0.8, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 3. Draw Hudson River (Curving waterway on the left side)
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+            ctx.lineWidth = 14;
+            ctx.lineCap = 'round';
+            ctx.moveTo(-scale * 0.35, -scale * 0.9);
+            ctx.bezierCurveTo(-scale * 0.25, -scale * 0.3, -scale * 0.4, scale * 0.2, -scale * 0.5, scale * 0.9);
+            ctx.stroke();
+
+            // 4. Draw Manhattan Peninsula and Westchester Landmass
+            ctx.beginPath();
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.moveTo(-scale * 0.35, -scale * 0.9);
+            ctx.lineTo(scale * 0.4, -scale * 0.9);
+            ctx.lineTo(scale * 0.3, scale * 0.9);
+            ctx.lineTo(-scale * 0.5, scale * 0.9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 5. Draw Commissioners' Plan 1811 Grid (Rotated ~29°)
+            ctx.save();
+            ctx.rotate((29 * Math.PI) / 180);
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.25)';
+            ctx.lineWidth = 1;
+            for (let i = -3; i <= 3; i++) {
+                ctx.strokeRect(i * scale * 0.15 - scale * 0.2, -scale * 0.6, scale * 0.3, scale * 1.2);
+            }
+            ctx.restore();
+
+            // 6. Draw Historical Wickquasgeck-tracé / Broadway (Red Trace from Sleepy Hollow to Lower Manhattan)
+            ctx.beginPath();
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            // Path from Sleepy Hollow (top) to Lower Manhattan (bottom)
+            ctx.moveTo(scale * 0.25, -scale * 0.8);
+            ctx.bezierCurveTo(scale * 0.15, -scale * 0.4, -scale * 0.1, -scale * 0.1, -scale * 0.3, scale * 0.8);
+            ctx.stroke();
+
+            // 7. Render Active Dynamic Vector Angle Line
+            const rad = (currentAngle * Math.PI) / 180;
+            const vectorLength = scale * 0.85;
+            
+            // Glowing vector beam
+            ctx.beginPath();
+            ctx.strokeStyle = currentAngle === 91 ? '#f59e0b' : '#06b6d4';
+            ctx.lineWidth = 3;
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.sin(rad) * vectorLength, -Math.cos(rad) * vectorLength);
+            ctx.stroke();
+
+            // Vector endpoint marker
+            ctx.beginPath();
+            ctx.fillStyle = currentAngle === 91 ? '#f59e0b' : '#06b6d4';
+            ctx.arc(Math.sin(rad) * vectorLength, -Math.cos(rad) * vectorLength, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Origin Anchor Point
+            ctx.beginPath();
+            ctx.fillStyle = '#ffffff';
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 8. Draw Angle Arc Indicator
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.arc(0, 0, scale * 0.25, -Math.PI / 2, -Math.PI / 2 + rad, currentAngle < 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // --- Interaction Controls ---
+        function selectVector(angle) {
+            currentAngle = angle;
+            document.getElementById('angle-slider').value = angle;
+            document.getElementById('angle-display').innerText = angle.toFixed(1) + '°';
+            document.getElementById('telemetry-vector').innerText = vectorData[angle] ? vectorData[angle].title + ` (${angle}°)` : `${angle}° Vector`;
+            
+            // Update HUD
+            if (vectorData[angle]) {
+                document.getElementById('hud-title').innerText = `Vector ${angle}°: ${vectorData[angle].title}`;
+                document.getElementById('hud-desc').innerText = vectorData[angle].desc;
+                document.getElementById('hud-status').innerText = vectorData[angle].status.toUpperCase();
+            }
+
+            // Highlight active button
+            document.querySelectorAll('.vector-btn').forEach(btn => {
+                const btnAngle = parseInt(btn.getAttribute('data-angle'));
+                if (btnAngle === angle) {
+                    btn.className = "vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-sm";
+                } else {
+                    btn.className = "vector-btn px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500";
+                }
+            });
+
+            drawMatrixVisualization();
+        }
+
+        function updateAngleSlider(val) {
+            currentAngle = parseFloat(val);
+            document.getElementById('angle-display').innerText = currentAngle.toFixed(1) + '°';
+            document.getElementById('telemetry-vector').innerText = `Aangepaste Vector (${currentAngle.toFixed(1)}°)`;
+            
+            document.getElementById('hud-title').innerText = `Custom Vector: ${currentAngle.toFixed(1)}°`;
+            document.getElementById('hud-desc').innerText = `Interactieve rotatiematrix simulatie op basis van Lower Manhattan geodetisch assenstelsel.`;
+            document.getElementById('hud-status').innerText = `SIMULATIE`;
+
+            drawMatrixVisualization();
+        }
+
+        function zoomCanvas(factor) {
+            zoomLevel *= factor;
+            zoomLevel = Math.max(0.5, Math.min(3.0, zoomLevel));
+            drawMatrixVisualization();
+        }
+
+        function resetView() {
+            zoomLevel = 1.0;
+            panOffset = { x: 0, y: 0 };
+            selectVector(22);
+        }
+
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            const btn = document.getElementById('anim-btn');
+            if (isAnimating) {
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Stop Animatie`;
+                btn.className = "w-full py-2.5 px-4 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono text-xs font-semibold transition-all shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2";
+                animateLoop();
+            } else {
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Start Animatie`;
+                btn.className = "w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-semibold transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2";
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
+
+        function animateLoop() {
+            if (!isAnimating) return;
+            currentAngle = (currentAngle + 0.5) % 360;
+            document.getElementById('angle-slider').value = currentAngle;
+            document.getElementById('angle-display').innerText = currentAngle.toFixed(1) + '°';
+            document.getElementById('telemetry-vector').innerText = `Matrix Rotatie (${currentAngle.toFixed(1)}°)`;
+            drawMatrixVisualization();
+            animationFrameId = requestAnimationFrame(animateLoop);
+        }
+
+        // Pan & Drag Handlers for Canvas
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragStart = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panOffset.x = e.clientX - dragStart.x;
+            panOffset.y = e.clientY - dragStart.y;
+            drawMatrixVisualization();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Initialize on load
+        window.onload = function() {
+            resizeCanvas();
+            selectVector(22);
+        };
+    </script>
+</body>
+</html>
