@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sloterplas - Handmatige Graden Invoer & Quaternion Planimeter</title>
+    
+    <!-- MapLibre GL JS CSS & Script -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; height: 100vh; overflow: hidden; display: flex; background: #0b0f19; }
+        
+        .viewport-container { flex: 1; height: 100vh; position: relative; border-right: 2px solid #1f2937; }
+        .map { width: 100%; height: 100%; }
+
+        .drag-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 500; display: none; cursor: grab;
+        }
+        .drag-overlay.active-drag { display: block; }
+        .drag-overlay.active-drag:active { cursor: grabbing; }
+
+        .viewport-badge {
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(17, 24, 39, 0.9); color: #38bdf8;
+            padding: 8px 12px; font-size: 11px; font-family: monospace;
+            border-left: 3px solid #ff0066; z-index: 1000;
+            backdrop-filter: blur(4px); border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+
+        .planimeter-panel {
+            position: absolute; bottom: 20px; left: 15px;
+            background: rgba(17, 24, 39, 0.95); color: #c9d1d9;
+            padding: 15px; border-radius: 6px; z-index: 1000;
+            width: 360px; border: 1px solid #374151;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            font-family: monospace; font-size: 11px;
+        }
+        .planimeter-panel h3 { color: #f472b6; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; }
+        .control-group { margin-bottom: 8px; display: flex; flex-direction: column; }
+        .control-group label { margin-bottom: 3px; color: #9ca3af; }
+        .control-group input[type="range"] { width: 100%; accent-color: #ff0066; margin-top: 3px; }
+        .control-group input[type="number"] {
+            background: #111827; border: 1px solid #374151; color: #38bdf8;
+            padding: 5px; border-radius: 4px; font-family: monospace; font-size: 12px; width: 100%;
+        }
+        
+        .mode-btn {
+            background: #38bdf8; color: #0b0f19; border: none; padding: 8px;
+            font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%;
+            margin-bottom: 10px; font-family: monospace; text-transform: uppercase;
+        }
+        .mode-btn.active { background: #ff0066; color: #ffffff; }
+
+        .metrics-display { margin-top: 10px; border-top: 1px solid #374151; padding-top: 8px; color: #38bdf8; }
+
+        .axis-label {
+            background: rgba(17, 24, 39, 0.95); color: #ffffff;
+            padding: 3px 7px; border: 1px solid #374151; border-radius: 3px;
+            font-size: 9px; font-family: monospace; white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .label-vp1 { border-left: 3px solid #facc15; }
+        .label-vp2 { border-left: 3px solid #f87171; }
+        .label-vp3 { border-left: 3px solid #38bdf8; }
+        .label-vp4 { border-left: 3px solid #e879f9; }
+    </style>
+</head>
+<body>
+
+    <!-- VIEWPORT 1: Sloterplas met Handmatige Graden Invoer -->
+    <div class="viewport-container">
+        <div class="viewport-badge" id="v1-badge">VIEWPORT 1: Sloterplas Technische Zichtlijnen & Raster</div>
+        <div id="map1" class="map"></div>
+        <div id="dragOverlay" class="drag-overlay"></div>
+
+        <div class="planimeter-panel">
+            <h3>⚙ Handmatige Graden & Matrix</h3>
+            <button id="modeToggleBtn" class="mode-btn">Modus: Kaart Bewegen</button>
+            
+            <div class="control-group">
+                <label>Handmatige Graden Invoer (θ in °):</label>
+                <input type="number" id="input-rot-num" value="0" step="0.1">
+            </div>
+            <div class="control-group">
+                <label>Quaternion Rotatie (Slider):</label>
+                <input type="range" id="range-rot" min="-180" max="180" value="0" step="1">
+            </div>
+            <div class="control-group">
+                <label>Armlengte Schaal (S - tot 1500x): <span id="val-scale">1.0</span>x</label>
+                <input type="range" id="range-scale" min="1.0" max="1500.0" value="1.0" step="10.0">
+            </div>
+            <div class="control-group">
+                <label><input type="checkbox" id="check-mirror"> As Spiegelen (Inversie)</label>
+            </div>
+            <div class="metrics-display">
+                <div><b>Stramien Oppervlakte (∬ dA):</b> <span id="metric-area">1.42</span> km²</div>
+                <div><b>Zichtlijn Weg-integraal ∮:</b> <span id="metric-path">4.85</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEWPORT 2: Trans-Atlantische As (Sloterplas -> Manhattan) -->
+    <div class="viewport-container">
+        <div class="viewport-badge">VIEWPORT 2: Trans-Atlantische As (Sloterplas ➔ Manhattan)</div>
+        <div id="map2" class="map"></div>
+    </div>
+
+    <script>
+        const aardeRadius = 6378137;
+        const baseCenter = { lat: 52.3650, lng: 4.8150 }; // Sloterplas Centrum
+        const nyCoords = { lat: 40.7110, lng: -74.0134 }; // Manhattan WTC 1
+
+        let currentRotation = 0;
+        let currentScale = 1.0;
+        let isMirror = false;
+        let currentDeltaLng = 0;
+        let currentDeltaLat = 0;
+        let isAxisMoveMode = false;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+
+        const sloterplasTechData = {
+            vps: [
+                { id: 'VP-1', name: 'VP-1: Osdorp Boulevard', lat: 52.3655, lng: 4.8020, type: 'vp1' },
+                { id: 'VP-2', name: 'VP-2: Sloterplasstrand (Noord)', lat: 52.3780, lng: 4.8320, type: 'vp2' },
+                { id: 'VP-3', name: 'VP-3: Oostelijke Promenade', lat: 52.3680, lng: 4.8450, type: 'vp3' },
+                { id: 'VP-4', name: 'VP-4: Zuidelijk Uitkijkpunt', lat: 52.3520, lng: 4.8180, type: 'vp4' }
+            ],
+            lines: [
+                { name: 'Zichtlijn A (102° ESE) - 1.180m', from: [4.8020, 52.3655], to: [4.8250, 52.3630], color: '#facc15' },
+                { name: 'Zichtlijn B (128° SE) - 1.050m', from: [4.8020, 52.3655], to: [4.8220, 52.3580], color: '#facc15' },
+                { name: 'Zichtlijn C (212° SSW) - 980m', from: [4.8320, 52.3780], to: [4.8180, 52.3520], color: '#f87171' },
+                { name: 'Zichtlijn D (173° S) - 860m', from: [4.8320, 52.3780], to: [4.8310, 52.3550], color: '#f87171' },
+                { name: 'Zichtlijn E (275° W) - 1.090m', from: [4.8450, 52.3680], to: [4.8180, 52.3670], color: '#38bdf8' },
+                { name: 'Zichtlijn F (042° NE) - 960m', from: [4.8180, 52.3520], to: [4.8310, 52.3680], color: '#e879f9' }
+            ],
+            island: [
+                [4.8250, 52.3600], [4.8300, 52.3615], [4.8280, 52.3585], [4.8240, 52.3590]
+            ]
+        };
+
+        function quaternionTransform(dLat, dLng, angleDeg, mirror) {
+            let rad = angleDeg * (Math.PI / 180);
+            let qw = Math.cos(rad / 2);
+            let qz = Math.sin(rad / 2);
+            
+            let x = dLng;
+            let y = dLat;
+            if (mirror) x = -x;
+
+            let rx = x * (qw * qw - qz * qz) + 2 * qw * qz * y;
+            let ry = y * (qw * qw - qz * qz) - 2 * qw * qz * x;
+            return { lat: ry, lng: rx };
+        }
+
+        function berekenEindpunt(centrumLat, centrumLng, azimut, afstand, rotatie, schaal, mirror, dLatOff, dLngOff) {
+            let activeLng = centrumLng + dLngOff;
+            let activeLat = centrumLat + dLatOff;
+
+            let azRad = azimut * (Math.PI / 180);
+            let scaledAfstand = afstand * schaal;
+            
+            let baseDLat = scaledAfstand * Math.cos(azRad);
+            let baseDLng = scaledAfstand * Math.sin(azRad);
+
+            let transformed = quaternionTransform(baseDLat, baseDLng, rotatie, mirror);
+            
+            let eindLat = activeLat + (transformed.lat / aardeRadius) * (180 / Math.PI);
+            let eindLng = activeLng + (transformed.lng / (aardeRadius * Math.cos(activeLat * Math.PI / 180))) * (180 / Math.PI);
+            return [eindLng, eindLat];
+        }
+
+        const map1 = new maplibregl.Map({
+            container: 'map1',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [baseCenter.lng, baseCenter.lat],
+            zoom: 13,
+            pitch: 30,
+            bearing: 0,
+            interactive: true
+        });
+
+        function updatePlanimeterGeometry() {
+            let activeLng = baseCenter.lng + currentDeltaLng;
+            let activeLat = baseCenter.lat + currentDeltaLat;
+
+            const end141 = berekenEindpunt(baseCenter.lat, baseCenter.lng, 141, 15000, currentRotation, currentScale, isMirror, currentDeltaLat, currentDeltaLng);
+            const end51  = berekenEindpunt(baseCenter.lat, baseCenter.lng, 51, 15000, currentRotation, currentScale, isMirror, currentDeltaLat, currentDeltaLng);
+            const end222 = berekenEindpunt(baseCenter.lat, baseCenter.lng, 222, 15000, currentRotation, currentScale, isMirror, currentDeltaLat, currentDeltaLng);
+            const end22  = berekenEindpunt(baseCenter.lat, baseCenter.lng, 22, 12000, currentRotation, currentScale, isMirror, currentDeltaLat, currentDeltaLng);
+            const end130 = berekenEindpunt(baseCenter.lat, baseCenter.lng, 130, 12000, currentRotation, currentScale, isMirror, currentDeltaLat, currentDeltaLng);
+
+            const geojson = {
+                type: 'FeatureCollection',
+                features: [
+                    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[activeLng, activeLat], end141] }, properties: { color: '#111111', width: 4 } },
+                    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[activeLng, activeLat], end51] }, properties: { color: '#2e7d32', width: 3 } },
+                    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[activeLng, activeLat], end222] }, properties: { color: '#ff0066', width: 5 } },
+                    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[activeLng, activeLat], end22] }, properties: { color: '#e91e63', width: 2 } },
+                    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[activeLng, activeLat], end130] }, properties: { color: '#f9a825', width: 2 } }
+                ]
+            };
+
+            if (map1.getSource('vectors-v1')) {
+                map1.getSource('vectors-v1').setData(geojson);
+            }
+        }
+
+        map1.on('load', () => {
+            map1.addSource('vectors-v1', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            map1.addLayer({
+                id: 'lines-v1', type: 'line', source: 'vectors-v1',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'] }
+            });
+
+            const techLinesGeoJSON = {
+                type: 'FeatureCollection',
+                features: sloterplasTechData.lines.map(l => ({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [l.from, l.to] },
+                    properties: { name: l.name, color: l.color }
+                }))
+            };
+
+            map1.addSource('tech-lines', { type: 'geojson', data: techLinesGeoJSON });
+            map1.addLayer({
+                id: 'tech-lines-layer', type: 'line', source: 'tech-lines',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': ['get', 'color'],
+                    'line-width': 2.5,
+                    'line-dasharray': [4, 2]
+                }
+            });
+
+            map1.addSource('groot-eiland', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    geometry: { type: 'Polygon', coordinates: [sloterplasTechData.island] }
+                }
+            });
+            map1.addLayer({
+                id: 'island-layer', type: 'fill', source: 'groot-eiland',
+                paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.5 }
+            });
+
+            sloterplasTechData.vps.forEach(vp => {
+                const el = document.createElement('div');
+                el.className = `axis-label label-${vp.type}`;
+                el.innerHTML = `<b>${vp.id}</b>`;
+                new maplibregl.Marker(el).setLngLat([vp.lng, vp.lat]).setPopup(new maplibregl.Popup().setText(vp.name)).addTo(map1);
+            });
+
+            updatePlanimeterGeometry();
+        });
+
+        // Koppeling handmatige invoer en slider
+        const rotNumInput = document.getElementById('input-rot-num');
+        const rotSlider = document.getElementById('range-rot');
+
+        function setRotationValue(val) {
+            currentRotation = parseFloat(val) || 0;
+            rotNumInput.value = currentRotation;
+            rotSlider.value = Math.max(-180, Math.min(180, currentRotation));
+            updatePlanimeterGeometry();
+        }
+
+        rotNumInput.addEventListener('input', (e) => {
+            setRotationValue(e.target.value);
+        });
+
+        rotSlider.addEventListener('input', (e) => {
+            setRotationValue(e.target.value);
+        });
+
+        const modeBtn = document.getElementById('modeToggleBtn');
+        const dragOverlay = document.getElementById('dragOverlay');
+        const v1Badge = document.getElementById('v1-badge');
+
+        modeBtn.addEventListener('click', () => {
+            isAxisMoveMode = !isAxisMoveMode;
+            if (isAxisMoveMode) {
+                modeBtn.classList.add('active');
+                modeBtn.innerText = "Modus: As Bewegen (Handje)";
+                v1Badge.innerText = "VIEWPORT 1: As Bewegen (Kaart staat stil)";
+                map1.boxZoom.disable();
+                map1.dragPan.disable();
+                dragOverlay.classList.add('active-drag');
+            } else {
+                modeBtn.classList.remove('active');
+                modeBtn.innerText = "Modus: Kaart Bewegen";
+                v1Badge.innerText = "VIEWPORT 1: Kaart Bewegen (As staat vast)";
+                map1.dragPan.enable();
+                dragOverlay.classList.remove('active-drag');
+            }
+        });
+
+        dragOverlay.addEventListener('mousedown', (e) => {
+            if (!isAxisMoveMode) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging || !isAxisMoveMode) return;
+            let dx = e.clientX - startX;
+            let dy = e.clientY - startY;
+            startX = e.clientX;
+            startY = e.clientY;
+
+            currentDeltaLng += dx * 0.0001;
+            currentDeltaLat -= dy * 0.0001;
+            updatePlanimeterGeometry();
+        });
+
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        document.getElementById('range-scale').addEventListener('input', (e) => {
+            currentScale = parseFloat(e.target.value);
+            document.getElementById('val-scale').innerText = currentScale;
+            updatePlanimeterGeometry();
+        });
+
+        document.getElementById('check-mirror').addEventListener('change', (e) => {
+            isMirror = e.target.checked;
+            updatePlanimeterGeometry();
+        });
+
+        // ============================================================================
+        // MAP 2: TRANS-ATLANTISCH (Sloterplas -> Manhattan)
+        // ============================================================================
+        const map2 = new maplibregl.Map({
+            container: 'map2',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-30, 45], zoom: 2.8, pitch: 20, bearing: 0
+        });
+
+        map2.on('load', () => {
+            map2.addSource('vectors-v2', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: [
+                                [baseCenter.lng, baseCenter.lat],
+                                [nyCoords.lng, nyCoords.lat]
+                            ]
+                        }
+                    }]
+                }
+            });
+
+            map2.addLayer({
+                id: 'lines-v2', type: 'line', source: 'vectors-v2',
+                paint: { 'line-color': '#8b5cf6', 'line-width': 3, 'line-dasharray': [3, 3] }
+            });
+
+            const amsLabel = document.createElement('div');
+            amsLabel.className = 'axis-label'; amsLabel.innerHTML = '<b>Beispiel:</b> Sloterplas (Amsterdam)';
+            new maplibregl.Marker(amsLabel).setLngLat([baseCenter.lng, baseCenter.lat]).addTo(map2);
+
+            const nyLabel = document.createElement('div');
+            nyLabel.className = 'axis-label'; nyLabel.innerHTML = '<b>Manhattan WTC 1</b>';
+            new maplibregl.Marker(nyLabel).setLngLat([nyCoords.lng, nyCoords.lat]).addTo(map2);
+        });
+    </script>
+</body>
+</html>
