@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>De Integrale Synthese - Quaternion Dashboard met Locatiedossier</title>
+    <title>De Integrale Synthese - Geavanceerde Kaartlagen & WebRTC</title>
     
     <!-- MapLibre GL JS v4 -->
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -31,8 +31,6 @@
         }
         
         .panel-content { padding: 15px; overflow-y: auto; }
-
-        /* Sleepbalk */
         .drag-handle {
             background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid rgba(100, 255, 218, 0.3);
             padding: 5px; text-align: center; font-size: 10px; color: #64ffda;
@@ -41,61 +39,76 @@
         }
         .drag-handle:active { cursor: grabbing; background: rgba(100, 255, 218, 0.3); }
 
+        /* Posities Panelen */
         #panel-left { top: 60px; left: 20px; width: 340px; }
-        #panel-right { top: 60px; right: 20px; width: 340px; } /* Het nieuwe verhalen paneel */
+        #panel-layers { top: 60px; left: 380px; width: 340px; }
         #panel-astro { top: 60px; right: 380px; width: 360px; } 
+        #panel-right { top: 60px; right: 20px; width: 340px; }
         #panel-center { bottom: 30px; left: calc(50% - 220px); width: 440px; text-align: center; }
         #panel-planimeter { bottom: 30px; right: 20px; width: 340px; }
+        
+        /* WebRTC Paneel */
+        #panel-webrtc { top: 120px; left: calc(50% - 160px); width: 320px; display: none; z-index: 100; }
+        #webrtc-video { width: 100%; border-radius: 4px; border: 1px solid #64ffda; background: #000; }
 
         h2, h3 { margin-top: 0; font-weight: normal; color: #64ffda; text-transform: uppercase; font-size: 13px; letter-spacing: 1.2px; border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 5px; }
         p, li { font-size: 12px; line-height: 1.5; margin: 8px 0; }
         ul { padding-left: 20px; text-align: left; }
         .highlight { color: #ffca28; font-weight: bold; }
         
-        /* Locatie & Coördinaten Invoer */
+        /* Input & Buttons */
         .loc-input {
-            width: calc(100% - 22px); padding: 8px 10px; margin-bottom: 10px;
+            width: 100%; padding: 8px 10px; margin-bottom: 10px;
             background: rgba(10, 25, 47, 0.8); border: 1px solid #64ffda; color: #fff;
-            border-radius: 4px; font-family: monospace; font-size: 11px;
-            outline: none; box-sizing: border-box; width: 100%;
+            border-radius: 4px; font-family: monospace; font-size: 11px; outline: none; box-sizing: border-box;
         }
-        .loc-input::placeholder { color: rgba(100, 255, 218, 0.4); }
-        .loc-btn {
-            background: #64ffda; color: #05131f; border: none; padding: 8px; width: 100%;
+        .loc-btn, .mode-btn {
+            background: #ffca28; color: #05131f; border: none; padding: 10px; width: 100%;
             border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace;
-            margin-bottom: 15px; transition: 0.3s;
+            margin-bottom: 10px; transition: 0.3s;
         }
+        .loc-btn { background: #64ffda; margin-bottom: 15px; }
         .loc-btn:hover { background: #4cd3b6; }
+        
+        #drag-btn.active { background: #ff5252; color: #fff; }
+        #flag-btn { background: #3498db; color: #fff;}
+        #flag-btn.active { background: #e84393; color: #fff; }
+        
+        .action-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .action-btn { flex: 1; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; font-size: 11px; color: #fff; transition: 0.3s;}
+        #save-btn { background: #2ecc71; } #save-btn:hover { background: #27ae60; }
+        #load-btn { background: #f39c12; } #load-btn:hover { background: #e67e22; }
+        #clear-flags-btn { background: #e74c3c; display: none; } #clear-flags-btn:hover { background: #c0392b; }
+
+        /* Actieve Lagen Lijst */
+        .layer-item { display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:6px 8px; margin-bottom:6px; border-radius:4px; font-size:11px; }
+        .layer-item-btn { background:#e74c3c; border:none; color:white; cursor:pointer; border-radius:3px; padding:3px 6px; font-weight:bold; }
+        
+        /* Popup Formulier */
+        .popup-textarea { width: 100%; height: 60px; background: rgba(0,0,0,0.05); border: 1px solid #ccc; border-radius: 4px; margin: 8px 0; padding: 5px; font-family: monospace; font-size: 11px; resize: none; box-sizing: border-box; }
+        .popup-save-btn { background: #3498db; color: white; border: none; padding: 5px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; margin-bottom: 5px; }
+        .popup-save-btn:hover { background: #2980b9; }
+        .remove-flag-btn { background: #e74c3c; color: white; border: none; padding: 5px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; }
+        .remove-flag-btn:hover { background: #c0392b; }
 
         /* Planimeter Wieltjes */
         .wheel-container { display: flex; justify-content: space-around; padding: 15px 0; align-items: center; }
-        .wheel-box { display: flex; flex-direction: column; align-items: center; }
-        .wheel-label { font-size: 9px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; }
-        .wheel { width: 50px; height: 50px; border: 4px dashed #64ffda; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(100,255,218,0.3); }
+        .wheel-box { display: flex; flex-direction: column; align-items: center; cursor: ns-resize; }
+        .wheel-label { font-size: 9px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; text-align: center; }
+        .wheel { width: 50px; height: 50px; border: 4px dashed #64ffda; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(100,255,218,0.3); pointer-events: none;}
         .wheel-inner { width: 20px; height: 20px; border: 2px dotted #ff5252; border-radius: 50%; }
         
-        /* Astronomie Tabel */
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th { border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 5px; color: #64ffda; text-transform: uppercase; font-size: 10px; text-align: left; }
         td { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11px; }
 
-        /* Knoppen Modus */
-        .mode-btn { background: #ffca28; color: #05131f; border: none; padding: 10px; border-radius: 4px; width: 100%; font-family: monospace; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.3s; }
-        #drag-btn.active { background: #ff5252; color: #fff; }
-        #flag-btn { background: #3498db; }
-        #flag-btn.active { background: #e84393; color: #fff; }
-        #clear-flags-btn { background: #e74c3c; color: #fff; display: none; }
-        #clear-flags-btn:hover { background: #c0392b; }
-        
-        /* UI Aan/Uit Toggle */
         #ui-toggle-btn { position: absolute; top: 15px; left: 20px; z-index: 20; background: rgba(10, 25, 47, 0.8); border: 1px solid #64ffda; color: #64ffda; padding: 8px 15px; border-radius: 4px; font-family: monospace; cursor: pointer; backdrop-filter: blur(5px); }
         #ui-toggle-btn:hover { background: #64ffda; color: #05131f; }
         #drag-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; cursor: grab; }
         #drag-overlay:active { cursor: grabbing; }
-
         #watermark { position: absolute; bottom: 120px; width: 100%; text-align: center; z-index: 4; font-family: 'Georgia', serif; font-style: italic; font-size: 24px; color: rgba(255, 255, 255, 0.4); pointer-events: none; }
 
-        /* 3D Kompas */
+        /* Kompas */
         #compass-container { position: absolute; top: 20px; left: calc(50% - 60px); width: 120px; z-index: 10; display: flex; flex-direction: column; align-items: center; pointer-events: auto; transition: opacity 0.3s ease; }
         #compass-3d-wrapper { width: 100px; height: 100px; perspective: 800px; margin-bottom: 10px; pointer-events: none; }
         #compass { width: 100%; height: 100%; border-radius: 50%; background: rgba(10, 25, 47, 0.6); backdrop-filter: blur(8px); border: 2px solid rgba(100, 255, 218, 0.4); transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; color: #64ffda; font-weight: bold; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 0 15px rgba(100, 255, 218, 0.2); }
@@ -106,10 +119,6 @@
         .compass-center { width: 8px; height: 8px; background: #ffca28; border-radius: 50%; box-shadow: 0 0 8px #ffca28; z-index: 2; }
         .compass-arrow { position: absolute; top: 18px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 30px solid #ff5252; transform-origin: bottom center; z-index: 1; }
         #compass-coords { background: rgba(10, 25, 47, 0.8); border: 1px solid rgba(100, 255, 218, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #ffca28; backdrop-filter: blur(4px); white-space: nowrap; font-family: monospace; pointer-events: none; }
-        .remove-flag-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; margin-top: 5px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; }
-        .remove-flag-btn:hover { background: #c0392b; }
-        
-        .story-text { margin-bottom: 15px; color: #c9d1d9; }
     </style>
 </head>
 <body>
@@ -120,49 +129,16 @@
 
     <button id="ui-toggle-btn">👁️ UI Tonen/Verbergen</button>
 
-    <!-- Verplaatsbaar Kompas -->
+    <!-- Kompas -->
     <div id="compass-container" class="ui-element">
-        <div class="drag-handle" style="width: 100%; border-radius: 8px; margin-bottom: 8px; background: rgba(10, 25, 47, 0.8); box-sizing: border-box; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">≡ Kompas ≡</div>
+        <div class="drag-handle" style="width: 100%; border-radius: 8px; margin-bottom: 8px; background: rgba(10, 25, 47, 0.8); box-sizing: border-box;">≡ Kompas ≡</div>
         <div id="compass-3d-wrapper">
-            <div id="compass">
-                <div class="compass-n">N</div><div class="compass-e">E</div>
-                <div class="compass-s">S</div><div class="compass-w">W</div>
-                <div class="compass-arrow"></div><div class="compass-center"></div>
-            </div>
+            <div id="compass"><div class="compass-n">N</div><div class="compass-e">E</div><div class="compass-s">S</div><div class="compass-w">W</div><div class="compass-arrow"></div><div class="compass-center"></div></div>
         </div>
         <div id="compass-coords">0.0000°, 0.0000°</div>
     </div>
 
-    <!-- PANEEL ASTRONOMIE & BEPICOLOMBO -->
-    <div id="panel-astro" class="glass-panel ui-element">
-        <div class="drag-handle">≡ Astronomie & BepiColombo ≡</div>
-        <div class="panel-content">
-            <h2 id="astro-date-title">Lokale Hemel (Vandaag)</h2>
-            <div id="astro-sun-moon" style="font-size:12px; margin-bottom: 15px; line-height:1.6;">Laden...</div>
-            <h2 style="color: #64ffda;">Planeten & Sterrenbeelden (Nu)</h2>
-            <div id="astro-planets" style="margin-bottom: 15px;">Wiskundige projectie laden...</div>
-            <h2 style="color: #ffca28;">BepiColombo (Koers Mercurius)</h2>
-            <p id="bepi-colombo-data" style="font-size:11px; color:#c9d1d9; margin-top:5px;">Berekent actuele vector...</p>
-        </div>
-    </div>
-
-    <!-- PANEEL PLANIMETER -->
-    <div id="panel-planimeter" class="glass-panel ui-element">
-        <div class="drag-handle">≡ Planimeter & Horizon ≡</div>
-        <div class="panel-content">
-            <h2>4. Planimeter Wieltjes</h2>
-            <div class="wheel-container">
-                <div class="wheel-box"><div class="wheel-label">Azimut</div><div id="wheel-az" class="wheel"><div class="wheel-inner"></div></div></div>
-                <div class="wheel-box"><div class="wheel-label">Kanteling</div><div id="wheel-pt" class="wheel" style="border-color:#ff5252;"><div class="wheel-inner" style="border-color:#64ffda;"></div></div></div>
-                <div class="wheel-box"><div class="wheel-label">Schaal/Zoom</div><div id="wheel-sc" class="wheel" style="border-color:#3498db;"><div class="wheel-inner" style="border-color:#ffca28;"></div></div></div>
-            </div>
-            <p style="text-align:center; font-size:11px; margin-top:10px; border-top: 1px dotted rgba(100,255,218,0.3); padding-top:10px;">
-                Stramien Oppervlakte: <br><span class="highlight" style="font-size:14px;" id="pl-integral">0.00</span> <b>∬ dA</b> (km²)
-            </p>
-        </div>
-    </div>
-
-    <!-- PANEEL LINKS (Invoer & Knooppunten) -->
+    <!-- PANEEL LINKS (Invoer & Opslag) -->
     <div id="panel-left" class="glass-panel ui-element">
         <div class="drag-handle">≡ Navigatie & Acties ≡</div>
         <div class="panel-content">
@@ -170,40 +146,128 @@
             <input type="text" id="loc-input" class="loc-input" placeholder="Bijv: 52.365, 4.815 of Stockholm...">
             <button id="loc-btn" class="loc-btn">Zoek Coördinaten</button>
 
+            <h2 style="margin-top: 10px;">💾 Geheugen Module</h2>
+            <div class="action-row">
+                <button id="save-btn" class="action-btn">💾 OPSLAAN</button>
+                <button id="load-btn" class="action-btn">📂 LADEN</button>
+            </div>
+
             <button id="drag-btn" class="mode-btn">🖐 MODUS: HANDJE (UIT)</button>
-            <button id="flag-btn" class="mode-btn">🚩 MODUS: VLAG PLAATSEN (UIT)</button>
-            <button id="clear-flags-btn" class="mode-btn">🗑️ WIS ALLE VLAGGEN</button>
-            
-            <h2 style="margin-top: 15px;">1. Trans-Atlantische Arm</h2>
-            <ul id="distance-list"></ul>
+            <button id="flag-btn" class="mode-btn">🚩 VLAG PLAATSEN (UIT)</button>
+            <button id="clear-flags-btn" class="action-btn" style="width: 100%; margin-top:5px;">🗑️ WIS ALLE VLAGGEN</button>
         </div>
     </div>
 
-    <!-- PANEEL RECHTS (Dynamisch Geodetisch Dossier / Verhaal) -->
+    <!-- PANEEL KAARTEN & LAGEN -->
+    <div id="panel-layers" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Kaarten & Overlays ≡</div>
+        <div class="panel-content">
+            <h2 style="margin-top: 0;">🌍 Basis Kaartlaag (Ondergrond)</h2>
+            <select id="basemap-select" class="loc-input">
+                <option value="dark">Carto Dark Matter (Standaard)</option>
+                <option value="satellite">Esri Satelliet (3D Globe)</option>
+                <option value="osm">OpenStreetMap (Klassiek)</option>
+                <option value="topo">OpenTopoMap</option>
+                <option value="nautical">⚓ Zeekaart (OpenSeaMap)</option>
+            </select>
+
+            <h2 style="margin-top: 15px;">🔗 Custom Overlay Toevoegen</h2>
+            <input type="text" id="overlay-name" class="loc-input" placeholder="Naam (bijv: Radar of MijnData)">
+            <input type="text" id="overlay-url" class="loc-input" placeholder="URL (bijv: https://.../{z}/{x}/{y}.png)">
+            <select id="overlay-type" class="loc-input">
+                <option value="raster">XYZ Raster Tiles (Afbeeldingen)</option>
+                <option value="geojson">GeoJSON (Vectoren/Lijnen)</option>
+            </select>
+            <button id="add-overlay-btn" class="loc-btn">Voeg Laag Toe</button>
+
+            <h2 style="margin-top: 15px;">📹 WebRTC Connectie</h2>
+            <button id="start-webrtc-btn" class="loc-btn" style="background:#e84393; color:#fff; margin-bottom: 5px;">Start Lokale Camera Overlay</button>
+            <p style="font-size:10px; color:#8b949e; margin-top:0;">Projecteer je lokale videofeed in een zwevend dashboard paneel via WebRTC.</p>
+
+            <h2 style="margin-top: 15px;">Actieve Custom Lagen</h2>
+            <ul id="active-overlays-list" style="list-style:none; padding:0; margin:0;">
+                <li style="color:rgba(255,255,255,0.5); font-style:italic; font-size:11px;">Geen custom lagen actief.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- PANEEL WEBRTC CAMERA (NIEUW) -->
+    <div id="panel-webrtc" class="glass-panel ui-element">
+        <div class="drag-handle">≡ WebRTC Camera Feed ≡</div>
+        <div class="panel-content" style="text-align: center;">
+            <video id="webrtc-video" autoplay playsinline muted></video>
+            <button id="stop-webrtc-btn" class="action-btn" style="background:#e74c3c; width:100%; margin-top:10px;">Stop Camera</button>
+        </div>
+    </div>
+
+    <!-- PANEEL ASTRONOMIE -->
+    <div id="panel-astro" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Astronomie & BepiColombo ≡</div>
+        <div class="panel-content">
+            <h2 id="astro-date-title">Lokale Hemel (Vandaag)</h2>
+            <div id="astro-sun-moon" style="font-size:12px; margin-bottom: 15px; line-height:1.6;">Laden...</div>
+            <h2 style="color: #64ffda;">Planeten & Sterrenbeelden (Nu)</h2>
+            <div id="astro-planets" style="margin-bottom: 15px;">Laden...</div>
+            <h2 style="color: #ffca28;">BepiColombo (Koers Mercurius)</h2>
+            <p id="bepi-colombo-data" style="font-size:11px; color:#c9d1d9; margin-top:5px;">Laden...</p>
+        </div>
+    </div>
+
+    <!-- PANEEL RECHTS (Geodetisch Dossier) -->
     <div id="panel-right" class="glass-panel ui-element">
         <div class="drag-handle">≡ Geodetisch Dossier ≡</div>
         <div class="panel-content">
             <h2>3. Locatie Analyse</h2>
-            <div id="story-content" class="story-text">
-                <p>Plaats een vlaggetje op de kaart (via de knop links) om de ruimtelijke context, geografische data en het verhaal van dat specifieke knooppunt op te halen.</p>
-                <p style="color:rgba(100,255,218,0.5); font-style:italic;">Wachtend op data-invoer...</p>
+            <div id="story-content" style="color: #c9d1d9; font-size:12px;">
+                <p>Plaats een vlaggetje om de context van een punt op te halen en eigen notities toe te voegen via de pop-up.</p>
             </div>
+        </div>
+    </div>
+
+    <!-- PANEEL PLANIMETER -->
+    <div id="panel-planimeter" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Planimeter & Horizon ≡</div>
+        <div class="panel-content">
+            <h2>4. Planimeter (Scroll om te besturen)</h2>
+            <div class="wheel-container">
+                <div class="wheel-box" id="ctrl-az" title="Scroll om te roteren">
+                    <div class="wheel-label">Azimut<br>↕ Scroll</div>
+                    <div id="wheel-az" class="wheel"><div class="wheel-inner"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-pt" title="Scroll om te kantelen">
+                    <div class="wheel-label">Kanteling<br>↕ Scroll</div>
+                    <div id="wheel-pt" class="wheel" style="border-color:#ff5252;"><div class="wheel-inner" style="border-color:#64ffda;"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-sc" title="Scroll om te zoomen">
+                    <div class="wheel-label">Zoom<br>↕ Scroll</div>
+                    <div id="wheel-sc" class="wheel" style="border-color:#3498db;"><div class="wheel-inner" style="border-color:#ffca28;"></div></div>
+                </div>
+            </div>
+            <p style="text-align:center; font-size:11px; margin-top:10px; border-top: 1px dotted rgba(100,255,218,0.3); padding-top:10px;">
+                Stramien Oppervlakte: <br><span class="highlight" style="font-size:14px;" id="pl-integral">0.00</span> <b>∬ dA</b> (km²)
+            </p>
         </div>
     </div>
 
     <script>
         // --- 1. KAART INITIALISATIE ---
         const map = new maplibregl.Map({
-            container: 'map',
-            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            center: [-40.0, 48.0], zoom: 3.2, pitch: 50, bearing: 15,
-            projection: 'globe' 
+            container: 'map', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [-40.0, 48.0], zoom: 3.2, pitch: 50, bearing: 15, projection: 'globe' 
         });
 
         const origin = [-74.013028, 40.712361]; 
         
         map.on('load', () => {
-            // Initiële setup
+            map.addSource('custom-basemap-src', { type: 'raster', tiles: [''], tileSize: 256 });
+            map.addSource('custom-seamark-src', { type: 'raster', tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'], tileSize: 256 });
+            
+            let firstSymbolId;
+            for (const layer of map.getStyle().layers) { if (layer.type === 'symbol') { firstSymbolId = layer.id; break; } }
+            
+            map.addLayer({ id: 'custom-basemap-layer', type: 'raster', source: 'custom-basemap-src', paint: { 'raster-opacity': 0 } }, firstSymbolId);
+            map.addLayer({ id: 'custom-seamark-layer', type: 'raster', source: 'custom-seamark-src', paint: { 'raster-opacity': 0 } }, firstSymbolId);
+
             new maplibregl.Marker({ color: '#ffca28' }).setLngLat(origin).addTo(map);
             map.addSource('bepi-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
             map.addLayer({ 'id': 'bepi-line', type: 'line', source: 'bepi-route', 'paint': { 'line-color': '#ffca28', 'line-width': 4, 'line-dasharray': [2, 3] } });
@@ -213,44 +277,136 @@
             updateCompass(); updateAstroDashboard(); updateHorizonAndPlanimeter();
         });
 
-        // --- 1B. LOCATIE & COÖRDINATEN ZOEKFUNCTIE ---
+        // --- 2. KAARTEN, ZEEKAARTEN & LAGEN LOGICA ---
+        document.getElementById('basemap-select').addEventListener('change', (e) => {
+            const val = e.target.value;
+            
+            if(val === 'dark') {
+                map.setPaintProperty('custom-basemap-layer', 'raster-opacity', 0);
+                if (map.getLayer('custom-seamark-layer')) map.setPaintProperty('custom-seamark-layer', 'raster-opacity', 0);
+            } else {
+                let tiles = [];
+                if(val === 'satellite') tiles = ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'];
+                else if(val === 'osm' || val === 'nautical') tiles = ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'];
+                else if(val === 'topo') tiles = ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'];
+                
+                map.removeLayer('custom-basemap-layer');
+                map.removeSource('custom-basemap-src');
+                map.addSource('custom-basemap-src', { type: 'raster', tiles: tiles, tileSize: 256 });
+                
+                let firstSymbolId;
+                for (const layer of map.getStyle().layers) { if (layer.type === 'symbol') { firstSymbolId = layer.id; break; } }
+                
+                map.addLayer({ id: 'custom-basemap-layer', type: 'raster', source: 'custom-basemap-src', paint: { 'raster-opacity': 1 } }, firstSymbolId);
+                
+                if (map.getLayer('custom-seamark-layer')) map.removeLayer('custom-seamark-layer');
+                map.addLayer({ id: 'custom-seamark-layer', type: 'raster', source: 'custom-seamark-src', paint: { 'raster-opacity': val === 'nautical' ? 1 : 0 } }, firstSymbolId);
+            }
+        });
+
+        let customOverlays = {};
+        document.getElementById('add-overlay-btn').addEventListener('click', () => {
+            const name = document.getElementById('overlay-name').value.trim() || 'Custom Laag ' + Math.floor(Math.random()*1000);
+            const url = document.getElementById('overlay-url').value.trim();
+            const type = document.getElementById('overlay-type').value;
+            if(!url) return alert("Voer a.u.b. een geldige URL in.");
+            
+            const id = 'overlay-' + Date.now();
+            try {
+                if(type === 'raster') {
+                    map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256 });
+                    map.addLayer({ id: id, type: 'raster', source: id, paint: {'raster-opacity': 0.8} });
+                } else if(type === 'geojson') {
+                    map.addSource(id, { type: 'geojson', data: url });
+                    map.addLayer({ id: id, type: 'line', source: id, paint: {'line-color': '#e84393', 'line-width': 2} });
+                }
+                customOverlays[id] = name;
+                updateOverlayList();
+                document.getElementById('overlay-url').value = '';
+                document.getElementById('overlay-name').value = '';
+            } catch(e) { alert("Fout bij het laden van deze laag."); }
+        });
+
+        function updateOverlayList() {
+            const list = document.getElementById('active-overlays-list');
+            list.innerHTML = '';
+            const keys = Object.keys(customOverlays);
+            if(keys.length === 0) {
+                list.innerHTML = '<li style="color:rgba(255,255,255,0.5); font-style:italic; font-size:11px;">Geen custom lagen actief.</li>';
+                return;
+            }
+            keys.forEach(id => {
+                const li = document.createElement('li');
+                li.className = "layer-item";
+                li.innerHTML = `<span>${customOverlays[id]}</span> <button onclick="removeOverlay('${id}')" class="layer-item-btn">X</button>`;
+                list.appendChild(li);
+            });
+        }
+
+        window.removeOverlay = function(id) {
+            if(map.getLayer(id)) map.removeLayer(id);
+            if(map.getSource(id)) map.removeSource(id);
+            delete customOverlays[id];
+            updateOverlayList();
+        }
+
+        // --- 2B. WEBRTC CAMERA LOGICA (NIEUW) ---
+        let webrtcStream = null;
+        document.getElementById('start-webrtc-btn').addEventListener('click', async () => {
+            try {
+                webrtcStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const videoEl = document.getElementById('webrtc-video');
+                videoEl.srcObject = webrtcStream;
+                
+                const panel = document.getElementById('panel-webrtc');
+                panel.style.display = 'flex';
+                
+                // Breng paneel naar voorgrond
+                document.querySelectorAll('.ui-element').forEach(el => el.style.zIndex = 10);
+                panel.style.zIndex = 12;
+            } catch (err) {
+                alert("WebRTC fout: Camera toegang geweigerd of niet beschikbaar. Zorg dat je op HTTPS zit of localhost. (" + err.message + ")");
+            }
+        });
+
+        document.getElementById('stop-webrtc-btn').addEventListener('click', () => {
+            if (webrtcStream) {
+                webrtcStream.getTracks().forEach(track => track.stop());
+                webrtcStream = null;
+            }
+            document.getElementById('webrtc-video').srcObject = null;
+            document.getElementById('panel-webrtc').style.display = 'none';
+        });
+
+        // --- 3. LOCATIE & COÖRDINATEN ZOEKFUNCTIE ---
         document.getElementById('loc-btn').addEventListener('click', async () => {
             const val = document.getElementById('loc-input').value.trim();
             if (!val) return;
             const coordsMatch = val.match(/^([-+]?\d{1,2}(?:\.\d+)?)(?:,|\s+)([-+]?\d{1,3}(?:\.\d+)?)$/);
-            
-            if (coordsMatch) {
-                flyToLocation(parseFloat(coordsMatch[2]), parseFloat(coordsMatch[1]), "Ingevoerde Coördinaten");
-            } else {
+            if (coordsMatch) { flyToLocation(parseFloat(coordsMatch[2]), parseFloat(coordsMatch[1]), "Ingevoerde Coördinaten"); } 
+            else {
                 try {
                     document.getElementById('loc-btn').innerText = "Zoeken...";
                     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}`);
                     const data = await res.json();
-                    if (data && data.length > 0) {
-                        flyToLocation(parseFloat(data[0].lon), parseFloat(data[0].lat), data[0].display_name.split(',')[0]);
-                    } else {
-                        alert("Locatie niet gevonden.");
-                    }
-                } catch (e) { alert("Netwerkfout."); } 
-                finally { document.getElementById('loc-btn').innerText = "Zoek Coördinaten"; }
+                    if (data && data.length > 0) { flyToLocation(parseFloat(data[0].lon), parseFloat(data[0].lat), data[0].display_name.split(',')[0]); } 
+                    else { alert("Locatie niet gevonden."); }
+                } catch (e) { alert("Netwerkfout."); } finally { document.getElementById('loc-btn').innerText = "Zoek Coördinaten"; }
             }
         });
-
         function flyToLocation(lng, lat, name) {
             map.flyTo({ center: [lng, lat], zoom: 9, pitch: 45, bearing: 0, essential: true, speed: 1.5 });
             setTimeout(() => { updateCompass(); updateHorizonAndPlanimeter(); updateAstroDashboard(); }, 500);
         }
 
-        // --- 2. UI TOGGLE & SLEEPBARE VENSTERS ---
+        // --- 4. UI TOGGLE & SLEEPBARE VENSTERS ---
         const uiToggleBtn = document.getElementById('ui-toggle-btn');
         const uiElements = document.querySelectorAll('.ui-element');
         let uiVisible = true;
-
         uiToggleBtn.addEventListener('click', () => {
             uiVisible = !uiVisible;
             uiElements.forEach(el => { el.style.opacity = uiVisible ? '1' : '0'; el.style.pointerEvents = uiVisible ? 'auto' : 'none'; });
         });
-
         function makeDraggable(element) {
             const handle = element.querySelector('.drag-handle');
             if(!handle) return; 
@@ -268,41 +424,39 @@
         }
         document.querySelectorAll('.glass-panel, #compass-container').forEach(makeDraggable);
 
-        // --- 3. KOMPAS ---
-        const compass = document.getElementById('compass');
-        const coordsDisplay = document.getElementById('compass-coords');
+        // --- 5. KOMPAS ---
+        const compass = document.getElementById('compass'); const coordsDisplay = document.getElementById('compass-coords');
         function updateCompass() {
             const bearing = map.getBearing(); const pitch = map.getPitch();
             compass.style.transform = `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`;
-            const center = map.getCenter();
-            coordsDisplay.innerText = `${center.lat.toFixed(4)}° N, ${center.lng.toFixed(4)}° E`;
+            coordsDisplay.innerText = `${map.getCenter().lat.toFixed(4)}° N, ${map.getCenter().lng.toFixed(4)}° E`;
         }
 
-        // --- 4. HORIZONLIJNEN & PLANIMETER WIELTJES ---
-        const wheelAz = document.getElementById('wheel-az');
-        const wheelPt = document.getElementById('wheel-pt');
-        const wheelSc = document.getElementById('wheel-sc');
-        const plIntegral = document.getElementById('pl-integral');
+        // --- 6. HORIZONLIJNEN & ACTIEVE PLANIMETER WIELTJES ---
+        const wheelAz = document.getElementById('wheel-az'); const wheelPt = document.getElementById('wheel-pt');
+        const wheelSc = document.getElementById('wheel-sc'); const plIntegral = document.getElementById('pl-integral');
 
         function updateHorizonAndPlanimeter() {
             const center = map.getCenter(); const bearing = map.getBearing(); const pitch = map.getPitch(); const zoom = map.getZoom();
             wheelAz.style.transform = `rotate(${bearing * 2}deg)`; wheelPt.style.transform = `rotate(${pitch * 4}deg)`; wheelSc.style.transform = `rotate(${zoom * 45}deg)`;
-            const zichtbareRadiusKm = 40000 / Math.pow(2, zoom); 
-            plIntegral.innerText = (Math.PI * Math.pow(zichtbareRadiusKm, 2)).toLocaleString('nl-NL', {maximumFractionDigits: 0});
+            plIntegral.innerText = (Math.PI * Math.pow(40000 / Math.pow(2, zoom), 2)).toLocaleString('nl-NL', {maximumFractionDigits: 0});
 
             if(map.getSource('horizon-rings')) {
                 const features = [];
                 for(let r = 1000; r <= 8000; r+=1000) features.push(turf.circle([center.lng, center.lat], r, {steps: 64, units: 'kilometers'}));
-                const dirs = [0, 90, 180, -90];
-                dirs.forEach(d => {
+                [0, 90, 180, -90].forEach(d => {
                     const dest = turf.destination([center.lng, center.lat], 8000, d, {units: 'kilometers'});
                     features.push(turf.lineString([[center.lng, center.lat], dest.geometry.coordinates]));
                 });
                 map.getSource('horizon-rings').setData(turf.featureCollection(features));
             }
         }
+
+        document.getElementById('ctrl-az').addEventListener('wheel', (e) => { e.preventDefault(); map.setBearing(map.getBearing() + (e.deltaY > 0 ? -5 : 5)); });
+        document.getElementById('ctrl-pt').addEventListener('wheel', (e) => { e.preventDefault(); let p = map.getPitch() + (e.deltaY > 0 ? -3 : 3); if(p < 0) p = 0; if(p > 85) p = 85; map.setPitch(p); });
+        document.getElementById('ctrl-sc').addEventListener('wheel', (e) => { e.preventDefault(); map.setZoom(map.getZoom() + (e.deltaY > 0 ? -0.4 : 0.4)); });
         
-        // --- 5. ASTRONOMIE ENGINE & BEPICOLOMBO ---
+        // --- 7. ASTRONOMIE ENGINE & BEPICOLOMBO ---
         const constellNL = { 'Ari': 'Ram', 'Tau': 'Stier', 'Gem': 'Tweelingen', 'Cnc': 'Kreeft', 'Leo': 'Leeuw', 'Vir': 'Maagd', 'Lib': 'Weegschaal', 'Sco': 'Schorpioen', 'Sgr': 'Boogschutter', 'Cap': 'Steenbok', 'Aqr': 'Waterman', 'Psc': 'Vissen', 'Oph': 'Slangendrager' };
         function updateAstroDashboard() {
             if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return;
@@ -310,77 +464,48 @@
             document.getElementById('astro-date-title').innerText = `Lokale Hemel (${date.toLocaleDateString('nl-NL')})`;
             const times = SunCalc.getTimes(date, center.lat, center.lng); const moonTimes = SunCalc.getMoonTimes(date, center.lat, center.lng);
             const formatTime = (d) => d && !isNaN(d) ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
-            
             document.getElementById('astro-sun-moon').innerHTML = `<b>Zon</b> | Op: <span class="highlight">${formatTime(times.sunrise)}</span> / Onder: <span class="highlight">${formatTime(times.sunset)}</span><br><b>Maan</b> | Op: <span class="highlight">${formatTime(moonTimes.rise)}</span> / Onder: <span class="highlight">${formatTime(moonTimes.set)}</span>`;
             
-            const observer = new Astronomy.Observer(center.lat, center.lng, 0);
-            const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus'];
-            let html = '<table><tr><th>Planeet</th><th>Azimut</th><th>Hoogte</th><th>Sterrenbeeld</th></tr>';
-            let bepiAzimuth = 0;
-            
+            const observer = new Astronomy.Observer(center.lat, center.lng, 0); const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus'];
+            let html = '<table><tr><th>Planeet</th><th>Azimut</th><th>Hoogte</th><th>Sterrenbeeld</th></tr>'; let bepiAzimuth = 0;
             bodies.forEach(body => {
-                const eq = Astronomy.Equator(body, date, observer, true, true);
-                const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
-                const constell = Astronomy.Constellation(eq.ra, eq.dec);
-                const sterrenbeeld = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
+                const eq = Astronomy.Equator(body, date, observer, true, true); const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
+                const constell = Astronomy.Constellation(eq.ra, eq.dec); const sterrenbeeld = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
                 const planeetNaam = body === 'Mercury' ? 'Mercurius' : body === 'Venus' ? 'Venus' : body === 'Mars' ? 'Mars' : body === 'Jupiter' ? 'Jupiter' : body === 'Saturn' ? 'Saturnus' : 'Uranus';
-                const trStyle = body === 'Mercury' ? 'background: rgba(255, 202, 40, 0.15);' : '';
-                html += `<tr style="${trStyle}"><td><b>${planeetNaam}</b></td><td>${hor.azimuth.toFixed(1)}°</td><td>${hor.altitude.toFixed(1)}°</td><td class="highlight">${sterrenbeeld}</td></tr>`;
+                html += `<tr style="${body === 'Mercury' ? 'background: rgba(255, 202, 40, 0.15);' : ''}"><td><b>${planeetNaam}</b></td><td>${hor.azimuth.toFixed(1)}°</td><td>${hor.altitude.toFixed(1)}°</td><td class="highlight">${sterrenbeeld}</td></tr>`;
                 if (body === 'Mercury') bepiAzimuth = hor.azimuth;
             });
             document.getElementById('astro-planets').innerHTML = html + '</table>';
             document.getElementById('bepi-colombo-data').innerHTML = `Doelwit: <b>Mercurius (BepiColombo)</b><br>Actuele Azimut Vector: <span class="highlight">${bepiAzimuth.toFixed(2)}°</span>`;
-            if (map.getSource('bepi-route')) {
-                const bepiDest = turf.destination([center.lng, center.lat], 8000, bepiAzimuth, {units: 'kilometers'});
-                map.getSource('bepi-route').setData(turf.greatCircle([center.lng, center.lat], bepiDest.geometry.coordinates));
-            }
+            if (map.getSource('bepi-route')) map.getSource('bepi-route').setData(turf.greatCircle([center.lng, center.lat], turf.destination([center.lng, center.lat], 8000, bepiAzimuth, {units: 'kilometers'}).geometry.coordinates));
         }
 
         let lastAstroUpdate = 0;
         map.on('render', () => { updateCompass(); updateHorizonAndPlanimeter(); }); 
         map.on('move', () => { const now = Date.now(); if (now - lastAstroUpdate > 150) { updateAstroDashboard(); lastAstroUpdate = now; } });   
 
-        // --- 6. DYNAMISCH DOSSIER (RECHTERPANEEL) ---
-        async function fetchLocationStory(lat, lng) {
+        // --- 8. GEODETISCH DOSSIER (Rechter Paneel) ---
+        async function fetchLocationStory(lat, lng, markerObj) {
             const storyContent = document.getElementById('story-content');
-            storyContent.innerHTML = `<p style="color:#ffca28;">📡 Geografische database raadplegen voor coördinaten ${lat.toFixed(3)}, ${lng.toFixed(3)}...</p>`;
-            
+            storyContent.innerHTML = `<p style="color:#ffca28;">📡 Data ophalen voor coördinaten ${lat.toFixed(3)}, ${lng.toFixed(3)}...</p>`;
             try {
-                // Reverse geocoding via OpenStreetMap
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
                 const data = await res.json();
-                
-                let storyText = "";
                 if (data && data.display_name) {
-                    const placeName = data.address.city || data.address.town || data.address.village || data.address.county || data.address.state || "Lokaal Knooppunt";
-                    const country = data.address.country || "een onbekende natie";
-                    
-                    storyText = `De vlag is zojuist geplant in <b>${placeName}</b>, gelegen in ${country}.<br><br>
-                    Deze ankerplaats bevindt zich op exact <b>${lat.toFixed(4)}° N</b> en <b>${lng.toFixed(4)}° E</b>. 
-                    Binnen de geodetische matrix fungeert dit punt nu als een nieuwe temporele spiegel. De astronomische invloeden en horizonlijnen in de simulatie zijn nu gebonden aan de fysieke werkelijkheid van deze regio.<br><br>
-                    <i style="color:#8b949e;">Volledig profiel: ${data.display_name}</i>`;
-                } else {
-                    // Bijv. als je in de oceaan klikt
-                    storyText = `Je hebt een ankerpunt geselecteerd in <b>Ongedocumenteerd Water / Oceaan</b>.<br><br>
-                    Deze coördinaat (${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E) fungeert als een zuiver geometrisch knooppunt in de uitgestrekte raster-zee. Er is hier geen vasteland gedetecteerd, de omgevingsvariabelen worden gedomineerd door water.`;
-                }
-                
-                storyContent.innerHTML = `<p>${storyText}</p>`;
-            } catch (e) {
-                storyContent.innerHTML = `<p style="color:#ff5252;">⚠️ Kan geen geografisch dossier ophalen. Netwerkfout of limiet bereikt.</p>`;
-            }
+                    const placeName = data.address.city || data.address.town || data.address.village || data.address.county || data.address.state || "Knooppunt";
+                    storyContent.innerHTML = `<p>Geselecteerd: <b>${placeName}</b> (${data.address.country || ''})<br>Lat: ${lat.toFixed(4)} | Lng: ${lng.toFixed(4)}</p><p style="color:#64ffda;"><i>Notitie is gekoppeld en opgeslagen in de vlag.</i></p>`;
+                } else { storyContent.innerHTML = `<p>Geselecteerd: <b>Oceaan / Onbekend</b><br>Lat: ${lat.toFixed(4)} | Lng: ${lng.toFixed(4)}</p>`; }
+            } catch (e) { storyContent.innerHTML = `<p>Fout bij ophalen context.</p>`; }
         }
 
-        // --- 7. MODUS CONTROLLERS (Handje & Vlaggetjes) ---
-        const dragBtn = document.getElementById('drag-btn');
-        const flagBtn = document.getElementById('flag-btn');
-        const clearFlagsBtn = document.getElementById('clear-flags-btn');
-        const dragOverlay = document.getElementById('drag-overlay');
+        // --- 9. VLAGGEN, NOTITIES EN OPSLAAN/LADEN ---
+        const dragBtn = document.getElementById('drag-btn'); const flagBtn = document.getElementById('flag-btn');
+        const clearFlagsBtn = document.getElementById('clear-flags-btn'); const dragOverlay = document.getElementById('drag-overlay');
         let handMode = false; let flagMode = false; let userFlags = []; 
 
         function disableModes() {
             handMode = false; dragBtn.classList.remove('active'); dragBtn.innerText = "🖐 MODUS: HANDJE (UIT)";
-            flagMode = false; flagBtn.classList.remove('active'); flagBtn.innerText = "🚩 MODUS: VLAG PLAATSEN (UIT)";
+            flagMode = false; flagBtn.classList.remove('active'); flagBtn.innerText = "🚩 VLAG PLAATSEN (UIT)";
             dragOverlay.style.display = "none"; map.dragPan.enable(); map.touchZoomRotate.enable(); map.getCanvas().style.cursor = '';
         }
 
@@ -391,44 +516,60 @@
 
         flagBtn.addEventListener('click', () => {
             const wasActive = flagMode; disableModes();
-            if(!wasActive) { flagMode = true; flagBtn.classList.add('active'); flagBtn.innerText = "🚩 MODUS: VLAG PLAATSEN (AAN)"; map.getCanvas().style.cursor = 'crosshair'; }
+            if(!wasActive) { flagMode = true; flagBtn.classList.add('active'); flagBtn.innerText = "🚩 VLAG PLAATSEN (AAN)"; map.getCanvas().style.cursor = 'crosshair'; }
         });
 
-        map.on('click', (e) => {
-            if(flagMode) {
-                const lat = e.lngLat.lat;
-                const lng = e.lngLat.lng;
-                
-                const popupContent = document.createElement('div');
-                popupContent.innerHTML = `<h3 style="color:#e84393; margin:0 0 5px 0;">Vlag Locatie</h3><p style="margin:0 0 10px 0; color:#05131f;">Lat: ${lat.toFixed(4)}<br>Lng: ${lng.toFixed(4)}</p><button class="remove-flag-btn">Verwijder Vlag</button>`;
-                
-                const marker = new maplibregl.Marker({ color: '#e84393' }).setLngLat(e.lngLat).setPopup(new maplibregl.Popup({ offset: 25 }).setDOMContent(popupContent)).addTo(map);
-                userFlags.push(marker); clearFlagsBtn.style.display = 'block'; marker.togglePopup();
-                
-                // Roep het verhaal op in het rechterpaneel!
-                fetchLocationStory(lat, lng);
+        function addCustomFlag(lng, lat, savedNote = "") {
+            const popupContent = document.createElement('div'); popupContent.style.width = '180px';
+            const noteId = 'note-' + Date.now() + Math.floor(Math.random() * 1000);
+            popupContent.innerHTML = `<h3 style="color:#e84393; margin:0 0 5px 0; font-size:12px;">Locatie Dossier</h3><p style="margin:0 0 5px 0; color:#05131f; font-size:10px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</p><textarea id="${noteId}" class="popup-textarea" placeholder="Typ notities...">${savedNote}</textarea><button class="popup-save-btn">Notitie Opslaan</button><button class="remove-flag-btn">Verwijder Vlag</button>`;
+            const popup = new maplibregl.Popup({ offset: 25 }).setDOMContent(popupContent);
+            const marker = new maplibregl.Marker({ color: '#e84393' }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+            
+            marker.customNote = savedNote; userFlags.push(marker); clearFlagsBtn.style.display = 'block'; 
+            
+            const saveNoteBtn = popupContent.querySelector('.popup-save-btn'); const textArea = popupContent.querySelector(`#${noteId}`);
+            saveNoteBtn.addEventListener('click', () => {
+                marker.customNote = textArea.value; saveNoteBtn.innerText = "✓ Opgeslagen"; saveNoteBtn.style.background = "#2ecc71";
+                setTimeout(() => { saveNoteBtn.innerText = "Notitie Opslaan"; saveNoteBtn.style.background = "#3498db"; }, 1500);
+                fetchLocationStory(lat, lng, marker); 
+            });
 
-                popupContent.querySelector('.remove-flag-btn').addEventListener('click', () => {
-                    marker.remove(); userFlags = userFlags.filter(m => m !== marker); 
-                    if(userFlags.length === 0) {
-                        clearFlagsBtn.style.display = 'none';
-                        document.getElementById('story-content').innerHTML = `<p>Geen actieve ankers. Plaats een vlaggetje om een nieuw dossier te openen.</p>`;
-                    }
-                });
-            }
-        });
+            popupContent.querySelector('.remove-flag-btn').addEventListener('click', () => {
+                marker.remove(); userFlags = userFlags.filter(m => m !== marker); 
+                if(userFlags.length === 0) { clearFlagsBtn.style.display = 'none'; document.getElementById('story-content').innerHTML = `<p>Geen actieve ankers.</p>`; }
+            });
+            return marker;
+        }
+
+        map.on('click', (e) => { if(flagMode) { const marker = addCustomFlag(e.lngLat.lng, e.lngLat.lat, ""); marker.togglePopup(); fetchLocationStory(e.lngLat.lat, e.lngLat.lng, marker); } });
 
         clearFlagsBtn.addEventListener('click', () => { 
-            userFlags.forEach(m => m.remove()); userFlags = []; clearFlagsBtn.style.display = 'none'; 
-            document.getElementById('story-content').innerHTML = `<p>Geen actieve ankers. Plaats een vlaggetje om een nieuw dossier te openen.</p>`;
+            if(confirm("Weet je zeker dat je alle vlaggen wilt wissen?")) { userFlags.forEach(m => m.remove()); userFlags = []; clearFlagsBtn.style.display = 'none'; document.getElementById('story-content').innerHTML = `<p>Geen actieve ankers.</p>`; }
         });
 
-        // Quaternion Handje drag-logica
+        document.getElementById('save-btn').addEventListener('click', () => {
+            if (userFlags.length === 0) return alert("Geen vlaggen om op te slaan.");
+            localStorage.setItem('geodetic_matrix_flags', JSON.stringify(userFlags.map(m => ({ lat: m.getLngLat().lat, lng: m.getLngLat().lng, note: m.customNote || "" }))));
+            document.getElementById('save-btn').innerText = "✓ OPGESLAGEN"; setTimeout(() => { document.getElementById('save-btn').innerText = "💾 OPSLAAN"; }, 2000);
+        });
+
+        document.getElementById('load-btn').addEventListener('click', () => {
+            const savedData = localStorage.getItem('geodetic_matrix_flags');
+            if (savedData) {
+                try {
+                    const parsed = JSON.parse(savedData); userFlags.forEach(m => m.remove()); userFlags = [];
+                    parsed.forEach(item => { addCustomFlag(item.lng, item.lat, item.note); });
+                    document.getElementById('load-btn').innerText = "✓ GELADEN"; setTimeout(() => { document.getElementById('load-btn').innerText = "📂 LADEN"; }, 2000);
+                } catch (e) { alert("Fout bij laden."); }
+            } else { alert("Geen opgeslagen geheugen gevonden."); }
+        });
+
+        // Handje drag-logica
         let isDraggingMap = false, startX, startY; let absoluteBearing = 15, absolutePitch = 50;
         dragOverlay.addEventListener('mousedown', (e) => { isDraggingMap = true; startX = e.clientX; startY = e.clientY; });
         window.addEventListener('mousemove', (e) => {
-            if(!isDraggingMap) return;
-            absoluteBearing += ((e.clientX - startX) * 0.4); absolutePitch -= ((e.clientY - startY) * 0.4);
+            if(!isDraggingMap) return; absoluteBearing += ((e.clientX - startX) * 0.4); absolutePitch -= ((e.clientY - startY) * 0.4);
             startX = e.clientX; startY = e.clientY;
             if (absolutePitch < 0) absolutePitch = 0; if (absolutePitch > 85) absolutePitch = 85;
             map.setBearing(absoluteBearing); map.setPitch(absolutePitch);
