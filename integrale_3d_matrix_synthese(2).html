@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - 441 Matrix & Interferentie</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts voor de Magritte esthetiek en strakke data -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,400;1,700&family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- Three.js via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #020617; /* Zeer donker blauw/zwart */
+            font-family: 'Inter', sans-serif;
+            color: #f8fafc;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        /* Glassmorphism Styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(125, 211, 252, 0.15);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255,255,255,0.02);
+            border-radius: 1rem;
+        }
+
+        .magritte-text {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .data-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Zwevende animatie voor panelen */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .floating {
+            animation: float 8s ease-in-out infinite;
+        }
+        
+        .floating-delayed {
+            animation: float 9s ease-in-out infinite 2s;
+        }
+
+        /* Watermerk */
+        #watermark {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.25;
+            color: #cbd5e1;
+            font-size: 2.5rem;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+
+        /* Scrollbar hiding for clean UI */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-cyan-500 selection:text-white">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Surrealistisch Watermerk -->
+    <div id="watermark" class="magritte-text italic">
+        Ceci n'est pas une matrice.
+    </div>
+
+    <!-- UI Overlay Layer -->
+    <div class="absolute inset-0 z-20 pointer-events-none p-6 md:p-10 flex flex-col md:flex-row justify-between items-start">
+        
+        <!-- Linker Paneel: Synthese & Data -->
+        <div class="glass-panel floating w-full md:w-[420px] p-6 pointer-events-auto max-h-[90vh] overflow-y-auto">
+            <h1 class="magritte-text italic text-3xl text-cyan-300 mb-1">De Integrale Synthese</h1>
+            <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-6">441-Matrix & Geodetische Interferentie</p>
+
+            <div class="space-y-6">
+                <!-- Wiskundige Synthese -->
+                <div>
+                    <h2 class="text-sm border-b border-cyan-800/50 pb-2 mb-3 text-cyan-400 font-bold tracking-wide">1. Trans-Atlantische Interferentie Vector</h2>
+                    <ul class="text-sm space-y-3 text-slate-300">
+                        <li class="flex items-start">
+                            <span class="text-cyan-500 mr-2 mt-0.5">✦</span>
+                            <span>De grootcirkel vector is exact <strong class="text-white">291°</strong> (29° Grid Tilt + 91° Inslaghoek).</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-cyan-500 mr-2 mt-0.5">✦</span>
+                            <span>Noordelijke afwijking van het Westen (270°): <strong class="text-white">20.91° ≈ 21°</strong>, direct synchroon met de <span class="text-cyan-300">Modulo 21</span> van het 21x21 raster.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Afstanden Tabel -->
+                <div>
+                    <h2 class="text-sm border-b border-cyan-800/50 pb-2 mb-3 text-cyan-400 font-bold tracking-wide">2. Geodetische Ankerpunten (Vanaf WTC1)</h2>
+                    <div class="bg-slate-900/50 rounded-lg border border-slate-700/50 overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800/50 text-slate-400">
+                                <tr>
+                                    <th class="py-2 px-3">Locatie</th>
+                                    <th class="py-2 px-3 text-right">Afstand (km)</th>
+                                    <th class="py-2 px-3 text-right">Azimut</th>
+                                </tr>
+                            </thead>
+                            <tbody class="data-font text-slate-300 divide-y divide-slate-800/50">
+                                <tr>
+                                    <td class="py-2 px-3">Scherpenisse</td>
+                                    <td class="py-2 px-3 text-right">5.845,01</td>
+                                    <td class="py-2 px-3 text-right text-cyan-300">290,91°</td>
+                                </tr>
+                                <tr class="bg-amber-900/20">
+                                    <td class="py-2 px-3 text-amber-400 font-bold">St. Maartensdijk</td>
+                                    <td class="py-2 px-3 text-right text-amber-300">5.843,01</td>
+                                    <td class="py-2 px-3 text-right text-cyan-300">290,89°</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3">Veere</td>
+                                    <td class="py-2 px-3 text-right">5.816,73</td>
+                                    <td class="py-2 px-3 text-right text-cyan-300">290,64°</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3">Bergen op Zoom</td>
+                                    <td class="py-2 px-3 text-right">5.858,89</td>
+                                    <td class="py-2 px-3 text-right text-cyan-300">291,06°</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Driehoeksmeting -->
+                <div>
+                    <h2 class="text-sm border-b border-cyan-800/50 pb-2 mb-3 text-cyan-400 font-bold tracking-wide">3. Zeeuwse Driehoeksmeting</h2>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="bg-slate-900/40 p-3 rounded-lg border border-slate-700/50">
+                            <div class="text-slate-400 text-xs mb-1">Veere ↔ Scherpenisse</div>
+                            <div class="data-font text-lg text-emerald-400">28.3 km</div>
+                            <div class="text-[10px] text-slate-500 mt-1">28-Daagse Maancyclus</div>
+                        </div>
+                        <div class="bg-amber-900/10 p-3 rounded-lg border border-amber-700/30">
+                            <div class="text-slate-400 text-xs mb-1">St.M-dijk ↔ Scherp.</div>
+                            <div class="data-font text-lg text-amber-400">2.0 km</div>
+                            <div class="text-[10px] text-slate-500 mt-1">Lokale Kortegolf (Nulpunt 1953)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rechter Paneel: Legenda & Live Parameters -->
+        <div class="glass-panel floating-delayed w-full md:w-[280px] mt-6 md:mt-0 p-5 pointer-events-auto flex flex-col space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-400 font-semibold border-b border-slate-700 pb-2">Matrix Knooppunten</h3>
+            
+            <div class="space-y-3 text-sm">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full bg-white shadow-[0_0_10px_#fff] mr-3"></div>
+                    <span class="text-slate-200">WTC1 (NYC Nulpunt)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] mr-3"></div>
+                    <span class="text-slate-200">Trans-Atlantische As</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_15px_#f59e0b] mr-3 animate-pulse"></div>
+                    <span class="text-amber-400 font-bold">St. Maartensdijk (Historisch)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] mr-3"></div>
+                    <span class="text-slate-200">Zeeuwse Ankers</span>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-700">
+                <div class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Live Wave Parameters</div>
+                <div class="data-font text-xs text-slate-400 flex justify-between">
+                    <span>Vector Azimut:</span> <span class="text-cyan-300">291°</span>
+                </div>
+                <div class="data-font text-xs text-slate-400 flex justify-between mt-1">
+                    <span>Golf Frequentie (λ):</span> <span class="text-emerald-300">28.3 Hz eq.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- THREE.JS SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020617, 0.015); // Donkere, diepe mist voor het surrealistische effect
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 30);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Performance optimalisatie
+        container.appendChild(renderer.domElement);
+
+        // Basis verlichting (Subtiel)
+        const ambientLight = new THREE.AmbientLight(0x0f172a, 2.0);
+        scene.add(ambientLight);
+
+        // --- MATRIX GROEP (Voor Quaternion Rotatie) ---
+        // Groepeer alle elementen zodat we ze als één geheel met quaternions kunnen roteren
+        const matrixGroup = new THREE.Group();
+        scene.add(matrixGroup);
+
+        // --- DE 441-MATRIX (21x21 GRID) ---
+        // We bouwen een raster van 20x20 segmenten, wat resulteert in 21x21 = 441 vertices
+        const gridSegments = 20; 
+        const gridSize = 40; // Fysieke afmeting in 3D ruimte
+        const geometry = new THREE.PlaneGeometry(gridSize, gridSize, gridSegments, gridSegments);
+        
+        // Roteer de plane zodat deze plat ligt (XZ vlak)
+        geometry.rotateX(-Math.PI / 2);
+
+        // Bewaar de originele Y-posities (die 0 zijn) om de golf te berekenen zonder accumulatie fouten
+        const basePositions = [];
+        const positions = geometry.attributes.position.array;
+        for (let i = 0; i < positions.length; i += 3) {
+            basePositions.push({ x: positions[i], y: positions[i+1], z: positions[i+2] });
+        }
+
+        // 1. Lijnen/Wireframe van de matrix
+        const wireframeMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x0ea5e9, // Cyan-ish
+            transparent: true, 
+            opacity: 0.15 
+        });
+        const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireframeMaterial);
+        matrixGroup.add(wireframe);
+
+        // 2. Punten (Vertices) van de matrix
+        const pointsMaterial = new THREE.PointsMaterial({
+            color: 0x38bdf8,
+            size: 0.15,
+            transparent: true,
+            opacity: 0.8
+        });
+        const matrixPoints = new THREE.Points(geometry, pointsMaterial);
+        matrixGroup.add(matrixPoints);
+
+        // Functie om de logische 21x21 grid coördinaten (0-20, 0-20) om te zetten naar fysieke 3D coördinaten
+        function getPhysicalCoord(gridX, gridY) {
+            // gridX en gridY lopen van 0 t/m 20
+            // fysieke range is van -gridSize/2 tot +gridSize/2 (-20 tot +20)
+            const x = (gridX / 20) * gridSize - (gridSize / 2);
+            const z = (gridY / 20) * gridSize - (gridSize / 2);
+            return { x, z };
+        }
+
+        const nodesInfo = [
+            { id: 'wtc1', name: 'WTC1', gridX: 10, gridY: 10, color: 0xffffff, size: 0.6 }, // Nulpunt in het midden
+            { id: 'veere', name: 'Veere', gridX: 13, gridY: 5, color: 0x34d399, size: 0.4 },
+            { id: 'scherpenisse', name: 'Scherpenisse', gridX: 15, gridY: 6, color: 0x34d399, size: 0.4 },
+            { id: 'stmaartensdijk', name: 'Sint-Maartensdijk', gridX: 15.5, gridY: 6.2, color: 0xf59e0b, size: 0.8 }, // Flare / Uniek
+            { id: 'boz', name: 'Bergen op Zoom', gridX: 17, gridY: 7, color: 0x34d399, size: 0.4 }
+        ];
+
+        const nodeMeshes = [];
+
+        // Maak de lichtgevende knooppunten
+        nodesInfo.forEach(node => {
+            const { x, z } = getPhysicalCoord(node.gridX, node.gridY);
+            
+            const nodeGeom = new THREE.SphereGeometry(node.size, 16, 16);
+            const nodeMat = new THREE.MeshBasicMaterial({ 
+                color: node.color,
+            });
+            const mesh = new THREE.Mesh(nodeGeom, nodeMat);
+            mesh.position.set(x, 0, z); // Y wordt in animatieloop geüpdatet
+            matrixGroup.add(mesh);
+
+            // Voeg een 'Glow' halo toe
+            const glowGeom = new THREE.SphereGeometry(node.size * 2.5, 16, 16);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: node.color,
+                transparent: true,
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending
+            });
+            const glowMesh = new THREE.Mesh(glowGeom, glowMat);
+            mesh.add(glowMesh);
+
+            // Als het St. Maartensdijk is, voeg een pointlight toe voor extra uitstraling
+            if (node.id === 'stmaartensdijk') {
+                const light = new THREE.PointLight(0xf59e0b, 2, 10);
+                mesh.add(light);
+            }
+
+            nodeMeshes.push({
+                mesh: mesh,
+                x: x,
+                z: z
+            });
+        });
+
+        // Verbindingslijn (Trans-Atlantische As): WTC1 naar het cluster (bijv. Scherpenisse)
+        const lineGeom = new THREE.BufferGeometry();
+        // Wordt dynamisch geüpdatet in de loop
+        const lineMat = new THREE.LineBasicMaterial({ 
+            color: 0x22d3ee, 
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.6
+        });
+        const taVectorLine = new THREE.Line(lineGeom, lineMat);
+        matrixGroup.add(taVectorLine);
+
+        const clock = new THREE.Clock();
+
+        // Wiskundige parameters voor de golven uit de theorie
+        const hoekGraden = 291; // Trans-Atlantische Vector
+        const hoekRad = hoekGraden * (Math.PI / 180);
+        
+        // Richtingsvector van de golf
+        // In 3D: X en Z vlak. cos() voor X, sin() voor Z
+        const dirX = Math.cos(hoekRad);
+        const dirZ = Math.sin(hoekRad);
+
+        // Golflengte/Frequentie gekoppeld aan de 28.3 km driehoeksmeting
+        const golflengte = 28.3;
+        const frequentie = 1.0 / (golflengte * 0.15); // Geschaald voor visuele esthetiek
+        const amplitude = 1.8;
+        const snelheid = 2.0;
+
+        // Muis interactie voor parallax effect
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetRotX = 0;
+        let targetRotY = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
+            mouseY = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+
+            // --- QUATERNION ROTATIE (720°+ voorkomen van Gimbal Lock) ---
+            // Door Quaternions te vermenigvuldigen, combineren we complexe rotaties 
+            // over meerdere assen zonder last te krijgen van Gimbal Lock (waarbij Euler assen overlappen).
+            
+            const asY = new THREE.Vector3(0, 1, 0).normalize();
+            const asX = new THREE.Vector3(1, 0, 0).normalize();
+            
+            // Continue rotatie over Y. Door time zal deze constant > 720 graden (4π) draaien.
+            const rotSpeedY = 0.3; 
+            const hoekY = time * rotSpeedY; 
+            
+            // Subtiele dynamische tilt over X voor een dieper 3D effect
+            const hoekX = Math.sin(time * 0.4) * 0.15; 
+
+            // Initialiseer quaternions gebaseerd op as en hoek
+            const qY = new THREE.Quaternion().setFromAxisAngle(asY, hoekY);
+            const qX = new THREE.Quaternion().setFromAxisAngle(asX, hoekX);
+            
+            // Combineer de rotaties (qY * qX) veilig buiten het Euler systeem
+            const gecombineerdeRotatie = new THREE.Quaternion().copy(qY).multiply(qX);
+            
+            // Pas de samengestelde quaternion direct toe op de gehele 441-Matrix groep
+            matrixGroup.quaternion.copy(gecombineerdeRotatie);
+
+            // 1. Golvende beweging van de 441-Matrix berekenen
+            const positions = geometry.attributes.position.array;
+
+            for (let i = 0; i < basePositions.length; i++) {
+                const base = basePositions[i];
+                
+                // Bereken projectie van de vertex op de richtingsvector (291 graden)
+                // Dit zorgt ervoor dat de golven exact onder 291 graden door de matrix reizen
+                const projectie = (base.x * dirX + base.z * dirZ);
+                
+                // Sinus interferentie: combineert de projectie, frequentie (28.3 gerelateerd) en tijd
+                const golfY = Math.sin(projectie * frequentie - time * snelheid) * amplitude;
+                
+                // Om een 'interferentie' patroon te krijgen, voegen we een kleine tegengestelde golf toe
+                const subGolf = Math.cos((base.x * -dirZ + base.z * dirX) * (frequentie * 1.5) + time) * (amplitude * 0.3);
+
+                positions[i * 3 + 1] = base.y + golfY + subGolf;
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+
+            // 2. Positie van de Ankerpunten (Nodes) updaten zodat ze op het grid blijven
+            nodeMeshes.forEach(node => {
+                const proj = (node.x * dirX + node.z * dirZ);
+                const golfY = Math.sin(proj * frequentie - time * snelheid) * amplitude;
+                const subGolf = Math.cos((node.x * -dirZ + node.z * dirX) * (frequentie * 1.5) + time) * (amplitude * 0.3);
+                
+                node.mesh.position.y = golfY + subGolf;
+
+                // Subtiel zweef/pulse effect op St. Maartensdijk
+                if(node.id === 'stmaartensdijk' || node.id === undefined) {
+                    const scale = 1 + Math.sin(time * 3) * 0.2;
+                    node.mesh.scale.set(scale, scale, scale);
+                }
+            });
+
+            // 3. Update de Trans-Atlantische verbindingslijn (WTC1 naar Scherpenisse)
+            const wtcNode = nodeMeshes[0].mesh.position;
+            const scherpNode = nodeMeshes[2].mesh.position;
+            
+            // Creëer een parabolische curve tussen de punten om de kromming van de aarde / golf te simuleren
+            const curve = new THREE.QuadraticBezierCurve3(
+                wtcNode,
+                new THREE.Vector3((wtcNode.x + scherpNode.x)/2, wtcNode.y + 5 + Math.sin(time)*2, (wtcNode.z + scherpNode.z)/2), // Control point hoog in de lucht
+                scherpNode
+            );
+            const curvePoints = curve.getPoints(50);
+            taVectorLine.geometry.setFromPoints(curvePoints);
+
+            // 4. Parallax Camera Beweging (Surrealistisch zwevend)
+            targetRotX = mouseY * 1.5;
+            targetRotY = mouseX * 2.0;
+
+            camera.position.x += (targetRotY * 10 - camera.position.x) * 0.05;
+            camera.position.y += ((15 - targetRotX * 5) - camera.position.y) * 0.05;
+            camera.lookAt(0, 0, 0);
+
+            // Render de scene
+            renderer.render(scene, camera);
+        }
+
+        // Window resize afhandeling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start de Matrix
+        animate();
+    </script>
+</body>
+</html>

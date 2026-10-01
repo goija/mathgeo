@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sloterplas Amsterdam - 3D Geodetische As-lijnen</title>
+    
+    <!-- MapLibre GL JS CSS & Script (100% Vrij, Geen API Key) -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            background: #0b0f19;
+        }
+        
+        /* Gesplitst scherm in 2 3D-viewpoorten */
+        .viewport-container {
+            flex: 1;
+            height: 100vh;
+            position: relative;
+            border-right: 2px solid #1f2937;
+        }
+
+        .map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Stijlvolle HUD / Badges */
+        .viewport-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(17, 24, 39, 0.9);
+            color: #38bdf8;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-family: monospace;
+            border-left: 3px solid #ff0066;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* Marker labels voor Beispiel / Ergebnis met graden */
+        .axis-label {
+            background: rgba(17, 24, 39, 0.95);
+            color: #ffffff;
+            padding: 5px 10px;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: monospace;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- VIEWPORT 1: Exact gecentreerd op de Sloterplas Amsterdam in 3D -->
+    <div class="viewport-container">
+        <div class="viewport-badge">VIEWPORT 1: Sloterplas Amsterdam (Exacte As-lijnen & Graden)</div>
+        <div id="map1" class="map"></div>
+    </div>
+
+    <!-- VIEWPORT 2: Trans-Atlantische 3D Macro As richting New York -->
+    <div class="viewport-container">
+        <div class="viewport-badge">VIEWPORT 2: Trans-Atlantische As (Sloterplas ➔ WTC1)</div>
+        <div id="map2" class="map"></div>
+    </div>
+
+    <script>
+        const aardeRadius = 6378137;
+        
+        // Exacte coördinaten van het midden van de Sloterplas te Amsterdam (Nieuw-West)
+        const viewpoints = {
+            centrum: { lat: 52.3650, lng: 4.8150 }, // Midden Sloterplas waterlichaam
+            zuid:    { lat: 52.3550, lng: 4.8100 }, 
+            noorde:  { lat: 52.3780, lng: 4.8250 }  
+        };
+        const nyCoords = { lat: 40.7110, lng: -74.0134 };
+
+        function berekenEindpunt(centrumLat, centrumLng, azimut, afstand) {
+            let azRad = azimut * (Math.PI / 180);
+            let dLat = afstand * Math.cos(azRad);
+            let dLng = afstand * Math.sin(azRad);
+            let eindLat = centrumLat + (dLat / aardeRadius) * (180 / Math.PI);
+            let eindLng = centrumLng + (dLng / (aardeRadius * Math.cos(centrumLat * Math.PI / 180))) * (180 / Math.PI);
+            return [eindLng, eindLat];
+        }
+
+        // ============================================================================
+        // INITIALISATIE VIEWPORT 1 (Lokaal exact op de Sloterplas Amsterdam in 3D)
+        // ============================================================================
+        const map1 = new maplibregl.Map({
+            container: 'map1',
+            style: 'https://tiles.openfreemap.org/styles/liberty', // Vrije 3D stijl met gebouwen
+            center: [viewpoints.centrum.lng, viewpoints.centrum.lat],
+            zoom: 13.5,
+            pitch: 50,     // 3D perspectief kanteling
+            bearing: -15,  // Rotatiehoek
+            maxPitch: 85
+        });
+
+        map1.on('load', () => {
+            // Bereken eindpunten vanuit het hart van de Sloterplas
+            const end141 = berekenEindpunt(viewpoints.centrum.lat, viewpoints.centrum.lng, 141, 15000);
+            const end51  = berekenEindpunt(viewpoints.centrum.lat, viewpoints.centrum.lng, 51, 15000);
+            const end222 = berekenEindpunt(viewpoints.centrum.lat, viewpoints.centrum.lng, 222, 15000);
+            const end22  = berekenEindpunt(viewpoints.centrum.lat, viewpoints.centrum.lng, 22, 12000);
+            const end130 = berekenEindpunt(viewpoints.centrum.lat, viewpoints.centrum.lng, 130, 12000);
+
+            map1.addSource('vectors-v1', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [
+                        {
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: [[viewpoints.centrum.lng, viewpoints.centrum.lat], end141] },
+                            properties: { color: '#111111', width: 5 }
+                        },
+                        {
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: [[viewpoints.centrum.lng, viewpoints.centrum.lat], end51] },
+                            properties: { color: '#2e7d32', width: 4 }
+                        },
+                        {
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: [[viewpoints.centrum.lng, viewpoints.centrum.lat], end222] },
+                            properties: { color: '#ff0066', width: 6 }
+                        },
+                        {
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: [[viewpoints.centrum.lng, viewpoints.centrum.lat], end22] },
+                            properties: { color: '#e91e63', width: 2 }
+                        },
+                        {
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: [[viewpoints.centrum.lng, viewpoints.centrum.lat], end130] },
+                            properties: { color: '#f9a825', width: 2 }
+                        }
+                    ]
+                }
+            });
+
+            map1.addLayer({
+                id: 'lines-v1',
+                type: 'line',
+                source: 'vectors-v1',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': ['get', 'color'],
+                    'line-width': ['get', 'width']
+                }
+            });
+
+            // Centrale marker precies midden op de Sloterplas
+            const centerEl = document.createElement('div');
+            centerEl.style.width = '16px';
+            centerEl.style.height = '16px';
+            centerEl.style.background = '#ff6b6b';
+            centerEl.style.border = '3px solid #ff0066';
+            centerEl.style.borderRadius = '50%';
+            new maplibregl.Marker(centerEl).setLngLat([viewpoints.centrum.lng, viewpoints.centrum.lat]).addTo(map1);
+
+            // Labels met graden
+            const label141 = document.createElement('div');
+            label141.className = 'axis-label';
+            label141.innerHTML = '<b>Beispiel:</b> 141° Horizon As';
+            new maplibregl.Marker(label141).setLngLat(end141).addTo(map1);
+
+            const label51 = document.createElement('div');
+            label51.className = 'axis-label';
+            label51.innerHTML = '<b>Ergebnis:</b> 51° Verticaal';
+            new maplibregl.Marker(label51).setLngLat(end51).addTo(map1);
+
+            const label222 = document.createElement('div');
+            label222.className = 'axis-label';
+            label222.innerHTML = '<b>Ergebnis:</b> 222° NIEUWverticaal';
+            new maplibregl.Marker(label222).setLngLat(end222).addTo(map1);
+
+            const label22 = document.createElement('div');
+            label22.className = 'axis-label';
+            label22.innerHTML = '<b>22°</b> Pentagon';
+            new maplibregl.Marker(label22).setLngLat(end22).addTo(map1);
+
+            const label130 = document.createElement('div');
+            label130.className = 'axis-label';
+            label130.innerHTML = '<b>130°</b> Parallelas';
+            new maplibregl.Marker(label130).setLngLat(end130).addTo(map1);
+        });
+
+        // ============================================================================
+        // INITIALISATIE VIEWPORT 2 (Trans-Atlantische Macro As naar New York)
+        // ============================================================================
+        const map2 = new maplibregl.Map({
+            container: 'map2',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-30, 45],
+            zoom: 3,
+            pitch: 30,
+            bearing: 0
+        });
+
+        map2.on('load', () => {
+            map2.addSource('vectors-v2', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [
+                        {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'LineString',
+                                coordinates: [
+                                    [nyCoords.lng, nyCoords.lat],
+                                    [viewpoints.centrum.lng, viewpoints.centrum.lat]
+                                ]
+                            }
+                        }
+                    ]
+                }
+            });
+
+            map2.addLayer({
+                id: 'lines-v2',
+                type: 'line',
+                source: 'vectors-v2',
+                paint: {
+                    'line-color': '#6d4aff',
+                    'line-width': 3,
+                    'line-dasharray': [2, 2]
+                }
+            });
+
+            const nyLabel = document.createElement('div');
+            nyLabel.className = 'axis-label';
+            nyLabel.innerHTML = '<b>Beispiel:</b> WTC 1 New York';
+            new maplibregl.Marker(nyLabel).setLngLat([nyCoords.lng, nyCoords.lat]).addTo(map2);
+
+            const amsLabel = document.createElement('div');
+            amsLabel.className = 'axis-label';
+            amsLabel.innerHTML = '<b>Ergebnis:</b> Sloterplas Amsterdam';
+            new maplibregl.Marker(amsLabel).setLngLat([viewpoints.centrum.lng, viewpoints.centrum.lat]).addTo(map2);
+        });
+    </script>
+</body>
+</html>

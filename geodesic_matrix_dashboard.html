@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodetisch & Temporeel Matrix Dashboard</title>
+    <!-- Tailwind CSS for modern responsive layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS for interactive mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Google Fonts: Playfair Display & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+        }
+        .magritte-title {
+            font-family: 'Playfair Display', serif;
+        }
+        /* Custom Leaflet Dark Mode Adjustments */
+        .leaflet-container {
+            background: #0b0f19 !important;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col xl:flex-row overflow-x-hidden">
+
+    <!-- Sidebar / Control Panel -->
+    <aside class="w-full xl:w-[420px] bg-slate-900/90 border-r border-slate-800 p-6 flex flex-col justify-between z-10 shadow-2xl backdrop-blur-md">
+        <div>
+            <!-- Header & Magritte Quote -->
+            <div class="mb-6 border-b border-slate-800 pb-4">
+                <span class="text-xs uppercase tracking-widest text-sky-400 font-semibold">Geodetische Matrix & Synthese</span>
+                <h1 class="magritte-title text-2xl font-bold text-white mt-1">Ceci n'est pas une carte</h1>
+                <p class="text-xs text-slate-400 italic mt-1">Ruimtelijk-temporele projectie rond WTC1 & trans-Atlantische as.</p>
+            </div>
+
+            <!-- Vector Toggle Controls -->
+            <div class="space-y-4 mb-6">
+                <h2 class="text-sm font-semibold tracking-wider text-slate-300 uppercase">Geodetische Vectoren</h2>
+                
+                <div class="space-y-2">
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition cursor-pointer">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" id="vec29" checked class="w-4 h-4 text-sky-500 rounded bg-slate-900 border-slate-600 focus:ring-sky-500">
+                            <div>
+                                <span class="text-sm font-medium text-white block">29° Grid Tilt</span>
+                                <span class="text-xs text-slate-400">Commissioners' Plan & Crystal Output</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-sky-400">#3b82f6</span>
+                    </label>
+
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition cursor-pointer">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" id="vec91" checked class="w-4 h-4 text-rose-500 rounded bg-slate-900 border-slate-600 focus:ring-rose-500">
+                            <div>
+                                <span class="text-sm font-medium text-white block">91° Inslag- & Datumhoek</span>
+                                <span class="text-xs text-slate-400">91 Hz Vortex & Shi-Doku vlakken</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-rose-400">#f43f5e</span>
+                    </label>
+
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition cursor-pointer">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" id="vec122" checked class="w-4 h-4 text-emerald-500 rounded bg-slate-900 border-slate-600 focus:ring-emerald-500">
+                            <div>
+                                <span class="text-sm font-medium text-white block">122° Cross-Street Vector</span>
+                                <span class="text-xs text-slate-400">Resonantie met 441-matrix (61 × 2)</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400">#10b981</span>
+                    </label>
+
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition cursor-pointer">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" id="vec331" checked class="w-4 h-4 text-purple-500 rounded bg-slate-900 border-slate-600 focus:ring-purple-500">
+                            <div>
+                                <span class="text-sm font-medium text-white block">331° Meridiaanse Spiegelas</span>
+                                <span class="text-xs text-slate-400">Geodetische symmetriemodule</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-mono text-purple-400">#a855f7</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Temporele & Duodecimale Modules -->
+            <div class="space-y-4">
+                <h2 class="text-sm font-semibold tracking-wider text-slate-300 uppercase">Temporele & Duodecimale Kern</h2>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="p-3 rounded-lg bg-slate-800/40 border border-slate-700/60">
+                        <span class="text-xs text-slate-400 block">12-Uurs Spiegelas</span>
+                        <span class="text-sm font-mono font-bold text-sky-300 mt-1 block">08:46 ⟷ 20:46</span>
+                        <span class="text-[10px] text-slate-500 block mt-0.5">EDT / CET Symmetrie</span>
+                    </div>
+                    <div class="p-3 rounded-lg bg-slate-800/40 border border-slate-700/60">
+                        <span class="text-xs text-slate-400 block">Duodecimale Algebra</span>
+                        <span class="text-sm font-mono font-bold text-emerald-300 mt-1 block">17.280 = A000₁₂</span>
+                        <span class="text-[10px] text-slate-500 block mt-0.5">Harmonische Perfectie</span>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-900/50">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-indigo-300">As van Quetzalcoatl</span>
+                        <span class="text-xs font-mono text-indigo-400">Kin 12 ➔ Kin 24</span>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        De 12-daagse sprong vanuit de avonddrempel op de equinox markeert de wiskundige verdubbeling naar volledige verlichting door het geodetische raster.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-500 flex justify-between items-center">
+            <span>WTC1 Nulpunt: 40.7123° N, 74.0130° W</span>
+            <span class="text-sky-400 font-mono">v2.4 Live Matrix</span>
+        </div>
+    </aside>
+
+    <!-- Main Map Viewport -->
+    <main class="flex-1 h-[60vh] xl:h-screen relative">
+        <div id="map" class="w-full h-full z-0"></div>
+
+        <!-- Floating Magritte Watermark Badge -->
+        <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/80 backdrop-blur-md border border-slate-700/80 px-4 py-2 rounded-lg shadow-xl pointer-events-none">
+            <span class="magritte-title italic text-sm text-slate-300">"Ceci n'est pas une carte."</span>
+        </div>
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // 1. Initialiseer de Leaflet Kaart (Donkere Magritte / CartoDB Dark Matter stijl)
+        const map = L.map('map', {
+            center: [40.712361, -74.013028],
+            zoom: 3,
+            zoomControl: false
+        });
+
+        // Voeg zoomcontrol rechtsboven toe voor betere ergonomie
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // Donkere CartoDB Tiles
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // 2. WTC1 Cartografisch Nulpunt Coördinaten
+        const wtcOrigin = [40.712361, -74.013028];
+
+        // Custom HTML Icon voor WTC1 nulpunt
+        const wtcIcon = L.divIcon({
+            className: 'custom-wtc-marker',
+            html: `<div class="relative flex items-center justify-center">
+                     <div class="absolute w-6 h-6 bg-red-500 rounded-full animate-ping opacity-75"></div>
+                     <div class="w-4 h-4 bg-red-600 border-2 border-white rounded-full shadow-lg"></div>
+                   </div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const originMarker = L.marker(wtcOrigin, { icon: wtcIcon }).addTo(map);
+        originMarker.bindPopup(`
+            <div class="p-2 text-slate-900 font-sans">
+                <strong class="text-base text-red-600 block mb-1">WTC1 - Cartografisch Nulpunt</strong>
+                <p class="text-xs text-slate-700">Coördinaten: 40.712361, -74.013028</p>
+                <p class="text-xs text-slate-700 mt-1">Spiegeltijd: <b>08:46 EDT / 20:46 MET</b></p>
+            </div>
+        `);
+
+        // 3. Functie om bestemmingscoördinaten te berekenen op basis van azimut en afstand
+        function calculateDestination(lat, lon, bearing, distanceKm) {
+            const R = 6371.0; // Aardstraal in km
+            const latRad = lat * Math.PI / 180;
+            const lonRad = lon * Math.PI / 180;
+            const bearingRad = bearing * Math.PI / 180;
+
+            const lat2Rad = Math.asin(
+                Math.sin(latRad) * Math.cos(distanceKm / R) +
+                Math.cos(latRad) * Math.sin(distanceKm / R) * Math.cos(bearingRad)
+            );
+
+            const lon2Rad = lonRad + Math.atan2(
+                Math.sin(bearingRad) * Math.sin(distanceKm / R) * Math.cos(latRad),
+                Math.cos(distanceKm / R) - Math.sin(latRad) * Math.sin(lat2Rad)
+            );
+
+            return [lat2Rad * 180 / Math.PI, lon2Rad * 180 / Math.PI];
+        }
+
+        // 4. Definieer de Geodetische Vectoren
+        const vectorConfigs = [
+            { id: 'vec29', angle: 29, color: '#3b82f6', name: '29° Grid Tilt (Commissioners\' Plan)' },
+            { id: 'vec91', angle: 91, color: '#f43f5e', name: '91° Inslag- & Datumhoek (Vortex)' },
+            { id: 'vec122', angle: 122, color: '#10b981', name: '122° Cross-Street Vector (441-Matrix)' },
+            { id: 'vec331', angle: 331, color: '#a855f7', name: '331° Meridiaanse Spiegelas' }
+        ];
+
+        const activeVectorLayers = {};
+        const vectorDistance = 4500; // km over de aardbol
+
+        vectorConfigs.forEach(config => {
+            const dest = calculateDestination(wtcOrigin[0], wtcOrigin[1], config.angle, vectorDistance);
+            
+            // Teken grootcirkelachtige lijn
+            const polyline = L.polyline([wtcOrigin, dest], {
+                color: config.color,
+                weight: 3,
+                opacity: 0.85,
+                dashArray: '6, 6'
+            });
+
+            // Eindpuntsmarker
+            const endpointMarker = L.circleMarker(dest, {
+                radius: 6,
+                color: '#ffffff',
+                weight: 2,
+                fillColor: config.color,
+                fillOpacity: 1
+            });
+
+            endpointMarker.bindPopup(`
+                <div class="p-2 text-slate-900 font-sans">
+                    <strong class="text-sm block mb-1" style="color: ${config.color}">${config.name}</strong>
+                    <p class="text-xs text-slate-700">Azimut Hoek: ${config.angle}°</p>
+                    <p class="text-xs text-slate-700 mt-1">Temporele Spiegelas: <b>20:46 MET</b></p>
+                </div>
+            `);
+
+            activeVectorLayers[config.id] = { line: polyline, marker: endpointMarker };
+
+            // Voeg direct toe aan kaart (allemaal standaard aangevinkt)
+            polyline.addTo(map);
+            endpointMarker.addTo(map);
+
+            // Koppel checkbox gebeurtenissen
+            document.getElementById(config.id).addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    polyline.addTo(map);
+                    endpointMarker.addTo(map);
+                } else {
+                    map.removeLayer(polyline);
+                    map.removeLayer(endpointMarker);
+                }
+            });
+        });
+
+        // Responsive map invalidation na laden
+        window.addEventListener('resize', () => {
+            map.invalidateSize();
+        });
+    </script>
+</body>
+</html>
