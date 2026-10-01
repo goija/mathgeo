@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodetic & Duodecimal System Architecture</title>
+    
+    <!-- Tailwind CSS for layout and glassmorphism -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js for 3D Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Chart.js for 2D UI Panels -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: #0b0f19; /* Dark theme matching prompt */
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+        }
+
+        #three-canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        .dashboard-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            min-height: 100vh;
+            padding: 2rem;
+            pointer-events: none; /* Let clicks pass through to 3D background if needed, except on panels */
+        }
+
+        .glass-panel {
+            background: rgba(11, 15, 25, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(125, 211, 252, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.05);
+            pointer-events: auto; /* Enable chart tooltips */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            flex-grow: 1;
+            min-height: 250px;
+        }
+        
+        h2 {
+            font-family: 'Inter', sans-serif;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+        
+        .main-title {
+            text-align: center;
+            margin-bottom: 2rem;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 3D Background Container -->
+    <div id="three-canvas-container"></div>
+
+    <!-- UI Dashboard Overlay -->
+    <div class="dashboard-container flex flex-col">
+        
+        <div class="main-title pointer-events-auto">
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Geodetic & Duodecimal System Architecture Dashboard</h1>
+            <p class="text-lg text-cyan-300 font-semibold">WTC1 Angles (29°, 91°, 122°, 331°), Mirror Axis (08:46/20:46) & 441 Matrix</p>
+        </div>
+
+        <!-- 2x2 Grid Layout for Panels -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full max-w-7xl mx-auto flex-grow">
+            
+            <!-- Panel 1: Geodetic Vectors -->
+            <div class="glass-panel">
+                <h2>Geodetische Vector Projecties (WTC1 As)</h2>
+                <div class="chart-wrapper">
+                    <canvas id="chart1"></canvas>
+                </div>
+            </div>
+
+            <!-- Panel 2: 12-Hour Mirror -->
+            <div class="glass-panel">
+                <h2>12-Uurs Spiegelas Symmetrie (08:46 ↔ 20:46)</h2>
+                <div class="chart-wrapper">
+                    <canvas id="chart2"></canvas>
+                </div>
+            </div>
+
+            <!-- Panel 3: 441 Matrix -->
+            <div class="glass-panel">
+                <h2>441-Matrix (21x21) & 144 Duodecimaal Stramien</h2>
+                <div class="chart-wrapper">
+                    <canvas id="chart3"></canvas>
+                </div>
+            </div>
+
+            <!-- Panel 4: Kin Doubling -->
+            <div class="glass-panel">
+                <h2>Duodecimale Kin 12 → 24 Frequentie Verdubbeling</h2>
+                <div class="chart-wrapper">
+                    <canvas id="chart4"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. THREE.JS 3D BACKGROUND (441 Matrix)
+        // ==========================================
+        const container = document.getElementById('three-canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0b0f19, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 30, 45);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const matrixGroup = new THREE.Group();
+        scene.add(matrixGroup);
+
+        // Build 21x21 grid (441 points)
+        const gridSize = 21;
+        const spacing = 1.8;
+        const offset = ((gridSize - 1) * spacing) / 2;
+        
+        const spheres = [];
+        const basePositions = [];
+
+        const geometry = new THREE.SphereGeometry(0.2, 8, 8);
+        const material = new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.6 });
+        const centerMaterial = new THREE.MeshBasicMaterial({ color: 0xf59e0b }); // Golden center
+        const subGridMaterial = new THREE.MeshBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.8 }); // Pink subgrid
+
+        for (let x = 0; x < gridSize; x++) {
+            for (let z = 0; z < gridSize; z++) {
+                // Determine material based on 12x12 center or exact center
+                let mat = material;
+                if (x === 10 && z === 10) mat = centerMaterial;
+                else if (x >= 4 && x <= 16 && z >= 4 && z <= 16) mat = subGridMaterial;
+
+                const sphere = new THREE.Mesh(geometry, mat);
+                const posX = (x * spacing) - offset;
+                const posZ = (z * spacing) - offset;
+                
+                sphere.position.set(posX, 0, posZ);
+                matrixGroup.add(sphere);
+                
+                spheres.push(sphere);
+                basePositions.push({ x: posX, z: posZ });
+            }
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            const time = clock.getElapsedTime();
+
+            // QUATERNION ROTATION: Continuous multi-axis rotation without Gimbal Lock
+            const axisY = new THREE.Vector3(0, 1, 0).normalize();
+            const axisX = new THREE.Vector3(1, 0, 0).normalize();
+            
+            const qY = new THREE.Quaternion().setFromAxisAngle(axisY, time * 0.15); // Continuous Y spin
+            const qX = new THREE.Quaternion().setFromAxisAngle(axisX, Math.sin(time * 0.5) * 0.2); // Gentle X tilt
+            
+            // Multiply quaternions to combine rotations
+            const combinedRotation = new THREE.Quaternion().copy(qY).multiply(qX);
+            matrixGroup.quaternion.copy(combinedRotation);
+
+            // Sine wave oscillation for the matrix points
+            for (let i = 0; i < spheres.length; i++) {
+                const base = basePositions[i];
+                // Complex wave pattern
+                const wave = Math.sin((base.x + time * 2) * 0.3) * Math.cos((base.z + time) * 0.3) * 2;
+                spheres[i].position.y = wave;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate3D();
+        
+        // ==========================================
+        // 2. CHART.JS PANELS SETUP
+        // ==========================================
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'JetBrains Mono', monospace";
+        
+        const gridOptions = {
+            color: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'rgba(255, 255, 255, 0.2)'
+        };
+
+        // PANEL 1: Geodetic Vector Projections
+        const ctx1 = document.getElementById('chart1').getContext('2d');
+        
+        // Generate mock arc curves for visual representation
+        function generateArc(startX, startY, angle, length) {
+            const points = [];
+            const rad = angle * (Math.PI / 180);
+            for (let i = 0; i <= length; i+=2) {
+                points.push({
+                    x: startX + Math.cos(rad) * i,
+                    y: startY + Math.sin(rad) * i - (0.015 * i * i) // Fake spherical curve
+                });
+            }
+            return points;
+        }
+
+        new Chart(ctx1, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Nodes',
+                        data: [
+                            { x: -74.01, y: 40.71, label: 'WTC 1 (NYC)' },
+                            { x: 3.67, y: 51.55, label: 'Veere' },
+                            { x: 4.10, y: 51.55, label: 'Scherpenisse' },
+                            { x: 4.90, y: 52.37, label: 'Amsterdam' },
+                            { x: 18.06, y: 59.32, label: 'Stockholm' }
+                        ],
+                        backgroundColor: '#eab308', // Yellow
+                        borderColor: '#ffffff',
+                        borderWidth: 1,
+                        pointRadius: 6,
+                        type: 'scatter',
+                        order: 1
+                    },
+                    {
+                        label: '29° Grid Tilt',
+                        data: generateArc(-74.01, 40.71, 29, 100),
+                        borderColor: '#ef4444', // Red
+                        borderWidth: 2,
+                        type: 'line',
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: '91° Vortex/Datum',
+                        data: generateArc(-74.01, 40.71, -15, 90), // Adjusted angle for visual layout
+                        borderColor: '#06b6d4', // Cyan
+                        borderWidth: 2,
+                        type: 'line',
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: '122° Mirror Axis',
+                        data: generateArc(-74.01, 40.71, -55, 60), 
+                        borderColor: '#f59e0b', // Amber
+                        borderWidth: 2,
+                        type: 'line',
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    },
+                    {
+                        label: '331° Counter-Tilt',
+                        data: generateArc(-74.01, 40.71, 140, 60), 
+                        borderColor: '#f97316', // Orange
+                        borderWidth: 2,
+                        type: 'line',
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: gridOptions, min: -130, max: 40, title: { display: true, text: 'Longitude (°)' } },
+                    y: { grid: gridOptions, min: 10, max: 75, title: { display: true, text: 'Latitude (°)' } }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ctx.raw.label || `(${ctx.raw.x.toFixed(2)}, ${ctx.raw.y.toFixed(2)})`
+                        }
+                    }
+                }
+            }
+        });
+
+        // PANEL 2: 12-Hour Mirror Symmetry (Sine wave)
+        const ctx2 = document.getElementById('chart2').getContext('2d');
+        const waveData = [];
+        for (let x = 0; x <= 24; x += 0.1) {
+            // Wave that crosses 0 at exactly 8.76 (08:46) and 20.76 (20:46)
+            waveData.push({ x: x, y: Math.cos((x - 8.76) * (Math.PI / 6)) });
+        }
+
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+                datasets: [
+                    {
+                        label: '12-Hour Mirror Wave',
+                        data: waveData,
+                        borderColor: '#38bdf8',
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        tension: 0.4
+                    },
+                    // Vertical line for 08:46
+                    {
+                        label: '08:46 Event (Morning)',
+                        data: [{x: 8.76, y: -1.2}, {x: 8.76, y: 1.2}],
+                        borderColor: '#f43f5e', // Pink/Red
+                        borderWidth: 2,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#eab308'
+                    },
+                    // Vertical line for 20:46
+                    {
+                        label: '20:46 Mirror Node 86 (Evening)',
+                        data: [{x: 20.76, y: -1.2}, {x: 20.76, y: 1.2}],
+                        borderColor: '#10b981', // Emerald
+                        borderWidth: 2,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#eab308'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: gridOptions, min: 0, max: 24, title: { display: true, text: 'Local Time (Hours)' }, ticks: { stepSize: 3 } },
+                    y: { grid: gridOptions, min: -1.2, max: 1.2, title: { display: true, text: 'Harmonic Phase Amplitude' } }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12 } }
+                }
+            }
+        });
+
+        // PANEL 3: 441-Matrix (21x21)
+        const ctx3 = document.getElementById('chart3').getContext('2d');
+        
+        // Generate the 12x12 box outline (4.5 to 16.5)
+        const subGridBox = [
+            {x: 4.5, y: 4.5}, {x: 16.5, y: 4.5}, 
+            {x: 16.5, y: 16.5}, {x: 4.5, y: 16.5}, {x: 4.5, y: 4.5}
+        ];
+
+        new Chart(ctx3, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: '221 (Center)',
+                        data: [{ x: 10.5, y: 10.5 }],
+                        backgroundColor: '#eab308',
+                        borderColor: '#ffffff',
+                        borderWidth: 1,
+                        pointRadius: 8
+                    },
+                    {
+                        label: '144 Sub-Grid',
+                        data: subGridBox,
+                        borderColor: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.4)',
+                        borderWidth: 2,
+                        type: 'line',
+                        fill: true,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: gridOptions, min: 0, max: 21, title: { display: true, text: 'Horizontal Vectors (H1..H21)' } },
+                    y: { grid: gridOptions, min: 0, max: 21, reverse: true, title: { display: true, text: 'Vertical Vectors (V1..V21)' } }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // PANEL 4: Duodecimal Kin Doubling
+        const ctx4 = document.getElementById('chart4').getContext('2d');
+        
+        // Generate diagonal points
+        const kinPoints = [];
+        for(let i = 1; i <= 24; i++) {
+            // Line from (1, 12) to (24, 24) -> slope = (24-12)/(24-1) = 12/23
+            let y = 12 + ((i - 1) * (12/23));
+            kinPoints.push({x: i, y: y});
+        }
+
+        new Chart(ctx4, {
+            type: 'line',
+            data: {
+                datasets: [
+                    {
+                        label: 'Kin Shift (12 → 24)',
+                        data: kinPoints,
+                        borderColor: '#f59e0b',
+                        backgroundColor: '#f59e0b',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        fill: false
+                    },
+                    {
+                        label: 'Day 1 (Kin 12)',
+                        data: [{x: 1, y: 10}, {x: 1, y: 25}],
+                        borderColor: '#38bdf8',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Day 12 (17,280 min)',
+                        data: [{x: 12, y: 10}, {x: 12, y: 25}],
+                        borderColor: '#34d399',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Day 24 (Equinox)',
+                        data: [{x: 24, y: 10}, {x: 24, y: 25}],
+                        borderColor: '#fb7185',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: gridOptions, min: 0, max: 25, title: { display: true, text: 'Transformation Days (12 Days = 17,280 Minutes)' } },
+                    y: { grid: gridOptions, min: 10, max: 25, title: { display: true, text: 'Kin Frequency Index' } }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12 } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
