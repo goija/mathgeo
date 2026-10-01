@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - WebRTC DataChannel Viewports</title>
+    
+    <!-- MapLibre GL JS v4 -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Turf.js (Geodesie) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    
+    <!-- Astronomy Engine & SunCalc -->
+    <script src="https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #05131f; font-family: 'Courier New', Courier, monospace; overflow: hidden; color: #e0e0e0; }
+        
+        /* Split Screen Container */
+        #viewport-container { display: flex; width: 100vw; height: 100vh; }
+        .map-viewport { flex: 1; position: relative; border-right: 2px solid rgba(100, 255, 218, 0.4); }
+        .map-viewport:last-child { border-right: none; }
+        .map-instance { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+
+        /* DataChannel Indicator Center */
+        #dc-indicator {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(10, 25, 47, 0.9); border: 1px solid #64ffda; color: #64ffda;
+            padding: 5px 15px; border-radius: 20px; z-index: 50; font-family: monospace;
+            font-size: 11px; display: flex; align-items: center; gap: 8px; box-shadow: 0 0 15px rgba(100,255,218,0.2);
+        }
+        .dc-pulse { width: 8px; height: 8px; background: #e74c3c; border-radius: 50%; }
+        .dc-pulse.active { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.5; transform: scale(0.9); } to { opacity: 1; transform: scale(1.2); } }
+
+        /* Zwevende panelen (Gebonden aan Left Viewport) */
+        .glass-panel {
+            position: absolute; background: rgba(10, 25, 47, 0.75);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 200, 255, 0.2); border-radius: 8px;
+            z-index: 10; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            max-height: 85vh; display: flex; flex-direction: column; transition: opacity 0.3s ease;
+        }
+        
+        .panel-content { padding: 15px; overflow-y: auto; }
+        .drag-handle {
+            background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid rgba(100, 255, 218, 0.3);
+            padding: 5px; text-align: center; font-size: 10px; color: #64ffda;
+            cursor: grab; border-radius: 8px 8px 0 0; user-select: none; text-transform: uppercase; letter-spacing: 2px;
+        }
+        .drag-handle:active { cursor: grabbing; background: rgba(100, 255, 218, 0.3); }
+
+        #panel-left { top: 60px; left: 20px; width: 320px; }
+        #panel-layers { top: 60px; left: 350px; width: 320px; }
+        #panel-astro { bottom: 30px; left: 20px; width: 320px; } 
+        #panel-planimeter { bottom: 30px; left: 350px; width: 320px; }
+
+        h2, h3 { margin-top: 0; font-weight: normal; color: #64ffda; text-transform: uppercase; font-size: 13px; letter-spacing: 1.2px; border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 5px; }
+        p, li { font-size: 12px; line-height: 1.5; margin: 8px 0; }
+        ul { padding-left: 20px; text-align: left; }
+        .highlight { color: #ffca28; font-weight: bold; }
+        
+        /* Input & Buttons */
+        .loc-input { width: 100%; padding: 8px 10px; margin-bottom: 10px; background: rgba(10, 25, 47, 0.8); border: 1px solid #64ffda; color: #fff; border-radius: 4px; font-family: monospace; font-size: 11px; outline: none; box-sizing: border-box; }
+        .loc-btn, .mode-btn { background: #ffca28; color: #05131f; border: none; padding: 10px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; margin-bottom: 10px; transition: 0.3s; }
+        .loc-btn { background: #64ffda; margin-bottom: 15px; }
+        .loc-btn:hover { background: #4cd3b6; }
+        
+        #drag-btn.active { background: #ff5252; color: #fff; }
+        #flag-btn { background: #3498db; color: #fff;}
+        #flag-btn.active { background: #e84393; color: #fff; }
+        
+        .action-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .action-btn { flex: 1; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; font-size: 11px; color: #fff; transition: 0.3s;}
+        #save-btn { background: #2ecc71; } #load-btn { background: #f39c12; }
+        
+        /* Popup Formulier */
+        .popup-textarea { width: 100%; height: 60px; background: rgba(0,0,0,0.05); border: 1px solid #ccc; border-radius: 4px; margin: 8px 0; padding: 5px; font-family: monospace; font-size: 11px; resize: none; box-sizing: border-box; }
+        .popup-save-btn { background: #3498db; color: white; border: none; padding: 5px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; margin-bottom: 5px; }
+        .remove-flag-btn { background: #e74c3c; color: white; border: none; padding: 5px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; }
+
+        /* Planimeter Wieltjes */
+        .wheel-container { display: flex; justify-content: space-around; padding: 15px 0; align-items: center; }
+        .wheel-box { display: flex; flex-direction: column; align-items: center; cursor: ns-resize; }
+        .wheel-label { font-size: 9px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; text-align: center; }
+        .wheel { width: 50px; height: 50px; border: 4px dashed #64ffda; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(100,255,218,0.3); pointer-events: none;}
+        .wheel-inner { width: 20px; height: 20px; border: 2px dotted #ff5252; border-radius: 50%; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th { border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 5px; color: #64ffda; text-transform: uppercase; font-size: 10px; text-align: left; }
+        td { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11px; }
+
+        #drag-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; cursor: grab; }
+        #drag-overlay:active { cursor: grabbing; }
+        
+        /* Slave Overlay Text */
+        .slave-text { position:absolute; bottom:20px; right:20px; z-index:10; font-family:monospace; color:rgba(100,255,218,0.5); font-size:14px; pointer-events:none; }
+    </style>
+</head>
+<body>
+
+    <div id="dc-indicator">
+        <div id="dc-pulse" class="dc-pulse"></div>
+        WebRTC DataChannel: <span id="dc-status">Connecting...</span>
+    </div>
+
+    <div id="viewport-container">
+        <!-- Master Viewport (Left) -->
+        <div class="map-viewport">
+            <div id="map-left" class="map-instance"></div>
+            <div id="drag-overlay"></div>
+            
+            <!-- Panelen leven in de linkerkant -->
+            <div id="panel-left" class="glass-panel ui-element">
+                <div class="drag-handle">≡ Master Navigatie ≡</div>
+                <div class="panel-content">
+                    <h2 style="margin-top: 0;">🔍 Locatie Zoeken</h2>
+                    <input type="text" id="loc-input" class="loc-input" placeholder="Bijv: 52.365, 4.815">
+                    <button id="loc-btn" class="loc-btn">Zoek Coördinaten</button>
+
+                    <h2 style="margin-top: 10px;">💾 Lokale Opslag</h2>
+                    <div class="action-row">
+                        <button id="save-btn" class="action-btn">💾 OPSLAAN</button>
+                        <button id="load-btn" class="action-btn">📂 LADEN</button>
+                    </div>
+
+                    <button id="drag-btn" class="mode-btn">🖐 MODUS: HANDJE (UIT)</button>
+                    <button id="flag-btn" class="mode-btn">🚩 VLAG PLAATSEN (UIT)</button>
+                </div>
+            </div>
+
+            <!-- Kaarten Lagen -->
+            <div id="panel-layers" class="glass-panel ui-element">
+                <div class="drag-handle">≡ Kaartlagen ≡</div>
+                <div class="panel-content">
+                    <h2 style="margin-top: 0;">🌍 Basis Kaartlaag</h2>
+                    <select id="basemap-select" class="loc-input">
+                        <option value="dark">Carto Dark Matter</option>
+                        <option value="satellite">Esri Satelliet (3D)</option>
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="nautical">⚓ Zeekaart (OpenSeaMap)</option>
+                    </select>
+                    
+                    <h2 style="margin-top: 15px;">📹 WebRTC Video Node</h2>
+                    <button id="start-webrtc-btn" class="loc-btn" style="background:#e84393; color:#fff;">Start Lokale Camera</button>
+                    <video id="webrtc-video" autoplay playsinline muted style="width:100%; display:none; border:1px solid #64ffda; border-radius:4px;"></video>
+                </div>
+            </div>
+
+            <!-- Astronomie -->
+            <div id="panel-astro" class="glass-panel ui-element">
+                <div class="drag-handle">≡ Telemetrie ≡</div>
+                <div class="panel-content">
+                    <h2 id="astro-date-title">Lokale Hemel</h2>
+                    <div id="astro-sun-moon" style="font-size:12px; margin-bottom: 15px;">Laden...</div>
+                    <h2 style="color: #64ffda;">Planeten</h2>
+                    <div id="astro-planets">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Planimeter -->
+            <div id="panel-planimeter" class="glass-panel ui-element">
+                <div class="drag-handle">≡ Planimeter (Master Control) ≡</div>
+                <div class="panel-content">
+                    <div class="wheel-container">
+                        <div class="wheel-box" id="ctrl-az"><div class="wheel-label">Azimut</div><div id="wheel-az" class="wheel"><div class="wheel-inner"></div></div></div>
+                        <div class="wheel-box" id="ctrl-pt"><div class="wheel-label">Pitch</div><div id="wheel-pt" class="wheel" style="border-color:#ff5252;"><div class="wheel-inner" style="border-color:#64ffda;"></div></div></div>
+                        <div class="wheel-box" id="ctrl-sc"><div class="wheel-label">Zoom</div><div id="wheel-sc" class="wheel" style="border-color:#3498db;"><div class="wheel-inner" style="border-color:#ffca28;"></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slave Viewport (Right) -->
+        <div class="map-viewport">
+            <div id="map-right" class="map-instance"></div>
+            <div class="slave-text">SLAVE VIEWPORT<br>Aangestuurd via DataChannel</div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. KAART INITIALISATIE (2x) ---
+        const mapOptions = {
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [-74.013028, 40.712361], zoom: 3.2, pitch: 50, bearing: 15, projection: 'globe'
+        };
+
+        const mapLeft = new maplibregl.Map({ container: 'map-left', ...mapOptions });
+        const mapRight = new maplibregl.Map({ container: 'map-right', interactive: false, ...mapOptions }); // Slave is view-only
+
+        const origin = [-74.013028, 40.712361]; 
+        let userFlags = [];
+
+        function setupMapLayers(m) {
+            m.addSource('custom-basemap-src', { type: 'raster', tiles: [''], tileSize: 256 });
+            m.addSource('custom-seamark-src', { type: 'raster', tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'], tileSize: 256 });
+            let firstSymbolId;
+            for (const layer of m.getStyle().layers) { if (layer.type === 'symbol') { firstSymbolId = layer.id; break; } }
+            m.addLayer({ id: 'custom-basemap-layer', type: 'raster', source: 'custom-basemap-src', paint: { 'raster-opacity': 0 } }, firstSymbolId);
+            m.addLayer({ id: 'custom-seamark-layer', type: 'raster', source: 'custom-seamark-src', paint: { 'raster-opacity': 0 } }, firstSymbolId);
+            
+            m.addSource('bepi-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            m.addLayer({ 'id': 'bepi-line', type: 'line', source: 'bepi-route', 'paint': { 'line-color': '#ffca28', 'line-width': 4, 'line-dasharray': [2, 3] } });
+            m.addSource('horizon-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            m.addLayer({ 'id': 'horizon-rings-layer', type: 'line', source: 'horizon-rings', 'paint': { 'line-color': '#64ffda', 'line-width': 1.5, 'line-opacity': 0.4, 'line-dasharray': [4, 4] } });
+        }
+
+        mapLeft.on('load', () => { 
+            setupMapLayers(mapLeft); 
+            new maplibregl.Marker({ color: '#ffca28' }).setLngLat(origin).addTo(mapLeft);
+            updateHorizonAndPlanimeter(); updateAstroDashboard();
+        });
+        mapRight.on('load', () => { 
+            setupMapLayers(mapRight); 
+            new maplibregl.Marker({ color: '#ffca28' }).setLngLat(origin).addTo(mapRight);
+        });
+
+        // --- 2. WEBRTC DATACHANNEL (P2P SYNC LOGICA) ---
+        const peer1 = new RTCPeerConnection();
+        const peer2 = new RTCPeerConnection();
+        const dc1 = peer1.createDataChannel('telemetry');
+        let dc2 = null;
+
+        const pulse = document.getElementById('dc-pulse');
+        const status = document.getElementById('dc-status');
+
+        peer1.onicecandidate = e => { if (e.candidate) peer2.addIceCandidate(e.candidate); };
+        peer2.onicecandidate = e => { if (e.candidate) peer1.addIceCandidate(e.candidate); };
+
+        peer2.ondatachannel = e => {
+            dc2 = e.channel;
+            dc2.onopen = () => { pulse.classList.add('active'); status.innerText = "ACTIVE (P2P SYNC)"; };
+            dc2.onmessage = event => {
+                // Ontvang data van master en plot op slave
+                const data = JSON.parse(event.data);
+                if(data.type === 'camera') {
+                    mapRight.jumpTo({ center: data.payload.center, zoom: data.payload.zoom, bearing: data.payload.bearing, pitch: data.payload.pitch });
+                } else if(data.type === 'layer') {
+                    // Sync layer opacity (basemaps)
+                    mapRight.setPaintProperty('custom-basemap-layer', 'raster-opacity', data.payload.baseOpac);
+                    mapRight.setPaintProperty('custom-seamark-layer', 'raster-opacity', data.payload.seaOpac);
+                    if(data.payload.tiles) {
+                        mapRight.removeLayer('custom-basemap-layer'); mapRight.removeSource('custom-basemap-src');
+                        mapRight.addSource('custom-basemap-src', { type: 'raster', tiles: data.payload.tiles, tileSize: 256 });
+                        let firstSymbolId; for (const layer of mapRight.getStyle().layers) { if (layer.type === 'symbol') { firstSymbolId = layer.id; break; } }
+                        mapRight.addLayer({ id: 'custom-basemap-layer', type: 'raster', source: 'custom-basemap-src', paint: { 'raster-opacity': 1 } }, firstSymbolId);
+                    }
+                }
+            };
+        };
+
+        async function establishLocalWebRTC() {
+            const offer = await peer1.createOffer();
+            await peer1.setLocalDescription(offer);
+            await peer2.setRemoteDescription(offer);
+            const answer = await peer2.createAnswer();
+            await peer2.setLocalDescription(answer);
+            await peer1.setRemoteDescription(answer);
+        }
+        establishLocalWebRTC();
+
+        // Stuur Master Telemetrie over de Channel
+        mapLeft.on('move', () => {
+            if (dc1.readyState === 'open') {
+                dc1.send(JSON.stringify({
+                    type: 'camera',
+                    payload: { center: mapLeft.getCenter(), zoom: mapLeft.getZoom(), bearing: mapLeft.getBearing(), pitch: mapLeft.getPitch() }
+                }));
+            }
+        });
+
+        // --- 3. UI, SLEPEN & WEBRTC CAMERA ---
+        function makeDraggable(element) {
+            const handle = element.querySelector('.drag-handle');
+            if(!handle) return; 
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            handle.onmousedown = (e) => {
+                e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = closeDragElement; document.onmousemove = elementDrag;
+                document.querySelectorAll('.ui-element').forEach(el => el.style.zIndex = 10); element.style.zIndex = 11;
+            };
+            function elementDrag(e) {
+                e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px"; element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+            function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
+        }
+        document.querySelectorAll('.glass-panel').forEach(makeDraggable);
+
+        // Lokale Video Node WebRTC
+        let localStream = null;
+        document.getElementById('start-webrtc-btn').addEventListener('click', async () => {
+            const video = document.getElementById('webrtc-video');
+            const btn = document.getElementById('start-webrtc-btn');
+            if(!localStream) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    video.srcObject = localStream; video.style.display = 'block';
+                    btn.innerText = "Stop Lokale Camera"; btn.style.background = "#e74c3c";
+                } catch(e) { alert("Camera fout: Zorg dat je via HTTPS of localhost werkt."); }
+            } else {
+                localStream.getTracks().forEach(t => t.stop()); localStream = null;
+                video.srcObject = null; video.style.display = 'none';
+                btn.innerText = "Start Lokale Camera"; btn.style.background = "#e84393";
+            }
+        });
+
+        // Basemaps & Sync naar Slave
+        document.getElementById('basemap-select').addEventListener('change', (e) => {
+            const val = e.target.value;
+            let payload = { type: 'layer', payload: { baseOpac: 0, seaOpac: 0, tiles: null } };
+
+            if(val === 'dark') {
+                mapLeft.setPaintProperty('custom-basemap-layer', 'raster-opacity', 0);
+                mapLeft.setPaintProperty('custom-seamark-layer', 'raster-opacity', 0);
+            } else {
+                let tiles = [];
+                if(val === 'satellite') tiles = ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'];
+                else if(val === 'osm' || val === 'nautical') tiles = ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'];
+                else if(val === 'topo') tiles = ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'];
+                
+                mapLeft.removeLayer('custom-basemap-layer'); mapLeft.removeSource('custom-basemap-src');
+                mapLeft.addSource('custom-basemap-src', { type: 'raster', tiles: tiles, tileSize: 256 });
+                let firstSymbolId; for (const layer of mapLeft.getStyle().layers) { if (layer.type === 'symbol') { firstSymbolId = layer.id; break; } }
+                mapLeft.addLayer({ id: 'custom-basemap-layer', type: 'raster', source: 'custom-basemap-src', paint: { 'raster-opacity': 1 } }, firstSymbolId);
+                
+                mapLeft.setPaintProperty('custom-seamark-layer', 'raster-opacity', val === 'nautical' ? 1 : 0);
+                payload.payload.baseOpac = 1; payload.payload.seaOpac = val === 'nautical' ? 1 : 0; payload.payload.tiles = tiles;
+            }
+            if (dc1.readyState === 'open') dc1.send(JSON.stringify(payload));
+        });
+
+        // --- 4. PLANIMETER & ASTRONOMIE ---
+        const wheelAz = document.getElementById('wheel-az'); const wheelPt = document.getElementById('wheel-pt'); const wheelSc = document.getElementById('wheel-sc');
+        function updateHorizonAndPlanimeter() {
+            const center = mapLeft.getCenter(); const bearing = mapLeft.getBearing(); const pitch = mapLeft.getPitch(); const zoom = mapLeft.getZoom();
+            wheelAz.style.transform = `rotate(${bearing * 2}deg)`; wheelPt.style.transform = `rotate(${pitch * 4}deg)`; wheelSc.style.transform = `rotate(${zoom * 45}deg)`;
+            
+            if(mapLeft.getSource('horizon-rings')) {
+                const features = [];
+                for(let r = 1000; r <= 8000; r+=1000) features.push(turf.circle([center.lng, center.lat], r, {steps: 64, units: 'kilometers'}));
+                [0, 90, 180, -90].forEach(d => { features.push(turf.lineString([[center.lng, center.lat], turf.destination([center.lng, center.lat], 8000, d, {units: 'kilometers'}).geometry.coordinates])); });
+                mapLeft.getSource('horizon-rings').setData(turf.featureCollection(features));
+                // Sync naar slave direct via bron updaten of via DataChannel (Voor nu rekent Slave het niet zelf uit, maar is afhankelijk van DataChannel)
+                if(mapRight.getSource('horizon-rings')) mapRight.getSource('horizon-rings').setData(turf.featureCollection(features));
+            }
+        }
+        
+        document.getElementById('ctrl-az').addEventListener('wheel', (e) => { e.preventDefault(); mapLeft.setBearing(mapLeft.getBearing() + (e.deltaY > 0 ? -5 : 5)); });
+        document.getElementById('ctrl-pt').addEventListener('wheel', (e) => { e.preventDefault(); let p = mapLeft.getPitch() + (e.deltaY > 0 ? -3 : 3); if(p < 0) p = 0; if(p > 85) p = 85; mapLeft.setPitch(p); });
+        document.getElementById('ctrl-sc').addEventListener('wheel', (e) => { e.preventDefault(); mapLeft.setZoom(mapLeft.getZoom() + (e.deltaY > 0 ? -0.4 : 0.4)); });
+
+        const constellNL = { 'Ari': 'Ram', 'Tau': 'Stier', 'Gem': 'Tweelingen', 'Cnc': 'Kreeft', 'Leo': 'Leeuw', 'Vir': 'Maagd', 'Lib': 'Weegschaal', 'Sco': 'Schorpioen', 'Sgr': 'Boogschutter', 'Cap': 'Steenbok', 'Aqr': 'Waterman', 'Psc': 'Vissen', 'Oph': 'Slangendrager' };
+        function updateAstroDashboard() {
+            if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return;
+            const center = mapLeft.getCenter(); const date = new Date(); 
+            const observer = new Astronomy.Observer(center.lat, center.lng, 0); const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+            let html = '<table><tr><th>Planeet</th><th>Azimut</th><th>Hoogte</th><th>Sterrenbeeld</th></tr>'; let bepiAzimuth = 0;
+            bodies.forEach(body => {
+                const eq = Astronomy.Equator(body, date, observer, true, true); const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
+                const constell = Astronomy.Constellation(eq.ra, eq.dec); const sterrenbeeld = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
+                html += `<tr><td><b>${body}</b></td><td>${hor.azimuth.toFixed(1)}°</td><td>${hor.altitude.toFixed(1)}°</td><td class="highlight">${sterrenbeeld}</td></tr>`;
+                if (body === 'Mercury') bepiAzimuth = hor.azimuth;
+            });
+            document.getElementById('astro-planets').innerHTML = html + '</table>';
+            
+            const bepiLine = turf.greatCircle([center.lng, center.lat], turf.destination([center.lng, center.lat], 8000, bepiAzimuth, {units: 'kilometers'}).geometry.coordinates);
+            if (mapLeft.getSource('bepi-route')) mapLeft.getSource('bepi-route').setData(bepiLine);
+            if (mapRight.getSource('bepi-route')) mapRight.getSource('bepi-route').setData(bepiLine);
+        }
+
+        let lastAstroUpdate = 0;
+        mapLeft.on('render', () => { updateHorizonAndPlanimeter(); }); 
+        mapLeft.on('move', () => { const now = Date.now(); if (now - lastAstroUpdate > 150) { updateAstroDashboard(); lastAstroUpdate = now; } });
+
+        // --- 5. MODI: Handje, Vlaggen & Opslaan ---
+        const dragBtn = document.getElementById('drag-btn'); const flagBtn = document.getElementById('flag-btn');
+        const dragOverlay = document.getElementById('drag-overlay');
+        let handMode = false; let flagMode = false;
+
+        function disableModes() {
+            handMode = false; dragBtn.classList.remove('active'); dragBtn.innerText = "🖐 MODUS: HANDJE (UIT)";
+            flagMode = false; flagBtn.classList.remove('active'); flagBtn.innerText = "🚩 VLAG PLAATSEN (UIT)";
+            dragOverlay.style.display = "none"; mapLeft.dragPan.enable(); mapLeft.touchZoomRotate.enable(); mapLeft.getCanvas().style.cursor = '';
+        }
+
+        dragBtn.addEventListener('click', () => {
+            const wasActive = handMode; disableModes();
+            if(!wasActive) { handMode = true; dragBtn.classList.add('active'); dragBtn.innerText = "🖐 MODUS: HANDJE (AAN)"; dragOverlay.style.display = "block"; mapLeft.dragPan.disable(); mapLeft.touchZoomRotate.disable(); }
+        });
+        flagBtn.addEventListener('click', () => {
+            const wasActive = flagMode; disableModes();
+            if(!wasActive) { flagMode = true; flagBtn.classList.add('active'); flagBtn.innerText = "🚩 VLAG PLAATSEN (AAN)"; mapLeft.getCanvas().style.cursor = 'crosshair'; }
+        });
+
+        mapLeft.on('click', (e) => { 
+            if(flagMode) { 
+                new maplibregl.Marker({ color: '#e84393' }).setLngLat(e.lngLat).addTo(mapLeft); 
+                new maplibregl.Marker({ color: '#e84393' }).setLngLat(e.lngLat).addTo(mapRight); 
+            } 
+        });
+
+        // Quaternion Handje drag-logica op Left Map
+        let isDraggingMap = false, startX, startY; let absoluteBearing = 15, absolutePitch = 50;
+        dragOverlay.addEventListener('mousedown', (e) => { isDraggingMap = true; startX = e.clientX; startY = e.clientY; });
+        window.addEventListener('mousemove', (e) => {
+            if(!isDraggingMap) return; absoluteBearing += ((e.clientX - startX) * 0.4); absolutePitch -= ((e.clientY - startY) * 0.4);
+            startX = e.clientX; startY = e.clientY;
+            if (absolutePitch < 0) absolutePitch = 0; if (absolutePitch > 85) absolutePitch = 85;
+            mapLeft.setBearing(absoluteBearing); mapLeft.setPitch(absolutePitch);
+        });
+        window.addEventListener('mouseup', () => { isDraggingMap = false; });
+    </script>
+</body>
+</html>
