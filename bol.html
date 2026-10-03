@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodetisch Dossier - L'Empire des Lumières</title>
+    <!-- Standalone Globe.gl -->
+    <script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/gh/cosinekitty/astronomy/source/js/astronomy.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --magritte-sky-top: #8abde3;
+            --magritte-sky-bottom: #e0f2fe;
+            --magritte-night-bg: #0b0f17;
+            --magritte-panel-bg: rgba(15, 23, 42, 0.88);
+            --accent-red: #ff3366;
+            --accent-cyan: #4dc4b9;
+        }
+
+        * { box-sizing: border-box; }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(180deg, var(--magritte-sky-top) 0%, var(--magritte-sky-bottom) 100%);
+            font-family: 'Space Mono', monospace;
+            color: #e2e8f0;
+        }
+
+        /* Wolkenlaag */
+        .clouds {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.75) 0%, transparent 12%),
+                radial-gradient(circle at 75% 25%, rgba(255,255,255,0.7) 0%, transparent 15%),
+                radial-gradient(circle at 50% 12%, rgba(255,255,255,0.85) 0%, transparent 14%);
+            opacity: 0.65;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            z-index: 2;
+        }
+
+        #viewport-visual {
+            width: 50vw;
+            height: 100vh;
+            position: relative;
+            border-right: 1px solid rgba(255,255,255,0.25);
+            background: radial-gradient(circle at center, rgba(11, 15, 23, 0.3) 0%, rgba(11, 15, 23, 0.8) 100%);
+            overflow: hidden;
+        }
+        
+        #globe-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #viewport-data {
+            width: 50vw;
+            height: 100vh;
+            background-color: var(--magritte-night-bg);
+            padding: 2.5rem;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: inset 30px 0 60px rgba(0,0,0,0.6);
+        }
+
+        .panel {
+            background: var(--magritte-panel-bg);
+            border: 1px solid rgba(77, 196, 185, 0.25);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .header-title {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 2rem;
+            color: #ffffff;
+            margin-bottom: 0.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            padding-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .data-box {
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 6px;
+            padding: 0.85rem;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .data-label {
+            font-size: 0.65rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        .data-value {
+            font-size: 1.3rem;
+            color: var(--accent-cyan);
+            font-weight: 700;
+        }
+
+        .data-value.red { color: var(--accent-red); }
+        .data-value.green { color: #4ade80; }
+
+        .clock-panel {
+            position: absolute;
+            top: 2rem;
+            right: 2.5rem;
+            text-align: right;
+        }
+
+        .astro-table {
+            width: 100%;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+            border-collapse: collapse;
+        }
+        
+        .astro-table td {
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.12);
+        }
+        
+        .astro-table td:last-child {
+            text-align: right;
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: rgba(255,255,255,0.15);
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 51, 102, 0.7);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(77, 196, 185, 0.35); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="clouds"></div>
+
+    <div id="app-container">
+        <!-- Viewport 1: Beeld (Globe) -->
+        <div id="viewport-visual">
+            <div id="globe-container"></div>
+            <div style="position: absolute; top: 2rem; left: 2rem; pointer-events: none; z-index: 10;">
+                <div class="header-title" style="font-size: 1.4rem; border: none; text-shadow: 0 2px 6px rgba(0,0,0,0.8);">Ceci n'est pas une sphère</div>
+            </div>
+        </div>
+
+        <!-- Viewport 2: Tekst (Dashboard) -->
+        <div id="viewport-data">
+            
+            <div class="clock-panel">
+                <div class="data-label"><span id="live-indicator" class="w-2 h-2 rounded-full inline-block bg-green-500 mr-1 animate-pulse"></span> SYSTEEM TIJD</div>
+                <div class="data-value text-2xl text-white" id="live-time">--:--:--</div>
+                <div class="text-xs text-slate-400 mt-1" id="live-date">...</div>
+            </div>
+
+            <div class="mb-10">
+                <h1 class="header-title">Geodetisch Dossier</h1>
+                <div class="subtitle">L'Empire des Lumières &bull; Realtime Telemetrie</div>
+            </div>
+
+            <!-- BepiColombo Tracking & Dossier -->
+            <div class="panel border-t-2 border-t-[#ff3366]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                        <svg class="w-4 h-4 text-[#ff3366]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path></svg>
+                        Missie: BepiColombo
+                    </h2>
+                    <span id="tracking-badge" class="text-[0.65rem] text-[#ff3366] tracking-widest border border-[#ff3366] px-2 py-0.5 rounded">LIVE TRACKING</span>
+                </div>
+                
+                <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                    Gezamenlijke onbemande ruimtevaartmissie van de <strong>ESA</strong> en <strong>JAXA</strong>.
+                </p>
+
+                <div class="data-box mb-4">
+                    <div class="data-label">Oorsprong Vector (Waarnemer)</div>
+                    <div class="text-white font-bold">Örebro Slott</div>
+                    <div class="text-xs text-slate-400">LAT: 59.2738° N | LON: 15.2155° E</div>
+                </div>
+
+                <div class="data-grid">
+                    <div class="data-box">
+                        <div class="data-label">Actuele Azimut (Line of Sight)</div>
+                        <div class="data-value" id="val-azimuth">--.-°</div>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-label">Actuele Elevatie (Line of Sight)</div>
+                        <div class="data-value red" id="val-elevation">--.-°</div>
+                    </div>
+                </div>
+
+                <!-- Deep Space Telemetrie -->
+                <div class="mt-4 pt-4 border-t border-white/10">
+                    <div class="data-label mb-2 text-[#4dc4b9] flex items-center gap-1">
+                        <svg class="w-3 h-3 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Deep Space Telemetrie (Orbital Engine)
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-black/30 p-2 rounded border border-white/5">
+                            <div class="text-slate-500 uppercase" style="font-size: 0.55rem;">Afstand tot Aarde</div>
+                            <div class="text-white font-mono font-bold"><span id="val-dist-earth">--</span> <span class="text-slate-400 font-normal">M km</span></div>
+                        </div>
+                        <div class="bg-black/30 p-2 rounded border border-white/5">
+                            <div class="text-slate-500 uppercase" style="font-size: 0.55rem;">Afstand tot Zon</div>
+                            <div class="text-white font-mono font-bold"><span id="val-dist-sun">--</span> <span class="text-slate-400 font-normal">M km</span></div>
+                        </div>
+                        <div class="bg-black/30 p-2 rounded border border-white/5">
+                            <div class="text-slate-500 uppercase" style="font-size: 0.55rem;">Snelheid (Helio)</div>
+                            <div class="text-white font-mono font-bold"><span id="val-speed">--</span> <span class="text-slate-400 font-normal">km/h</span></div>
+                        </div>
+                        <div class="bg-black/30 p-2 rounded border border-white/5">
+                            <div class="text-slate-500 uppercase" style="font-size: 0.55rem;">Signaalvertraging</div>
+                            <div class="text-white font-mono font-bold"><span id="val-delay">--</span> <span class="text-slate-400 font-normal">min</span></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tijdssimulatie Slider -->
+                <div class="mt-5 pt-4 border-t border-white/10">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="data-label">Vector Tijdlijn Simulatie</div>
+                        <div class="text-xs text-[#ff3366] font-mono" id="slider-val">Live (Nu)</div>
+                    </div>
+                    <input type="range" id="time-slider" min="-24" max="24" step="0.1" value="0">
+                    <div class="flex justify-between text-[0.6rem] text-slate-500 mt-2 font-mono uppercase tracking-widest mb-2">
+                        <span>-24 Uur</span>
+                        <button id="reset-time" class="hover:text-white transition-colors cursor-pointer">[ Reset naar Nu ]</button>
+                        <span>+24 Uur</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Geodetische Ankers -->
+            <div class="panel">
+                <h3 class="text-sm font-bold text-white mb-4">Geodetische Ankers</h3>
+                
+                <!-- Örebro -->
+                <div class="mb-4 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Örebro Slott</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Nordic Anchor</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-2">59.2738° N, 15.2155° E</div>
+                    <div class="flex gap-4 text-xs font-mono mb-2">
+                        <div><span class="text-slate-500">Metronoom:</span> <span class="text-cyan-400">5</span></div>
+                        <div><span class="text-slate-500">Matrix:</span> <span class="text-cyan-400">20</span></div>
+                    </div>
+                    <table class="astro-table mb-2">
+                        <tr><td>Zonsopkomst:</td><td id="orebro-sunrise">--:--</td></tr>
+                        <tr><td>Zonsondergang:</td><td id="orebro-sunset">--:--</td></tr>
+                        <tr><td>Maanopkomst:</td><td id="orebro-moonrise">--:--</td></tr>
+                        <tr><td>Maanondergang:</td><td id="orebro-moonset">--:--</td></tr>
+                    </table>
+                    <!-- Container voor alle planeten -->
+                    <div id="orebro-planets"></div>
+                </div>
+
+                <!-- WTC -->
+                <div class="mb-4 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">WTC (New York)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Trans-Atlantic</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-2">40.7139° N, -74.0129° E</div>
+                    <div class="flex gap-4 text-xs font-mono mb-2">
+                        <div><span class="text-slate-500">Metronoom:</span> <span class="text-cyan-400">46</span></div>
+                        <div><span class="text-slate-500">Matrix:</span> <span class="text-cyan-400">195</span></div>
+                    </div>
+                    <table class="astro-table mb-2">
+                        <tr><td>Zonsopkomst:</td><td id="wtc-sunrise">--:--</td></tr>
+                        <tr><td>Zonsondergang:</td><td id="wtc-sunset">--:--</td></tr>
+                        <tr><td>Maanopkomst:</td><td id="wtc-moonrise">--:--</td></tr>
+                        <tr><td>Maanondergang:</td><td id="wtc-moonset">--:--</td></tr>
+                    </table>
+                    <div id="wtc-planets"></div>
+                </div>
+
+                <!-- Tafelberg -->
+                <div class="mb-4 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Tafelberg (Blaricum)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Observatorium</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-2">52.2771° N, 5.2272° E</div>
+                    <div class="flex gap-4 text-xs font-mono mb-2">
+                        <div><span class="text-slate-500">Metronoom:</span> <span class="text-cyan-400">19</span></div>
+                        <div><span class="text-slate-500">Matrix:</span> <span class="text-cyan-400">82</span></div>
+                    </div>
+                    <table class="astro-table mb-2">
+                        <tr><td>Zonsopkomst:</td><td id="tb-sunrise">--:--</td></tr>
+                        <tr><td>Zonsondergang:</td><td id="tb-sunset">--:--</td></tr>
+                        <tr><td>Maanopkomst:</td><td id="tb-moonrise">--:--</td></tr>
+                        <tr><td>Maanondergang:</td><td id="tb-moonset">--:--</td></tr>
+                    </table>
+                    <div id="tb-planets"></div>
+                </div>
+
+                <!-- Teotihuacán -->
+                <div class="mb-2 pb-4">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Teotihuacán (ZW Poort)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Meso-American Gate</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-2">19.6643° N, -98.8662° E</div>
+                    <div class="flex gap-4 text-xs font-mono mb-2">
+                        <div><span class="text-slate-500">Metronoom:</span> <span class="text-cyan-400">88</span></div>
+                        <div><span class="text-slate-500">Matrix:</span> <span class="text-cyan-400">439</span></div>
+                    </div>
+                    <table class="astro-table mb-2">
+                        <tr><td>Zonsopkomst:</td><td id="teo-sunrise">--:--</td></tr>
+                        <tr><td>Zonsondergang:</td><td id="teo-sunset">--:--</td></tr>
+                        <tr><td>Maanopkomst:</td><td id="teo-moonrise">--:--</td></tr>
+                        <tr><td>Maanondergang:</td><td id="teo-moonset">--:--</td></tr>
+                    </table>
+                    <div id="teo-planets"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const OREBRO = { key: 'orebro', lat: 59.2738, lng: 15.2155 };
+        const WTC = { key: 'wtc', lat: 40.7139, lng: -74.0129 };
+        const TAFELBERG = { key: 'tb', lat: 52.2771, lng: 5.2272 };
+        const TEOTIHUACAN = { key: 'teo', lat: 19.6643, lng: -98.8662 };
+        
+        const LOCATIONS = [OREBRO, WTC, TAFELBERG, TEOTIHUACAN];
+
+        // Alle hemellichamen voor de real-time matrix
+        const PLANETS = [
+            { id: 'Sun', name: 'Zon' },
+            { id: 'Moon', name: 'Maan' },
+            { id: 'Mercury', name: 'Mercurius' },
+            { id: 'Venus', name: 'Venus' },
+            { id: 'Mars', name: 'Mars' },
+            { id: 'Jupiter', name: 'Jupiter' },
+            { id: 'Saturn', name: 'Saturnus' },
+            { id: 'Uranus', name: 'Uranus' },
+            { id: 'Neptune', name: 'Neptunus' }
+        ];
+
+        const AU_TO_KM = 149597870.7; 
+        const C_KM_S = 299792.458; 
+        
+        let myGlobe = null;
+        let timeOffsetHours = 0;
+
+        function formatAstroTime(astroEvent) {
+            if (!astroEvent || !astroEvent.date) return "--:--";
+            return astroEvent.date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function calculateRiseSetForLocation(lat, lng, prefix) {
+            if (typeof Astronomy === 'undefined') return;
+            const date = new Date();
+            const observer = new Astronomy.Observer(lat, lng, 0);
+            try {
+                const sunrise = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, +1, date, 1);
+                const sunset = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, -1, date, 1);
+                const moonrise = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, +1, date, 1);
+                const moonset = Astronomy.SearchRiseSet(Astronomy.Body.Moon, observer, -1, date, 1);
+
+                document.getElementById(`${prefix}-sunrise`).textContent = formatAstroTime(sunrise);
+                document.getElementById(`${prefix}-sunset`).textContent = formatAstroTime(sunset);
+                document.getElementById(`${prefix}-moonrise`).textContent = formatAstroTime(moonrise);
+                document.getElementById(`${prefix}-moonset`).textContent = formatAstroTime(moonset);
+            } catch (e) { console.error(`Fout bij berekening ${prefix}:`, e); }
+        }
+
+        // Bouw de HTML matrix voor de planeten per locatie
+        function initPlanetTables() {
+            LOCATIONS.forEach(loc => {
+                const container = document.getElementById(`${loc.key}-planets`);
+                if(!container) return;
+                
+                let html = `
+                    <div class="mt-3 pt-2 border-t border-white/10 text-[0.6rem] uppercase tracking-widest text-cyan-400 mb-1">Actuele Hemellichamen (Az/El)</div>
+                    <div class="grid grid-cols-1 gap-1 text-[0.65rem] font-mono bg-black/20 p-2 rounded border border-white/5">
+                `;
+                
+                PLANETS.forEach(p => {
+                    html += `
+                        <div class="flex justify-between border-b border-white/5 pb-1 last:border-0 last:pb-0">
+                            <span class="text-slate-400 font-bold">${p.name}</span> 
+                            <span id="${loc.key}-${p.id}-azel">Berekent...</span>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                container.innerHTML = html;
+            });
+        }
+
+        function initGlobe() {
+            const container = document.getElementById('globe-container');
+            const width = container.clientWidth || window.innerWidth / 2;
+            const height = container.clientHeight || window.innerHeight;
+
+            myGlobe = Globe()(container)
+                .width(width)
+                .height(height)
+                .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+                .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+                .backgroundColor('rgba(0,0,0,0)')
+                .showAtmosphere(true)
+                .atmosphereColor('#4dc4b9')
+                .atmosphereAltitude(0.12)
+                .pointOfView({ lat: 45, lng: 10, altitude: 2.2 });
+
+            const markers = [
+                { lat: OREBRO.lat, lng: OREBRO.lng, name: 'Örebro Slott', color: '#ff3366', size: 0.8 },
+                { lat: WTC.lat, lng: WTC.lng, name: 'WTC', color: '#4dc4b9', size: 0.5 },
+                { lat: TAFELBERG.lat, lng: TAFELBERG.lng, name: 'Tafelberg', color: '#4dc4b9', size: 0.5 },
+                { lat: TEOTIHUACAN.lat, lng: TEOTIHUACAN.lng, name: 'Teotihuacán', color: '#4dc4b9', size: 0.5 }
+            ];
+
+            myGlobe.pointsData(markers)
+                .pointColor(d => d.color)
+                .pointAltitude(0.01)
+                .pointRadius(d => d.size)
+                .pointLabel(d => d.name);
+        }
+
+        function getDestinationPoint(lat, lng, az, el, distance) {
+            const lat1 = lat * Math.PI / 180;
+            const lon1 = lng * Math.PI / 180;
+            const brng = az * Math.PI / 180;
+            const angularDistance = distance / 6371; 
+
+            const lat2 = Math.asin(Math.sin(lat1)*Math.cos(angularDistance) + Math.cos(lat1)*Math.sin(angularDistance)*Math.cos(brng));
+            const lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(angularDistance)*Math.cos(lat1), Math.cos(angularDistance)-Math.sin(lat1)*Math.sin(lat2));
+
+            const altitudeScalar = Math.sin(el * Math.PI / 180) * 0.45;
+            return { lat: lat2 * 180 / Math.PI, lng: lon2 * 180 / Math.PI, alt: altitudeScalar };
+        }
+
+        function calculateVectorDistance(v1, v2) {
+            const dx = v2.x - v1.x; const dy = v2.y - v1.y; const dz = v2.z - v1.z;
+            return Math.sqrt(dx*dx + dy*dy + dz*dz);
+        }
+        function calculateVectorLength(v) { return Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z); }
+
+        function updateSimulation() {
+            const baseTime = new Date();
+            const simulatedTime = new Date(baseTime.getTime() + (timeOffsetHours * 3600 * 1000));
+            
+            document.getElementById('live-time').innerText = simulatedTime.toLocaleTimeString('nl-NL');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('live-date').innerText = simulatedTime.toLocaleDateString('nl-NL', options).toUpperCase();
+
+            if (typeof Astronomy === 'undefined') return;
+
+            // 1. Zichtlijn BepiColombo (Mercurius) vanuit Örebro
+            const obsOrebro = new Astronomy.Observer(OREBRO.lat, OREBRO.lng, 0);
+            const equ_merc = Astronomy.Equator(Astronomy.Body.Mercury, simulatedTime, obsOrebro, true, true);
+            const hor_merc = Astronomy.Horizon(simulatedTime, obsOrebro, equ_merc.ra, equ_merc.dec, 'normal');
+
+            document.getElementById('val-azimuth').innerText = hor_merc.azimuth.toFixed(2) + '°';
+            const elElem = document.getElementById('val-elevation');
+            elElem.innerText = hor_merc.altitude.toFixed(2) + '°';
+            elElem.className = hor_merc.altitude < 0 ? 'data-value red' : 'data-value green';
+
+            // 2. Real-time Deep Space Telemetrie
+            const geoVector = Astronomy.GeoVector(Astronomy.Body.Mercury, simulatedTime, true);
+            const distEarthKm = calculateVectorLength(geoVector) * AU_TO_KM;
+            const helioVector = Astronomy.HelioVector(Astronomy.Body.Mercury, simulatedTime);
+            const distSunKm = calculateVectorLength(helioVector) * AU_TO_KM;
+            const timePlusOneHour = new Date(simulatedTime.getTime() + 3600000);
+            const helioVectorPlus1h = Astronomy.HelioVector(Astronomy.Body.Mercury, timePlusOneHour);
+            const speedKmH = calculateVectorDistance(helioVector, helioVectorPlus1h) * AU_TO_KM;
+            const signalDelayMinutes = (distEarthKm / C_KM_S) / 60;
+            
+            document.getElementById('val-dist-earth').innerText = (distEarthKm / 1000000).toFixed(2);
+            document.getElementById('val-dist-sun').innerText = (distSunKm / 1000000).toFixed(2);
+            document.getElementById('val-speed').innerText = speedKmH.toLocaleString('nl-NL', {maximumFractionDigits: 0});
+            document.getElementById('val-delay').innerText = signalDelayMinutes.toFixed(2);
+
+            // 3. Globe 3D Lijn renderen
+            if (myGlobe) {
+                const endPoint = getDestinationPoint(OREBRO.lat, OREBRO.lng, hor_merc.azimuth, hor_merc.altitude, 4500); 
+                const pathData = [[
+                    { lat: OREBRO.lat, lng: OREBRO.lng, alt: 0.01 },
+                    { lat: endPoint.lat, lng: endPoint.lng, alt: endPoint.alt }
+                ]];
+                myGlobe.pathsData(pathData)
+                    .pathColor(() => hor_merc.altitude < 0 ? 'rgba(255, 51, 102, 0.85)' : 'rgba(74, 222, 128, 0.85)')
+                    .pathDashLength(0.015)
+                    .pathDashGap(0.005)
+                    .pathDashAnimateTime(1800)
+                    .pathStroke(2.5);
+            }
+
+            // 4. Update Planeten Matrix voor elk Geodetisch Anker
+            LOCATIONS.forEach(loc => {
+                const observer = new Astronomy.Observer(loc.lat, loc.lng, 0);
+                PLANETS.forEach(p => {
+                    const el = document.getElementById(`${loc.key}-${p.id}-azel`);
+                    if(el) {
+                        const equ = Astronomy.Equator(Astronomy.Body[p.id], simulatedTime, observer, true, true);
+                        const hor = Astronomy.Horizon(simulatedTime, observer, equ.ra, equ.dec, 'normal');
+                        const colorClass = hor.altitude < 0 ? 'text-[#ff3366]' : 'text-[#4ade80]';
+                        el.innerHTML = `Az: ${hor.azimuth.toFixed(1)}° | El: <span class="${colorClass}">${hor.altitude.toFixed(1)}°</span>`;
+                    }
+                });
+            });
+        }
+
+        document.getElementById('time-slider').addEventListener('input', (e) => {
+            timeOffsetHours = parseFloat(e.target.value);
+            const sliderVal = document.getElementById('slider-val');
+            const liveIndicator = document.getElementById('live-indicator');
+            const trackingBadge = document.getElementById('tracking-badge');
+            
+            if (timeOffsetHours === 0) {
+                sliderVal.innerText = 'Live (Nu)';
+                sliderVal.className = 'text-xs text-[#ff3366] font-mono';
+                liveIndicator.className = 'w-2 h-2 rounded-full inline-block bg-green-500 mr-1 animate-pulse';
+                trackingBadge.innerText = 'LIVE TRACKING';
+                trackingBadge.className = 'text-[0.65rem] text-[#ff3366] tracking-widest border border-[#ff3366] px-2 py-0.5 rounded';
+            } else {
+                const sign = timeOffsetHours > 0 ? '+' : '';
+                sliderVal.innerText = `Simulatie: ${sign}${timeOffsetHours.toFixed(1)}h`;
+                sliderVal.className = 'text-xs text-cyan-400 font-mono';
+                liveIndicator.className = 'w-2 h-2 rounded-full inline-block bg-yellow-500 mr-1';
+                trackingBadge.innerText = 'GESIMULEERD';
+                trackingBadge.className = 'text-[0.65rem] text-cyan-400 tracking-widest border border-cyan-400 px-2 py-0.5 rounded';
+            }
+            updateSimulation();
+        });
+
+        document.getElementById('reset-time').addEventListener('click', () => {
+            document.getElementById('time-slider').value = 0;
+            document.getElementById('time-slider').dispatchEvent(new Event('input'));
+        });
+
+        window.addEventListener('load', () => {
+            initGlobe();
+            initPlanetTables(); // Bouwt de dynamische matrix voor elk anker
+            
+            calculateRiseSetForLocation(OREBRO.lat, OREBRO.lng, 'orebro');
+            calculateRiseSetForLocation(WTC.lat, WTC.lng, 'wtc');
+            calculateRiseSetForLocation(TAFELBERG.lat, TAFELBERG.lng, 'tb');
+            calculateRiseSetForLocation(TEOTIHUACAN.lat, TEOTIHUACAN.lng, 'teo');
+
+            updateSimulation();
+            setInterval(updateSimulation, 1000);
+
+            window.addEventListener('resize', () => {
+                if (myGlobe) {
+                    const visual = document.getElementById('viewport-visual');
+                    myGlobe.width(visual.clientWidth);
+                    myGlobe.height(visual.clientHeight);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
