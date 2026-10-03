@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodetisch Dossier & Dubbel-Viewport Kosmologische Rosettasteen</title>
+    <!-- Standalone Three.js, Tailwind & Astronomy Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/gh/cosinekitty/astronomy/source/js/astronomy.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --magritte-sky-top: #8abde3;
+            --magritte-sky-bottom: #e0f2fe;
+            --magritte-night-bg: #0b0f17;
+            --magritte-panel-bg: rgba(15, 23, 42, 0.88);
+            --accent-red: #ff3366;
+            --accent-cyan: #4dc4b9;
+        }
+
+        * { box-sizing: border-box; }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(180deg, var(--magritte-sky-top) 0%, var(--magritte-sky-bottom) 100%);
+            font-family: 'Space Mono', monospace;
+            color: #e2e8f0;
+        }
+
+        .clouds {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.75) 0%, transparent 12%),
+                radial-gradient(circle at 75% 25%, rgba(255,255,255,0.7) 0%, transparent 15%),
+                radial-gradient(circle at 50% 12%, rgba(255,255,255,0.85) 0%, transparent 14%);
+            opacity: 0.65;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Linker kolom: 50% breedte, opgedeeld in twee gelijke visuele viewports */
+        #viewport-visual {
+            width: 50vw;
+            height: 100vh;
+            position: relative;
+            border-right: 1px solid rgba(255,255,255,0.25);
+            background: radial-gradient(circle at center, rgba(11, 15, 23, 0.3) 0%, rgba(11, 15, 23, 0.8) 100%);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #trapezium-viewport {
+            width: 100%;
+            height: 50%;
+            background: rgba(11, 15, 23, 0.7);
+            position: relative;
+            border-bottom: 1px solid rgba(255,255,255,0.25);
+        }
+
+        #rosettasteen-container {
+            width: 100%;
+            height: 50%;
+            background: #8abde3;
+            position: relative;
+        }
+
+        .control-btn {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            z-index: 20;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 0.4rem 1rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: 'Space Mono', monospace;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .control-btn:hover {
+            background: var(--accent-cyan);
+            color: #0b0f17;
+        }
+
+        #viewport-data {
+            width: 50vw;
+            height: 100vh;
+            background-color: var(--magritte-night-bg);
+            padding: 2.5rem;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: inset 30px 0 60px rgba(0,0,0,0.6);
+        }
+
+        .panel {
+            background: var(--magritte-panel-bg);
+            border: 1px solid rgba(77, 196, 185, 0.25);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .header-title {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 2rem;
+            color: #ffffff;
+            margin-bottom: 0.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            padding-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .astro-table {
+            width: 100%;
+            font-size: 0.7rem;
+            margin-top: 0.4rem;
+            border-collapse: collapse;
+        }
+        
+        .astro-table td {
+            padding: 0.2rem 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.1);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(77, 196, 185, 0.35); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="clouds"></div>
+
+    <div id="app-container">
+        <!-- Linker Kolom: 2 Gelijkverdeelde Viewports -->
+        <div id="viewport-visual">
+            <div style="position: absolute; top: 1rem; left: 1.5rem; z-index: 10; pointer-events: none;">
+                <div class="header-title" style="font-size: 1.1rem; border: none; text-shadow: 0 2px 6px rgba(0,0,0,0.8);">Ceci n'est pas une sphère</div>
+            </div>
+
+            <!-- Viewport 1: Mercurius-Gekoppeld Trapezium Bastion -->
+            <div id="trapezium-viewport">
+                <div style="position: absolute; top: 1rem; right: 1.5rem; z-index: 10; font-size: 0.65rem; color: var(--accent-cyan); letter-spacing: 0.1em; text-transform: uppercase;">
+                    &bull; Mercurius Realtime Koppeling: <span id="merc-telemetry" class="text-white font-bold">Az: --° | El: --°</span>
+                </div>
+            </div>
+
+            <!-- Viewport 2: 6D Hexagonale Honingraat & Genummerde Paden -->
+            <div id="rosettasteen-container">
+                <div style="position: absolute; top: 1rem; right: 1.5rem; z-index: 10; font-size: 0.65rem; color: var(--accent-cyan); letter-spacing: 0.1em; text-transform: uppercase;">
+                    &bull; 6D Hexagonale Matrix & Paden
+                </div>
+                <button id="toggle-rot-btn" class="control-btn">[ PAUZE / STOP ]</button>
+            </div>
+        </div>
+
+        <!-- Rechter Kolom: Geodetisch Dossier -->
+        <div id="viewport-data">
+            
+            <div style="position: absolute; top: 2rem; right: 2.5rem; text-align: right;">
+                <div class="text-[0.65rem] text-[#94a3b8] uppercase tracking-wider"><span class="w-2 h-2 rounded-full inline-block bg-green-500 mr-1 animate-pulse"></span> SYSTEEM TIJD (365 x 8)</div>
+                <div class="text-2xl text-white font-bold" id="live-time">--:--:--</div>
+                <div class="text-xs text-slate-400 mt-1" id="live-date">...</div>
+            </div>
+
+            <div class="mb-10">
+                <h1 class="header-title">Geodetisch Dossier</h1>
+                <div class="subtitle">L'Empire des Lumières &bull; Mercurius-Matrix Synthese</div>
+            </div>
+
+            <!-- Geodetische Ankers -->
+            <div class="panel">
+                <h3 class="text-sm font-bold text-white mb-4">Geodetische Ankers & Hemelse Coördinaten</h3>
+                
+                <!-- Örebro Slott -->
+                <div class="mb-6 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Örebro Slott (Actief Anker)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Nordic Anchor</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-1">59.2738° N, 15.2155° E &bull; Metronoom: 5 | Matrix: 20</div>
+                    <table class="astro-table mt-2">
+                        <tr class="text-slate-500 border-b border-white/10"><td>Planeet</td><td>Azimut</td><td>Hoogte</td><td>Sterrenbeeld</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mercurius</td><td id="orebro-merc-az">160.2°</td><td id="orebro-merc-el" class="text-green-400">14.3°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Venus</td><td>158.9°</td><td class="text-green-400">7.5°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mars</td><td>259.6°</td><td class="text-green-400">30.0°</td><td class="text-slate-400">Cancer</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Jupiter</td><td>240.1°</td><td class="text-green-400">33.7°</td><td class="text-slate-400">Leo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Saturnus</td><td>359.5°</td><td class="text-red-400">-28.3°</td><td class="text-slate-400">Cetus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Uranus</td><td>312.2°</td><td class="text-green-400">1.4°</td><td class="text-slate-400">Taurus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Neptunus</td><td>9.2°</td><td class="text-red-400">-30.2°</td><td class="text-slate-400">Pisces</td></tr>
+                    </table>
+                </div>
+
+                <!-- WTC -->
+                <div class="mb-6 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">WTC (New York)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Trans-Atlantic</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-1">40.7139° N, -74.0129° E &bull; Metronoom: 46 | Matrix: 195</div>
+                    <table class="astro-table mt-2">
+                        <tr class="text-slate-500 border-b border-white/10"><td>Planeet</td><td>Azimut</td><td>Hoogte</td><td>Sterrenbeeld</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mercurius</td><td>89.1°</td><td class="text-red-400">-23.4°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Venus</td><td>93.2°</td><td class="text-red-400">-29.4°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mars</td><td>127.8°</td><td class="text-green-400">61.4°</td><td class="text-slate-400">Cancer</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Jupiter</td><td>113.6°</td><td class="text-green-400">46.6°</td><td class="text-slate-400">Leo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Saturnus</td><td>271.7°</td><td class="text-green-400">1.4°</td><td class="text-slate-400">Cetus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Uranus</td><td>250.4°</td><td class="text-green-400">52.2°</td><td class="text-slate-400">Taurus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Neptunus</td><td>275.6°</td><td class="text-red-400">-6.1°</td><td class="text-slate-400">Pisces</td></tr>
+                    </table>
+                </div>
+
+                <!-- Tafelberg -->
+                <div class="mb-6 pb-4 border-b border-white/10">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Tafelberg (Blaricum)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Observatorium</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-1">52.2771° N, 5.2272° E &bull; Metronoom: 19 | Matrix: 82</div>
+                    <table class="astro-table mt-2">
+                        <tr class="text-slate-500 border-b border-white/10"><td>Planeet</td><td>Azimut</td><td>Hoogte</td><td>Sterrenbeeld</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mercurius</td><td>149.6°</td><td class="text-green-400">18.2°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Venus</td><td>149.2°</td><td class="text-green-400">11.3°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mars</td><td>255.0°</td><td class="text-green-400">37.1°</td><td class="text-slate-400">Cancer</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Jupiter</td><td>234.0°</td><td class="text-green-400">42.2°</td><td class="text-slate-400">Leo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Saturnus</td><td>347.2°</td><td class="text-red-400">-34.6°</td><td class="text-slate-400">Cetus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Uranus</td><td>304.1°</td><td class="text-green-400">1.5°</td><td class="text-slate-400">Taurus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Neptunus</td><td>357.4°</td><td class="text-red-400">-37.5°</td><td class="text-slate-400">Pisces</td></tr>
+                    </table>
+                </div>
+
+                <!-- Teotihuacán -->
+                <div class="mb-2">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold text-white">Teotihuacán (ZW Poort)</div>
+                        <span class="text-[0.6rem] bg-slate-800 px-1 rounded text-cyan-400">Meso-American Gate</span>
+                    </div>
+                    <div class="text-[0.65rem] text-slate-400 mb-1">19.6643° N, -98.8662° E &bull; Metronoom: 88 | Matrix: 439</div>
+                    <table class="astro-table mt-2">
+                        <tr class="text-slate-500 border-b border-white/10"><td>Planeet</td><td>Azimut</td><td>Hoogte</td><td>Sterrenbeeld</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mercurius</td><td>91.1°</td><td class="text-red-400">-45.5°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Venus</td><td>99.9°</td><td class="text-red-400">-49.2°</td><td class="text-slate-400">Virgo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Mars</td><td>80.2°</td><td class="text-green-400">44.4°</td><td class="text-slate-400">Cancer</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Jupiter</td><td>82.5°</td><td class="text-green-400">27.6°</td><td class="text-slate-400">Leo</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Saturnus</td><td>263.3°</td><td class="text-green-400">23.8°</td><td class="text-slate-400">Cetus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Uranus</td><td>278.7°</td><td class="text-green-400">77.4°</td><td class="text-slate-400">Taurus</td></tr>
+                        <tr><td class="text-slate-300 font-bold">Neptunus</td><td>264.2°</td><td class="text-green-400">15.2°</td><td class="text-slate-400">Pisces</td></tr>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const OREBRO = { lat: 59.2738, lng: 15.2155 };
+
+        let trapScene, trapCamera, trapRenderer, trapMesh;
+        let rosettaScene, rosettaCamera, rosettaRenderer, hexGroup;
+        let isRotating = true;
+        let vertexSprites = [];
+        let angle6D = 0;
+        let mercuryAz = 160.2;
+        let mercuryEl = 14.3;
+
+        // Viewport 1: Mercurius-gekoppeld Trapezium
+        function initTrapeziumViewport() {
+            const container = document.getElementById('trapezium-viewport');
+            
+            trapScene = new THREE.Scene();
+            trapCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            trapCamera.position.z = 5.0;
+
+            trapRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            trapRenderer.setSize(container.clientWidth, container.clientHeight);
+            trapRenderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(trapRenderer.domElement);
+
+            const shape = new THREE.Shape();
+            shape.moveTo(-1.2, 1.0);
+            shape.lineTo(1.2, 1.0);
+            shape.lineTo(1.6, -1.0);
+            shape.lineTo(-1.6, -1.0);
+            shape.closePath();
+
+            const extrudeSettings = { depth: 0.2, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05 };
+            const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x0f141e, roughness: 0.3 });
+            trapMesh = new THREE.Mesh(geom, mat);
+            trapScene.add(trapMesh);
+
+            const edgesGeom = new THREE.EdgesGeometry(geom);
+            const edgesMat = new THREE.LineBasicMaterial({ color: 0xff3366, linewidth: 2 });
+            const edges = new THREE.LineSegments(edgesGeom, edgesMat);
+            trapMesh.add(edges);
+
+            const light = new THREE.AmbientLight(0xffffff, 1.0);
+            trapScene.add(light);
+        }
+
+        function createHexagonShape(radius) {
+            const shape = new THREE.Shape();
+            for (let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI) / 3;
+                const hx = radius * Math.cos(angle);
+                const hy = radius * Math.sin(angle);
+                if (i === 0) shape.moveTo(hx, hy);
+                else shape.lineTo(hx, hy);
+            }
+            shape.closePath();
+            return shape;
+        }
+
+        function createTextSprite(message) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4dc4b9';
+            ctx.font = 'bold 26px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(message, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(0.3, 0.3, 0.3);
+            return sprite;
+        }
+
+        // Viewport 2: 6D Hexagonale Honingraat
+        function initRosettaSteen3D() {
+            const container = document.getElementById('rosettasteen-container');
+            
+            rosettaScene = new THREE.Scene();
+            rosettaCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            rosettaCamera.position.z = 7.5;
+
+            rosettaRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            rosettaRenderer.setSize(container.clientWidth, container.clientHeight);
+            rosettaRenderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(rosettaRenderer.domElement);
+
+            hexGroup = new THREE.Group();
+            rosettaScene.add(hexGroup);
+
+            const hexRadius = 0.8;
+            const colWidth = hexRadius * Math.sqrt(3);
+            const rowHeight = hexRadius * 1.5;
+
+            const gridOffsets = [
+                { q: 0, r: 0 },
+                { q: 1, r: 0 }, { q: -1, r: 0 },
+                { q: 0, r: 1 }, { q: 0, r: -1 },
+                { q: 1, r: -1 }, { q: -1, r: 1 }
+            ];
+
+            gridOffsets.forEach((offset, idx) => {
+                const x = offset.q * colWidth + (offset.r * colWidth) / 2;
+                const y = offset.r * rowHeight;
+
+                const shape = createHexagonShape(hexRadius * 0.95);
+                const extrudeSettings = { depth: 0.15, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02 };
+                const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: idx === 0 ? 0xff3366 : 0x0f141e, 
+                    roughness: 0.3 
+                });
+                const hexMesh = new THREE.Mesh(geom, mat);
+                hexMesh.position.set(x, y, 0);
+                hexGroup.add(hexMesh);
+
+                const edgesGeom = new THREE.EdgesGeometry(geom);
+                const edgesMat = new THREE.LineBasicMaterial({ color: 0x4dc4b9, linewidth: 2 });
+                const edges = new THREE.LineSegments(edgesGeom, edgesMat);
+                hexMesh.add(edges);
+
+                const sprite = createTextSprite(idx.toString());
+                sprite.position.set(x, y, 0.2);
+                hexGroup.add(sprite);
+                vertexSprites.push(sprite);
+            });
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            rosettaScene.add(ambientLight);
+
+            const toggleBtn = document.getElementById('toggle-rot-btn');
+            toggleBtn.addEventListener('click', () => {
+                isRotating = !isRotating;
+                toggleBtn.innerText = isRotating ? '[ PAUZE / STOP ]' : '[ START / HERVAT ]';
+            });
+
+            animateScene();
+        }
+
+        function updateMercuryTelemetry() {
+            const now = new Date();
+            if (typeof Astronomy !== 'undefined') {
+                const observer = new Astronomy.Observer(OREBRO.lat, OREBRO.lng, 0);
+                const equ = Astronomy.Equator(Astronomy.Body.Mercury, now, observer, true, true);
+                const hor = Astronomy.Horizon(now, observer, equ.ra, equ.dec, 'normal');
+                mercuryAz = hor.azimuth;
+                mercuryEl = hor.altitude;
+
+                document.getElementById('orebro-merc-az').innerText = mercuryAz.toFixed(1) + '°';
+                const elElem = document.getElementById('orebro-merc-el');
+                elElem.innerText = mercuryEl.toFixed(1) + '°';
+                elElem.className = mercuryEl < 0 ? 'text-red-400' : 'text-green-400';
+
+                document.getElementById('merc-telemetry').innerText = `Az: ${mercuryAz.toFixed(1)}° | El: ${mercuryEl.toFixed(1)}°`;
+            }
+        }
+
+        function animateScene() {
+            requestAnimationFrame(animateScene);
+
+            if (isRotating) {
+                const azRad = (mercuryAz * Math.PI) / 180;
+                const elRad = (mercuryEl * Math.PI) / 180;
+
+                trapMesh.rotation.x = elRad * 0.1 + (Date.now() * 0.001);
+                trapMesh.rotation.y = azRad * 0.05 + (Date.now() * 0.0015);
+                const scaleFactor = 1.0 + (mercuryEl / 90.0) * 0.25;
+                trapMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+                angle6D += 0.01;
+                const qIncX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.003);
+                const qIncY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.004);
+                hexGroup.quaternion.premultiply(qIncY);
+                hexGroup.quaternion.premultiply(qIncX);
+            }
+
+            trapRenderer.render(trapScene, trapCamera);
+            rosettaRenderer.render(rosettaScene, rosettaCamera);
+        }
+
+        function updateSystemClock() {
+            const now = new Date();
+            document.getElementById('live-time').innerText = now.toLocaleTimeString('nl-NL');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('live-date').innerText = now.toLocaleDateString('nl-NL', options).toUpperCase();
+            updateMercuryTelemetry();
+        }
+
+        window.addEventListener('load', () => {
+            initTrapeziumViewport();
+            initRosettaSteen3D();
+            updateSystemClock();
+            setInterval(updateSystemClock, 1000);
+
+            window.addEventListener('resize', () => {
+                if (trapRenderer) {
+                    const container = document.getElementById('trapezium-viewport');
+                    trapCamera.aspect = container.clientWidth / container.clientHeight;
+                    trapCamera.updateProjectionMatrix();
+                    trapRenderer.setSize(container.clientWidth, container.clientHeight);
+                }
+                if (rosettaRenderer) {
+                    const container = document.getElementById('rosettasteen-container');
+                    rosettaCamera.aspect = container.clientWidth / container.clientHeight;
+                    rosettaCamera.updateProjectionMatrix();
+                    rosettaRenderer.setSize(container.clientWidth, container.clientHeight);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
