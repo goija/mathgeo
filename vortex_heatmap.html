@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>VORTEX: Ruimtelijke Distributie</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: "Georgia", serif; background-color: #0B132B; color: #F8F9FA; }
+        #header { padding: 20px; text-align: center; }
+        .paradox { font-family: "Brush Script MT", cursive; font-size: 1.8em; color: #87CEEB; margin-top: 5px; }
+        #map { height: 75vh; width: 90%; margin: 0 auto; border: 8px solid #222; box-shadow: inset 0 0 0 3px #D4AF37; }
+        .license { text-align: center; margin-top: 20px; font-size: 0.85em; color: #777; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h2>Geografische Spreiding AS14340 Netwerkblokken</h2>
+        <div class="paradox">Ceci n&#39;est pas un datacenter.</div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="license">
+        Ontwerp en ontwikkeling: Bedrijven en overheid hebben geen toestemming tot gebruik van deze code of ruimtelijke analyse.
+    </div>
+
+    <script>
+        var map = L.map("map").setView([35.0, -40.0], 3);
+        
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+            subdomains: "abcd",
+            maxZoom: 20
+        }).addTo(map);
+
+        L.circleMarker([37.789800, -122.397000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>198.245.80.1</b><br>Prefix: 198.245.80.0/20<br>Stad: San Francisco');
+            L.circleMarker([50.116900, 8.683700], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>85.222.128.1</b><br>Prefix: 85.222.128.0/19<br>Stad: Frankfurt am Main');
+            L.circleMarker([37.789800, -122.397000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>129.77.16.1</b><br>Prefix: 129.77.16.0/20<br>Stad: San Francisco');
+            L.circleMarker([35.689500, 139.692000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>2401:ce80::1</b><br>Prefix: 2401:ce80::/32<br>Stad: Tokyo');
+            L.circleMarker([51.507200, -0.127586], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>151.106.220.1</b><br>Prefix: 151.106.220.0/22<br>Stad: London');
+    </script>
+</body>
+</html>
