@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VORTEX: 6D Geodetisch Netwerkanalysis</title>
+    <title>VORTEX: 6D Geodetisch Netwerkanalysis & Beheer</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -13,13 +13,15 @@
             --night-dark: #0B132B;
             --frame-gold: #D4AF37;
             --text-dark: #2F4F4F;
+            --accent-green: #27AE60;
+            --accent-red: #C0392B;
         }
 
         body {
             margin: 0;
             padding: 0;
             font-family: 'Georgia', serif;
-            background: linear-gradient(to bottom, var(--sky-blue) 0%, var(--sky-blue) 12%, var(--night-dark) 12.5%, var(--night-dark) 100%);
+            background: linear-gradient(to bottom, var(--sky-blue) 0%, var(--sky-blue) 10%, var(--night-dark) 10.5%, var(--night-dark) 100%);
             color: var(--cloud-white);
             min-height: 100vh;
             display: flex;
@@ -41,22 +43,49 @@
         h1 { text-align: center; border-bottom: 2px solid var(--text-dark); padding-bottom: 10px; margin-top: 0; }
         .paradox { text-align: center; font-family: 'Brush Script MT', cursive; font-size: 1.8em; color: #555; margin-bottom: 20px; }
 
-        /* Kaart zonder API-key fouten */
         #map { 
-            height: 450px; 
+            height: 400px; 
             width: 100%; 
             border: 4px solid #222; 
             margin: 20px 0; 
         }
 
-        .matrix-box {
+        .admin-box {
             background-color: #EAECEE;
-            padding: 15px;
-            border-left: 4px solid var(--text-dark);
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.95em;
+            padding: 20px;
+            border-left: 4px solid var(--accent-green);
             margin-top: 20px;
+            font-family: 'Courier New', Courier, monospace;
         }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        input, select {
+            padding: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--text-dark);
+            color: var(--cloud-white);
+            border: none;
+            padding: 10px 15px;
+            font-family: 'Georgia', serif;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        button:hover { background-color: #1A252F; }
+        .btn-danger { background-color: var(--accent-red); }
+        .btn-danger:hover { background-color: #962D22; }
 
         table {
             width: 100%;
@@ -82,7 +111,7 @@
             margin-top: 30px;
             font-size: 0.85em;
             text-align: center;
-            color: #C0392B;
+            color: var(--accent-red);
             font-weight: bold;
             border-top: 1px dashed #ccc;
             padding-top: 15px;
@@ -92,68 +121,56 @@
 <body>
 
     <div class="canvas-frame">
-        <h1>🌐 VORTEX: 6D Geografische Spreiding (AS14340)</h1>
-        <div class="paradox">Ceci n&#39;est pas une dimension fixe.</div>
+        <h1>🌐 VORTEX: 6D Netwerkanalysis & Beheer</h1>
+        <div class="paradox">Ceci n&#39;est pas un réseau statique.</div>
 
-        <!-- Foutloos gerenderde kaart -->
+        <!-- Kaart -->
         <div id="map"></div>
 
-        <div class="matrix-box">
-            <strong>6D Hypercube Parameters Matrix:</strong><br>
-            [Dim 1-2] Lat/Lon (Fysieke Coördinaten)<br>
-            [Dim 3] Z-Elevatie / ECEF Radius<br>
-            [Dim 4] Tijdstip Audit: 04-10-2026 17:06 CEST<br>
-            [Dim 5] Host Capaciteit (IP-volume)<br>
-            [Dim 6] Protocollaag (IPv4 / IPv6 Dual-Stack)
+        <!-- Sleutelbeheerders Autorisatie & Beheer Paneel -->
+        <div class="admin-box">
+            <h3 style="margin-top:0; color: var(--accent-green);">🔐 Sleutelbeheerders Autorisatie Paneel</h3>
+            <p style="font-size: 0.9em; color: #555;">Toegang vereist expliciete autorisatie van de geautoriseerde sleutelbeheerders voor het wijzigen van de 6D routeringsmatrix.</p>
+            
+            <div class="form-row">
+                <div>
+                    <label>Sleutelbeheerder Token:</label>
+                    <input type="password" id="auth-token" placeholder="Voer autorisatie-sleutel in...">
+                </div>
+                <div>
+                    <label>Actie:</label><br>
+                    <button onclick="verifieerEnOpenBeheer()" style="background-color: var(--accent-green);">Verifieer Sleutel</button>
+                </div>
+            </div>
+
+            <div id="beheer-form" style="display:none; margin-top: 15px; border-top: 1px dashed #bbb; padding-top: 15px;">
+                <h4 style="margin:0 0 10px 0;">IP Blok Toevoegen / Verwijderen</h4>
+                <div class="form-row">
+                    <input type="text" id="new-prefix" placeholder="Prefix (bijv. 203.0.113.0/24)">
+                    <input type="text" id="new-loc" placeholder="Locatie / Stad (bijv. Tokyo)">
+                </div>
+                <div class="form-row">
+                    <input type="number" id="new-lat" placeholder="Latitude (bijv. 35.6762)" step="any">
+                    <input type="number" id="new-lon" placeholder="Longitude (bijv. 139.6503)" step="any">
+                </div>
+                <button onclick="voegIPToe()">Voeg IP Blok Toe</button>
+                <button class="btn-danger" onclick="verwijderGeselecteerdIP()">Verwijder Geselecteerd Blok</button>
+            </div>
         </div>
 
-        <h2>Gedetecteerde 6D Vectoren</h2>
+        <h2>Dynamische 6D Matrix Tabel</h2>
         <table>
             <thead>
                 <tr>
                     <th>Prefix / Subnet</th>
-                    <th>Dim 1-2 (Positie)</th>
+                    <th>Dim 1-2 (Positie & Stad)</th>
                     <th>Dim 3 (Z-Hoogte)</th>
                     <th>Dim 5 (Capaciteit)</th>
-                    <th>Dim 6 (Laag)</th>
+                    <th>Selectie</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td><strong>198.245.80.0/20</strong></td>
-                    <td>39.0438° N, 77.4874° W</td>
-                    <td>15m (Ashburn)</td>
-                    <td>4.094 hosts</td>
-                    <td>IPv4 Core</td>
-                </tr>
-                <tr>
-                    <td><strong>85.222.128.0/19</strong></td>
-                    <td>50.1109° N, 8.6821° E</td>
-                    <td>112m (Frankfurt)</td>
-                    <td>8.190 hosts</td>
-                    <td>IPv4 Core</td>
-                </tr>
-                <tr>
-                    <td><strong>129.77.16.0/20</strong></td>
-                    <td>51.5074° N, 0.1278° W</td>
-                    <td>11m (Londen)</td>
-                    <td>4.094 hosts</td>
-                    <td>IPv4 Core</td>
-                </tr>
-                <tr>
-                    <td><strong>2401:ce80::/32</strong></td>
-                    <td>1.3521° N, 103.8198° E</td>
-                    <td>5m (Singapore)</td>
-                    <td>Onbegrensd (IPv6)</td>
-                    <td>IPv6 Dual-Stack</td>
-                </tr>
-                <tr>
-                    <td><strong>151.106.220.0/22</strong></td>
-                    <td>52.3676° N, 4.9041° E</td>
-                    <td>-2m (Amsterdam)</td>
-                    <td>1.022 hosts</td>
-                    <td>IPv4 Core</td>
-                </tr>
+            <tbody id="tabel-body">
+                <!-- Wordt dynamisch gevuld -->
             </tbody>
         </table>
 
@@ -166,32 +183,102 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialiseer de kaart
+        // Initiele Dataset
+        let nodes = [
+            { id: 1, prefix: "198.245.80.0/20", lat: 39.0438, lon: -77.4874, stad: "Ashburn", hoogte: "15m", capaciteit: "4.094 hosts" },
+            { id: 2, prefix: "85.222.128.0/19", lat: 50.1109, lon: 8.6821, stad: "Frankfurt", hoogte: "112m", capaciteit: "8.190 hosts" },
+            { id: 3, prefix: "129.77.16.0/20", lat: 51.5074, lon: -0.1278, stad: "Londen", hoogte: "11m", capaciteit: "4.094 hosts" },
+            { id: 4, prefix: "2401:ce80::/32", lat: 1.3521, lon: 103.8198, stad: "Singapore", hoogte: "5m", capaciteit: "IPv6 (Onbegrensd)" },
+            { id: 5, prefix: "151.106.220.0/22", lat: 52.3676, lon: 4.9041, stad: "Amsterdam", hoogte: "-2m", capaciteit: "1.022 hosts" }
+        ];
+
+        // Kaart initialisatie
         var map = L.map('map').setView([30.0, 10.0], 2);
-        
-        // Gebruik de standaard OpenStreetMap tegels (vrij en vereist geen API-key)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19
         }).addTo(map);
 
-        // Data punten met 6D attributen
-        var nodes = [
-            { lat: 39.0438, lon: -77.4874, label: "198.245.80.0/20 (Ashburn)" },
-            { lat: 50.1109, lon: 8.6821, label: "85.222.128.0/19 (Frankfurt)" },
-            { lat: 51.5074, lon: -0.1278, label: "129.77.16.0/20 (Londen)" },
-            { lat: 1.3521, lon: 103.8198, label: "2401:ce80::/32 (Singapore)" },
-            { lat: 52.3676, lon: 4.9041, label: "151.106.220.0/22 (Amsterdam)" }
-        ];
+        let markerLayer = L.layerGroup().addTo(map);
 
-        nodes.forEach(function(node) {
-            L.circleMarker([node.lat, node.lon], {
-                radius: 9, 
-                color: '#C0392B', 
-                fillColor: '#C0392B', 
-                fillOpacity: 0.8
-            }).addTo(map).bindPopup('<b>6D Vector Node</b><br>' + node.label);
-        });
+        function renderDashboard() {
+            markerLayer.clearLayers();
+            const tbody = document.getElementById('tabel-body');
+            tbody.innerHTML = '';
+
+            nodes.forEach(node => {
+                // Voegmarker toe aan Leaflet kaart
+                let marker = L.circleMarker([node.lat, node.lon], {
+                    radius: 8, color: '#C0392B', fillColor: '#C0392B', fillOpacity: 0.8
+                }).bindPopup(`<b>6D Vector Node</b><br>${node.prefix}<br>Stad: ${node.stad}`);
+                
+                markerLayer.addLayer(marker);
+
+                // Voeg rij toe aan tabel
+                let tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${node.prefix}</strong></td>
+                    <td>${node.lat.toFixed(4)}° N, ${node.lon.toFixed(4)}° W (${node.stad})</td>
+                    <td>${node.hoogte}</td>
+                    <td>${node.capaciteit}</td>
+                    <td><input type="radio" name="select-ip" value="${node.id}"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Sleutelbeheerders verificatie simulatie
+        function verifieerEnOpenBeheer() {
+            const token = document.getElementById('auth-token').value;
+            // Voor demonstratiedoeleinden is de sleutel 'vortex2026' ingesteld
+            if (token === "vortex2026" || token === "sleutel") {
+                document.getElementById('beheer-form').style.display = 'block';
+                alert("Autorisatie veroodteld door sleutelbeheerders. Formulier geopend.");
+            } else {
+                alert("Ongeldige autorisatie-sleutel van beheerder.");
+            }
+        }
+
+        function voegIPToe() {
+            const prefix = document.getElementById('new-prefix').value;
+            const stad = document.getElementById('new-loc').value;
+            const lat = parseFloat(document.getElementById('new-lat').value);
+            const lon = parseFloat(document.getElementById('new-lon').value);
+
+            if (!prefix || !stad || isNaN(lat) || isNaN(lon)) {
+                alert("Vul alle velden correct in.");
+                return;
+            }
+
+            const nieuwId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
+            nodes.push({ id: nieuwId, prefix: prefix, lat: lat, lon: lon, stad: stad, hoogte: "10m (Geschat)", capaciteit: "Dynamisch" });
+            
+            renderDashboard();
+            alert("IP-blok succesvol toegevoegd met toestemming van de sleutelbeheerders.");
+            
+            // Velden opschonen
+            document.getElementById('new-prefix').value = '';
+            document.getElementById('new-loc').value = '';
+            document.getElementById('new-lat').value = '';
+            document.getElementById('new-lon').value = '';
+        }
+
+        function verwijderGeselecteerdIP() {
+            const geselecteerd = document.querySelector('input[name="select-ip"]:checked');
+            if (!geselecteerd) {
+                alert("Selecteer eerst een IP-blok in de tabel om te verwijderen.");
+                return;
+            }
+
+            const idTewVerwijderen = parseInt(geselecteerd.value);
+            nodes = nodes.filter(n => n.id !== idTewVerwijderen);
+
+            renderDashboard();
+            alert("IP-blok succesvol verwijderd onder beheerderstoezicht.");
+        }
+
+        // Start render bij laden
+        renderDashboard();
     </script>
 </body>
 </html>
