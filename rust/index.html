@@ -1,1 +1,219 @@
 
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Observatierapport: BepiColombo</title>
+    <style>
+        :root {
+            --sky-blue: #87CEEB;
+            --cloud-white: #F8F9FA;
+            --night-dark: #0B132B;
+            --frame-gold: #D4AF37;
+            --text-dark: #2F4F4F;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Georgia', serif;
+            /* Surrealistisch contrast: heldere daglucht bovenaan, donkere nacht onderaan */
+            background: linear-gradient(to bottom, var(--sky-blue) 0%, var(--sky-blue) 40%, var(--night-dark) 40.5%, var(--night-dark) 100%);
+            color: var(--cloud-white);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-frame {
+            background-color: var(--cloud-white);
+            color: var(--text-dark);
+            margin: 50px 20px;
+            padding: 40px;
+            border: 15px solid #222;
+            box-shadow: 
+                inset 0 0 0 5px var(--frame-gold),
+                10px 15px 25px rgba(0,0,0,0.7);
+            max-width: 800px;
+            width: 90%;
+            position: relative;
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: normal;
+            font-size: 2.2em;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-style: italic;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            color: #555;
+        }
+
+        .paradox {
+            text-align: center;
+            font-family: 'Brush Script MT', cursive;
+            font-size: 2em;
+            margin: 20px 0 40px 0;
+        }
+
+        h2 {
+            border-bottom: 1px solid var(--text-dark);
+            padding-bottom: 5px;
+            margin-top: 30px;
+            font-weight: normal;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px dotted #ccc;
+        }
+
+        th {
+            font-weight: bold;
+        }
+
+        .telemetry-box {
+            background-color: #f0f4f8;
+            border-left: 4px solid var(--text-dark);
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 1.1em;
+        }
+
+        /* Zwevende appel icoon puur voor de compositie */
+        .decor {
+            position: absolute;
+            top: -25px;
+            right: -25px;
+            font-size: 50px;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5));
+        }
+    </style>
+</head>
+<body>
+
+    <div class="canvas-frame">
+        <div class="decor">🍏</div>
+        <h1>Lokale Hemel & Interplanetaire Vectoren</h1>
+        <div class="subtitle" id="timestamp">Tijdstip: Laden... | Coördinatensysteem: Azimutaal (Lokaal)</div>
+        
+        <div class="paradox">Ceci n'est pas un rapport.</div>
+
+        <h2>Zonnestelsel Basisparameters</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Hemellichaam</th>
+                    <th>Opkomst</th>
+                    <th>Ondergang</th>
+                </tr>
+            </thead>
+            <tbody id="basis-data">
+                <!-- Wordt gevuld door JS -->
+            </tbody>
+        </table>
+
+        <h2>Posities Planeten & Sterrenbeelden</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Planeet</th>
+                    <th>Azimut</th>
+                    <th>Hoogte</th>
+                    <th>Sterrenbeeld</th>
+                </tr>
+            </thead>
+            <tbody id="planeten-data">
+                <!-- Wordt gevuld door JS -->
+            </tbody>
+        </table>
+
+        <h2>Telemetrie & Missie Tracking</h2>
+        <div class="telemetry-box" id="telemetry-data">
+            <!-- Wordt gevuld door JS -->
+        </div>
+    </div>
+
+    <script>
+        // Data object
+        const observatieData = {
+            datum: "4 oktober 2026",
+            tijd: "16:18:49 CEST",
+            basis: [
+                { naam: "Zon", op: "12:56", onder: "00:35" },
+                { naam: "Maan", op: "05:49", onder: "21:34" }
+            ],
+            planeten: [
+                { naam: "Mercurius", az: 121.9, hgt: 11.4, constellatie: "Virgo" },
+                { naam: "Venus", az: 124.9, hgt: 6.2, constellatie: "Virgo" },
+                { naam: "Mars", az: 235.4, hgt: 59.8, constellatie: "Cancer" },
+                { naam: "Jupiter", az: 201.1, hgt: 63.2, constellatie: "Leeuw" },
+                { naam: "Saturnus", az: 310.4, hgt: -34.1, constellatie: "Cetus" },
+                { naam: "Uranus", az: 285.6, hgt: 14.4, constellatie: "Taurus" }
+            ],
+            bepicolombo: {
+                doelwit: "Mercurius",
+                actuele_azimut: 121.86
+            }
+        };
+
+        // Render functie
+        function renderDashboard() {
+            // Update Timestamp
+            document.getElementById('timestamp').innerText = `Datum: ${observatieData.datum} | Tijdstip: ${observatieData.tijd} | Systeem: Azimutaal (Lokaal)`;
+
+            // Render Basisparameters
+            const basisTbody = document.getElementById('basis-data');
+            observatieData.basis.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td><strong>${item.naam}</strong></td><td>${item.op}</td><td>${item.onder}</td>`;
+                basisTbody.appendChild(tr);
+            });
+
+            // Render Planeten
+            const planetenTbody = document.getElementById('planeten-data');
+            observatieData.planeten.forEach(planeet => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${planeet.naam}</strong></td>
+                    <td>${planeet.az}°</td>
+                    <td>${planeet.hgt}°</td>
+                    <td>${planeet.constellatie}</td>
+                `;
+                planetenTbody.appendChild(tr);
+            });
+
+            // Render Telemetrie
+            // Zoek Mercurius op in de tabel voor de dynamische delta-berekening
+            const targetPlaneet = observatieData.planeten.find(p => p.naam === observatieData.bepicolombo.doelwit);
+            const delta = (observatieData.bepicolombo.actuele_azimut - targetPlaneet.az).toFixed(2);
+
+            const telemetryBox = document.getElementById('telemetry-data');
+            telemetryBox.innerHTML = `
+                Missie : BepiColombo<br>
+                Doelwit: ${observatieData.bepicolombo.doelwit}<br>
+                Actuele Azimut Vector: <strong>${observatieData.bepicolombo.actuele_azimut}°</strong><br>
+                Delta met optisch centrum ${observatieData.bepicolombo.doelwit}: ${delta}°
+            `;
+        }
+
+        // Start het render-proces zodra de DOM geladen is
+        window.onload = renderDashboard;
+    </script>
+</body>
+</html>
