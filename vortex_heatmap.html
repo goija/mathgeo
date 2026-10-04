@@ -2,43 +2,306 @@
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <title>VORTEX: Ruimtelijke Distributie</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX: Master OSINT & P2P Comm</title>
     <style>
-        body { margin: 0; padding: 0; font-family: "Georgia", serif; background-color: #0B132B; color: #F8F9FA; }
-        #header { padding: 20px; text-align: center; }
-        .paradox { font-family: "Brush Script MT", cursive; font-size: 1.8em; color: #87CEEB; margin-top: 5px; }
-        #map { height: 75vh; width: 90%; margin: 0 auto; border: 8px solid #222; box-shadow: inset 0 0 0 3px #D4AF37; }
-        .license { text-align: center; margin-top: 20px; font-size: 0.85em; color: #777; font-style: italic; }
+        :root {
+            --sky-blue: #87CEEB;
+            --cloud-white: #F8F9FA;
+            --night-dark: #0B132B;
+            --frame-gold: #D4AF37;
+            --text-dark: #2F4F4F;
+            --color-opgelost: #27AE60;
+            --color-onopgelost: #C0392B;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Georgia', serif;
+            background: linear-gradient(to bottom, var(--sky-blue) 0%, var(--sky-blue) 10%, var(--night-dark) 10.5%, var(--night-dark) 100%);
+            color: var(--cloud-white);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding-top: 40px;
+        }
+
+        .canvas-frame {
+            background-color: var(--cloud-white);
+            color: var(--text-dark);
+            padding: 40px;
+            border: 12px solid #111;
+            box-shadow: inset 0 0 0 4px var(--frame-gold), 15px 20px 30px rgba(0,0,0,0.8);
+            max-width: 1100px;
+            width: 95%;
+            margin-bottom: 50px;
+        }
+
+        h1 { text-align: center; border-bottom: 2px solid var(--text-dark); padding-bottom: 10px; }
+        h2 { font-size: 1.4em; margin-top: 30px; border-bottom: 1px dotted #ccc; padding-bottom: 5px; }
+
+        .meta-data, .webrtc-box, .chat-box {
+            background-color: #EAECEE;
+            padding: 15px;
+            border-left: 4px solid var(--text-dark);
+            font-family: 'Courier New', Courier, monospace;
+            margin-bottom: 20px;
+        }
+
+        /* Knoppen en Inputs */
+        button, .btn-link {
+            background-color: var(--text-dark);
+            color: var(--cloud-white);
+            border: none;
+            padding: 10px 15px;
+            font-family: 'Georgia', serif;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 5px;
+            margin-top: 5px;
+        }
+        button:hover, .btn-link:hover { background-color: #1A252F; }
+
+        input[type="text"], textarea {
+            width: calc(100% - 24px);
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            border: 1px solid #ccc;
+            margin-top: 5px;
+        }
+
+        /* WebRTC Grid */
+        .video-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        video {
+            width: 100%;
+            background-color: #000;
+            border: 2px solid #222;
+            border-radius: 4px;
+        }
+
+        /* Chatbox */
+        #chat-venster {
+            height: 150px;
+            overflow-y: scroll;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .msg { margin-bottom: 5px; }
+        .msg.me { color: #2980B9; }
+        .msg.peer { color: #C0392B; }
+
+        /* Tracker */
+        .tracker-sectie { background-color: #FDEDEC; padding: 25px; border: 2px dashed var(--color-onopgelost); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-family: 'Courier New', monospace; font-size: 0.9em; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: var(--text-dark); color: var(--cloud-white); font-family: 'Georgia', serif; }
+        .status-opgelost { color: var(--color-opgelost); font-weight: bold; }
+        .status-onopgelost { color: var(--color-onopgelost); font-weight: bold; }
+
+        .copyright {
+            margin-top: 50px; font-size: 0.9em; text-align: center; color: #C0392B; font-weight: bold; border-top: 2px solid #ccc; padding-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <div id="header">
-        <h2>Geografische Spreiding AS14340 Netwerkblokken</h2>
-        <div class="paradox">Ceci n&#39;est pas un datacenter.</div>
-    </div>
-    
-    <div id="map"></div>
-    
-    <div class="license">
-        Ontwerp en ontwikkeling: Bedrijven en overheid hebben geen toestemming tot gebruik van deze code of ruimtelijke analyse.
-    </div>
 
-    <script>
-        var map = L.map("map").setView([35.0, -40.0], 3);
+    <div class="canvas-frame">
+        <h1>🌐 VORTEX TACTISCH OSINT RAPPORT</h1>
         
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-            attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-            subdomains: "abcd",
-            maxZoom: 20
-        }).addTo(map);
+        <div class="meta-data">
+            <strong>Datum & Tijd:</strong> 4 oktober 2026, 16:40 CEST (Huizen)<br>
+            <strong>Doelwit Hub:</strong> 40.7548268° N, -73.9848496° W (Salesforce NY)<br>
+            <br>
+            <a href="https://mathgeo-seven.vercel.app/" target="_blank" class="btn-link">🔗 Open Externe MathGeo Kaart</a>
+        </div>
 
-        L.circleMarker([37.789800, -122.397000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>198.245.80.1</b><br>Prefix: 198.245.80.0/20<br>Stad: San Francisco');
-            L.circleMarker([50.116900, 8.683700], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>85.222.128.1</b><br>Prefix: 85.222.128.0/19<br>Stad: Frankfurt am Main');
-            L.circleMarker([37.789800, -122.397000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>129.77.16.1</b><br>Prefix: 129.77.16.0/20<br>Stad: San Francisco');
-            L.circleMarker([35.689500, 139.692000], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>2401:ce80::1</b><br>Prefix: 2401:ce80::/32<br>Stad: Tokyo');
-            L.circleMarker([51.507200, -0.127586], {radius: 12, color: '#A93226', fillColor: '#A93226', fillOpacity: 0.6}).addTo(map).bindPopup('<b>151.106.220.1</b><br>Prefix: 151.106.220.0/22<br>Stad: London');
+        <h2>1. Serverless WebRTC P2P (Decentrale Comms)</h2>
+        <div class="webrtc-box">
+            <p style="margin-top:0;"><strong>Handshake Protocol (Kopieer/Plak SDP data):</strong></p>
+            <textarea id="sdp-data" rows="4" placeholder="Plak hier de Offer of Answer van je peer..."></textarea><br>
+            
+            <button onclick="startCamera()">1. Start Camera</button>
+            <button onclick="createOffer()">2. Maak Offer (Host)</button>
+            <button onclick="acceptOffer()">3. Accepteer Offer (Peer)</button>
+            <button onclick="acceptAnswer()">4. Bevestig Answer (Host)</button>
+            
+            <div class="video-grid">
+                <div>
+                    <strong>Lokale Feed:</strong>
+                    <video id="localVideo" autoplay muted playsinline></video>
+                </div>
+                <div>
+                    <strong>P2P Feed:</strong>
+                    <video id="remoteVideo" autoplay playsinline></video>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-box">
+            <strong>Directe P2P Datakanaal:</strong>
+            <div id="chat-venster"></div>
+            <input type="text" id="chat-input" placeholder="Typ een bericht en druk op Enter..." onkeypress="handleChat(event)">
+        </div>
+
+        <div class="report-text">
+            <h2>2. BGP Routing Analyse (AS14340)</h2>
+            <p>De infrastructuur vertoont een hybride topologie. Gedecentraliseerde IPv4 allocaties (/19, /20) opereren naast een moderne IPv6 /32 dual-stack architectuur.</p>
+            <ul>
+                <li><strong>198.245.80.0/20</strong> (IPv4 - Capaciteit: 4.094 hosts)</li>
+                <li><strong>85.222.128.0/19</strong> (IPv4 - Capaciteit: 8.190 hosts)</li>
+                <li><strong>2401:ce80::/32</strong> (IPv6 - Capaciteit: Enorme adresruimte)</li>
+            </ul>
+        </div>
+
+        <!-- Tracker Sectie -->
+        <div class="tracker-sectie">
+            <h2 style="margin-top: 0;">Actuele Tracker & Actiepunten</h2>
+            
+            <label>Onderzoeksobject / Vector:</label>
+            <input type="text" id="doelwit" placeholder="Bijv. Reverse DNS voor 151.106.220.0/22"><br>
+
+            <label style="margin-top:10px; display:block;">Analytische Notities:</label>
+            <textarea id="notities" rows="2" placeholder="Bevindingen..."></textarea>
+
+            <div style="margin: 15px 0;">
+                <label style="margin-right: 15px;"><input type="radio" name="status" value="Opgelost"> Opgelost</label>
+                <label><input type="radio" name="status" value="Niet Opgelost" checked> Niet Opgelost</label>
+            </div>
+            <button onclick="voegDossierToe()">Voeg toe aan Logboek</button>
+        </div>
+
+        <table>
+            <thead><tr><th>Tijdstip</th><th>Object</th><th>Notities</th><th>Status</th></tr></thead>
+            <tbody id="rapport-body"></tbody>
+        </table>
+
+        <div class="copyright">
+            Auteursrechtelijke Restrictie:<br>
+            Ontwerp en ontwikkeling: Bedrijven en overheid hebben geen toestemming tot gebruik of reproductie van deze code.
+        </div>
+    </div>
+
+    <!-- WebRTC en Tracker Logica -->
+    <script>
+        // --- WEBRTC LOGICA ---
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        let pc = new RTCPeerConnection(servers);
+        let localStream;
+        let dataChannel;
+
+        const sdpInput = document.getElementById('sdp-data');
+        const chatVenster = document.getElementById('chat-venster');
+
+        // Netwerkpaden (ICE) verzamelen en verpakken in de SDP output
+        pc.onicecandidate = e => {
+            if (e.candidate == null) {
+                sdpInput.value = JSON.stringify(pc.localDescription);
+            }
+        };
+
+        pc.ontrack = e => {
+            document.getElementById('remoteVideo').srcObject = e.streams[0];
+        };
+
+        // Datakanaal opzetten voor inkomende peers
+        pc.ondatachannel = e => {
+            dataChannel = e.channel;
+            setupDataChannel();
+        };
+
+        async function startCamera() {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject = localStream;
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+
+        async function createOffer() {
+            // Host maakt kanaal aan
+            dataChannel = pc.createDataChannel('chat');
+            setupDataChannel();
+            
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            // ICE gathering start, zodra klaar verschijnt JSON in textarea
+            sdpInput.placeholder = "ICE gathering... Wacht tot SDP hier verschijnt en stuur dit naar peer.";
+        }
+
+        async function acceptOffer() {
+            const offer = JSON.parse(sdpInput.value);
+            await pc.setRemoteDescription(offer);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sdpInput.value = "";
+            sdpInput.placeholder = "ICE gathering... Wacht tot Answer SDP hier verschijnt en stuur terug.";
+        }
+
+        async function acceptAnswer() {
+            const answer = JSON.parse(sdpInput.value);
+            await pc.setRemoteDescription(answer);
+            sdpInput.value = "Verbinding opgebouwd.";
+        }
+
+        function setupDataChannel() {
+            dataChannel.onmessage = e => logChat(e.data, 'peer');
+            dataChannel.onopen = () => logChat('System: Directe P2P verbinding geopend.', 'me');
+        }
+
+        function handleChat(e) {
+            if (e.key === 'Enter') {
+                const msg = e.target.value;
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    dataChannel.send(msg);
+                    logChat(msg, 'me');
+                    e.target.value = '';
+                } else {
+                    alert("Geen actieve P2P verbinding.");
+                }
+            }
+        }
+
+        function logChat(msg, sender) {
+            const line = document.createElement('div');
+            line.className = `msg ${sender}`;
+            const time = new Date().toLocaleTimeString('nl-NL');
+            line.innerText = `[${time}] ${sender === 'me' ? 'Jij' : 'Peer'}: ${msg}`;
+            chatVenster.appendChild(line);
+            chatVenster.scrollTop = chatVenster.scrollHeight;
+        }
+
+        // --- TRACKER LOGICA ---
+        function voegDossierToe() {
+            const doelwit = document.getElementById('doelwit').value;
+            const notities = document.getElementById('notities').value;
+            const statusElements = document.getElementsByName('status');
+            
+            let geselecteerdeStatus;
+            for (let i = 0; i < statusElements.length; i++) {
+                if (statusElements[i].checked) { geselecteerdeStatus = statusElements[i].value; break; }
+            }
+
+            if (!doelwit) return alert("Vul minimaal een vector/object in.");
+
+            const tbody = document.getElementById('rapport-body');
+            const tr = document.createElement('tr');
+            const tijdstip = new Date().toLocaleTimeString('nl-NL');
+            const statusClass = (geselecteerdeStatus === "Opgelost") ? "status-opgelost" : "status-onopgelost";
+
+            tr.innerHTML = `<td>${tijdstip}</td><td><strong>${doelwit}</strong></td><td>${notities}</td><td class="${statusClass}">${geselecteerdeStatus}</td>`;
+            tbody.insertBefore(tr, tbody.firstChild);
+
+            document.getElementById('doelwit').value = '';
+            document.getElementById('notities').value = '';
+        }
     </script>
 </body>
 </html>
