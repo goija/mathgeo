@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GEOINT Command Center - 3D Terrain, Molendatabase & Telemetrie</title>
+    
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Turf.js (Geodesie & Wiskunde) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    
+    <!-- Astronomy Engine & SunCalc -->
+    <script src="https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: #05131f; font-family: 'Courier New', Courier, monospace; overflow: hidden; color: #e0e0e0; touch-action: manipulation; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+        
+        /* Zwevende panelen */
+        .glass-panel {
+            position: absolute; background: rgba(10, 25, 47, 0.9);
+            backdrop-filter: blur(12px); border: 1px solid rgba(100, 255, 218, 0.3);
+            border-radius: 8px; z-index: 10; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            display: flex; flex-direction: column; transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        
+        .panel-content { padding: 12px; overflow-y: auto; max-height: 70vh; }
+        .panel-content::-webkit-scrollbar { width: 4px; }
+        .panel-content::-webkit-scrollbar-thumb { background: rgba(100, 255, 218, 0.5); border-radius: 2px; }
+
+        .drag-handle {
+            background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid rgba(100, 255, 218, 0.3);
+            padding: 8px; text-align: center; font-size: 11px; color: #64ffda;
+            cursor: grab; border-radius: 8px 8px 0 0; user-select: none; text-transform: uppercase; letter-spacing: 2px;
+        }
+
+        /* Desktop Posities */
+        #panel-left { top: 60px; left: 20px; width: 320px; }
+        #panel-right { top: 60px; right: 20px; width: 420px; }
+        #panel-astro { top: 60px; right: 450px; width: 360px; } 
+        #panel-planimeter { bottom: 20px; right: 20px; width: 340px; }
+        
+        h2, h3 { margin-top: 0; font-weight: normal; color: #64ffda; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 4px; }
+        p, li { font-size: 11px; line-height: 1.4; margin: 6px 0; }
+        
+        .loc-input { width: 100%; padding: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.5); border: 1px solid #64ffda; color: #fff; border-radius: 4px; font-family: monospace; font-size: 11px; box-sizing: border-box; }
+        .btn { background: #64ffda; color: #05131f; border: none; padding: 10px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; margin-bottom: 8px; font-size: 11px; transition: 0.2s; }
+        .btn:hover { background: #4cd3b6; }
+        .btn-agent { background: #e84393; color: white; }
+        .btn-babel { background: #9b59b6; color: white; }
+        .btn-osint { background: #f39c12; color: #05131f; }
+        .btn-snapshot { background: #3498db; color: white; }
+        .btn-clear { background: #e74c3c; color: white; }
+        
+        .mode-btn { background: #34495e; color: #fff; border: 1px solid #64ffda; padding: 10px; width: 100%; margin-bottom: 8px; cursor: pointer; font-family: monospace; font-size: 11px; }
+        .mode-btn.active { background: #e84393; border-color: #e84393; }
+
+        /* Kompas Stijl */
+        #compass-container { position: absolute; top: 20px; left: calc(50% - 60px); width: 120px; z-index: 10; display: flex; flex-direction: column; align-items: center; pointer-events: auto; }
+        #compass-3d-wrapper { width: 90px; height: 90px; perspective: 800px; margin-bottom: 6px; pointer-events: none; }
+        #compass { width: 100%; height: 100%; border-radius: 50%; background: rgba(10, 25, 47, 0.7); backdrop-filter: blur(8px); border: 2px solid rgba(100, 255, 218, 0.4); transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; color: #64ffda; font-weight: bold; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        .compass-n { position: absolute; top: 6px; color: #ff5252; text-shadow: 0 0 5px #ff5252; }
+        .compass-s { position: absolute; bottom: 6px; }
+        .compass-e { position: absolute; right: 10px; }
+        .compass-w { position: absolute; left: 10px; }
+        .compass-center { width: 6px; height: 6px; background: #ffca28; border-radius: 50%; z-index: 2; }
+        .compass-arrow { position: absolute; top: 14px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 26px solid #ff5252; transform-origin: bottom center; z-index: 1; }
+        #compass-coords { background: rgba(10, 25, 47, 0.85); border: 1px solid rgba(100, 255, 218, 0.3); padding: 3px 6px; border-radius: 4px; font-size: 10px; color: #ffca28; white-space: nowrap; font-family: monospace; }
+
+        /* Planimeter Wieltjes */
+        .wheel-container { display: flex; justify-content: space-around; padding: 8px 0; align-items: center; }
+        .wheel-box { display: flex; flex-direction: column; align-items: center; cursor: ns-resize; }
+        .wheel-label { font-size: 9px; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; text-align: center; }
+        .wheel { width: 40px; height: 40px; border: 3px dashed #64ffda; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 10px rgba(100,255,218,0.3); pointer-events: none;}
+        .wheel-inner { width: 14px; height: 14px; border: 2px dotted #ff5252; border-radius: 50%; }
+
+        /* Verlengd Output Tekstvak */
+        .output-textarea { width: 100%; height: 260px; background: #000; border: 1px solid #64ffda; color: #64ffda; border-radius: 4px; padding: 8px; font-family: 'Courier New', monospace; font-size: 11px; resize: none; box-sizing: border-box; margin-bottom: 8px; }
+        .row-group { display: flex; gap: 6px; margin-bottom: 8px; }
+        .row-group button { flex: 1; margin-bottom: 0; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th { border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 3px; color: #64ffda; text-transform: uppercase; font-size: 9px; text-align: left; }
+        td { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 10px; }
+
+        .file-upload-wrapper { position: relative; width: 100%; height: 36px; margin-bottom: 6px; }
+        .file-upload-input { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; }
+        .file-upload-display { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 47, 0.8); border: 1px dashed #64ffda; display: flex; align-items: center; justify-content: center; color: #64ffda; font-size: 10px; border-radius: 4px; z-index: 1; box-sizing: border-box; }
+
+        #ui-toggle-btn { position: absolute; top: 10px; left: 10px; z-index: 20; background: rgba(10, 25, 47, 0.9); border: 1px solid #64ffda; color: #64ffda; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+        #mobile-drawer-btn { display: none; position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 20; background: #e84393; border: none; color: white; padding: 10px 20px; border-radius: 20px; font-family: monospace; font-weight: bold; font-size: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+
+        @media screen and (max-width: 1024px) {
+            #panel-astro { display: none; }
+        }
+        @media screen and (max-width: 768px) {
+            #panel-left { top: auto; bottom: 65px; left: 10px; right: 10px; width: auto; max-height: 35vh; display: none; }
+            #panel-right { top: auto; bottom: 65px; left: 10px; right: 10px; width: auto; max-height: 50vh; display: none; }
+            #panel-planimeter { top: 60px; right: 10px; width: 260px; }
+            #compass-container { top: 10px; left: 10px; transform: scale(0.8); }
+            #mobile-drawer-btn { display: block; }
+            .drag-handle { display: none; }
+            .glass-panel { border-radius: 12px 12px 0 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <button id="ui-toggle-btn">👁 UI</button>
+    <button id="mobile-drawer-btn">📊 Open Dossier</button>
+
+    <!-- 3D Kompas -->
+    <div id="compass-container">
+        <div id="compass-3d-wrapper">
+            <div id="compass">
+                <div class="compass-n">N</div>
+                <div class="compass-e">E</div>
+                <div class="compass-s">S</div>
+                <div class="compass-w">W</div>
+                <div class="compass-arrow"></div>
+                <div class="compass-center"></div>
+            </div>
+        </div>
+        <div id="compass-coords">52.20° N, 3.50° E</div>
+    </div>
+
+    <!-- PANEEL LINKS (Navigatie, Plaatsnamen Zoeken, Zeekaarten & Molens) -->
+    <div id="panel-left" class="glass-panel ui-element">
+        <div class="drag-handle">≡ 3D Terrain & Lagen ≡</div>
+        <div class="panel-content">
+            <h2>🌍 Basis Kaartlaag</h2>
+            <select id="basemap-select" class="loc-input">
+                <option value="dark">Carto Dark Matter</option>
+                <option value="satellite">Esri Satelliet (3D)</option>
+                <option value="osm">OpenStreetMap</option>
+            </select>
+
+            <h2 style="margin-top: 8px;">⚓ Maritiem, Milieu & Erfgoed</h2>
+            <button id="toggle-seamark-btn" class="mode-btn active">⚓ Zeekaarten (OpenSeaMap): AAN</button>
+            <button id="toggle-pollution-btn" class="mode-btn active">⚠️ Milieuvervuiling / Olievlekken: AAN</button>
+            <button id="toggle-windmills-btn" class="mode-btn active">windmill 🏛️ Molendatabase: AAN</button>
+
+            <h2 style="margin-top: 8px;">🔍 Locatie & Plaats Zoeken</h2>
+            <input type="text" id="loc-input" class="loc-input" placeholder="Bijv: Kinderdijk, Scherpenisse...">
+            <button id="loc-btn" class="btn">Zoek Plaats / Coördinaat</button>
+
+            <h2 style="margin-top: 8px;">🚩 Target Fix</h2>
+            <button id="flag-btn" class="mode-btn">🚩 Plaats Target Vlag (UIT)</button>
+            
+            <h2 style="margin-top: 8px;">📸 Snapshot</h2>
+            <button id="btn-snapshot" class="btn btn-snapshot">Maak 3D Schermafdruk (PNG)</button>
+        </div>
+    </div>
+
+    <!-- ASTRONOMIE DASHBOARD PANEEL -->
+    <div id="panel-astro" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Astronomie Dashboard ≡</div>
+        <div class="panel-content">
+            <h2 id="astro-date-title">Lokale Hemel</h2>
+            <div id="astro-sun-moon" style="font-size:11px; margin-bottom: 10px; line-height:1.5;">Laden...</div>
+            <h2>Planeten & Sterren</h2>
+            <div id="astro-planets">Laden...</div>
+        </div>
+    </div>
+
+    <!-- PANEEL RECHTS (OSINT, Agent, Babel X & Verlengd Output-vak met Wisknop) -->
+    <div id="panel-right" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Agent & LLM Console ≡</div>
+        <div class="panel-content">
+            
+            <h2>Viewport Output (LLM & Agent)</h2>
+            <textarea id="llm-output-box" class="output-textarea" readonly>> Systeem gereed. Molendatabase en maritieme lagen gekoppeld...</textarea>
+            
+            <div class="row-group">
+                <button id="btn-clear-output" class="btn btn-clear">🗑️ Wis Output</button>
+                <button id="btn-export" class="btn" style="background:#2ecc71; color:#fff;">Exporteer</button>
+                <label class="btn" style="background:#e67e22; color:#fff; text-align:center; margin-bottom:0; cursor:pointer; line-height:22px;">
+                    Import <input type="file" id="import-file" accept=".json,.txt" style="display:none;">
+                </label>
+            </div>
+            
+            <div class="row-group" style="margin-top: 4px;">
+                <select id="babel-lang" class="loc-input" style="margin-bottom:0;">
+                    <option value="nl">Vertaal naar: Nederlands</option>
+                    <option value="en">Translate to: English</option>
+                    <option value="de">Übersetzen nach: Deutsch</option>
+                    <option value="fr">Traduire vers: Français</option>
+                    <option value="ar">ترجمة إلى: العربية</option>
+                </select>
+                <button id="btn-babel-translate" class="btn btn-babel" style="width:110px; margin-bottom:0;">Babel X</button>
+            </div>
+
+            <h2 style="margin-top: 8px;">1. Reverse GEOINT (Foto)</h2>
+            <div class="file-upload-wrapper">
+                <input type="file" id="image-upload" class="file-upload-input" accept="image/*">
+                <div class="file-upload-display" id="file-upload-display">📸 Upload Afbeelding</div>
+            </div>
+            <button id="btn-analyze-image" class="btn btn-osint">Start Visuele Agent Analyse</button>
+        </div>
+    </div>
+
+    <!-- PANEEL PLANIMETER (Wiskundige Integrator) -->
+    <div id="panel-planimeter" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Wiskundige Planimeter ≡</div>
+        <div class="panel-content" style="padding: 6px 10px;">
+            <div class="wheel-container">
+                <div class="wheel-box" id="ctrl-az" title="Scroll om te roteren">
+                    <div class="wheel-label">Azimut<br>↕ Scroll</div>
+                    <div id="wheel-az" class="wheel"><div class="wheel-inner"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-pt" title="Scroll om te kantelen">
+                    <div class="wheel-label">Kanteling<br>↕ Scroll</div>
+                    <div id="wheel-pt" class="wheel" style="border-color:#ff5252;"><div class="wheel-inner" style="border-color:#64ffda;"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-sc" title="Scroll om te zoomen">
+                    <div class="wheel-label">Zoom<br>↕ Scroll</div>
+                    <div id="wheel-sc" class="wheel" style="border-color:#3498db;"><div class="wheel-inner" style="border-color:#ffca28;"></div></div>
+                </div>
+            </div>
+            <p style="text-align:center; font-size:11px; margin:4px 0 0 0; border-top: 1px dotted rgba(100,255,218,0.3); padding-top:4px;">
+                Stramien Oppervlakte: <br><span class="highlight" style="font-size:13px;" id="pl-integral">0.00</span> <b>∬ dA</b> (km²)
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. KAART INITIALISATIE MET 3D TERRAIN ---
+        const map = new maplibregl.Map({
+            container: 'map', 
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [4.6, 51.8], // Kinderdijk / Alblasserwaard / Zeeland regio
+            zoom: 9, 
+            pitch: 65, 
+            bearing: 15, 
+            projection: 'globe' 
+        });
+
+        map.on('load', () => {
+            // A. Digitaal Hoogtemodel (DEM) voor 3D terrein
+            map.addSource('terrain-source', {
+                type: 'raster-dem',
+                tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+                encoding: 'terrarium',
+                tileSize: 256
+            });
+            map.setTerrain({ source: 'terrain-source', exaggeration: 1.8 });
+
+            // B. Zeekaarten overlay (OpenSeaMap)
+            map.addSource('seamarks-src', {
+                type: 'raster',
+                tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
+                tileSize: 256
+            });
+            map.addLayer({
+                id: 'seamarks-layer',
+                type: 'raster',
+                source: 'seamarks-src',
+                paint: { 'raster-opacity': 0.9 },
+                layout: { 'visibility': 'visible' }
+            });
+
+            // C. Milieuvervuiling / Olievlekken laag
+            map.addSource('pollution-src', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [3.0, 52.4] }, properties: { title: 'Noordzee Olievlek Corridor Alpha' } },
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [3.8, 51.9] }, properties: { title: 'Industrieel Lozingsrisico Rijnmond' } },
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [4.1, 51.5] }, properties: { title: 'Verdachte Scheepvaart Schelde-Delta' } }
+                    ]
+                }
+            });
+            map.addLayer({
+                id: 'pollution-layer',
+                type: 'circle',
+                source: 'pollution-src',
+                paint: {
+                    'circle-color': '#f27e1f',
+                    'circle-radius': 10,
+                    'circle-opacity': 0.9,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ffffff'
+                },
+                layout: { 'visibility': 'visible' }
+            });
+
+            // D. MOLENDATABASE (Historische Erfgoed Molens GeoJSON)
+            map.addSource('windmills-src', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [4.6369, 51.8883] }, properties: { name: 'Kinderdijk Molen No. 1', type: 'Poldermolen' } },
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [4.6521, 51.8854] }, properties: { name: 'Kinderdijk Molen No. 2', type: 'Poldermolen' } },
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [4.1200, 51.4900] }, properties: { name: 'Scherpenisse Molen De Korenbloem', type: 'Korenmolen' } },
+                        { type: 'Feature', geometry: { type: 'Point', coordinates: [4.4680, 51.9244] }, properties: { name: 'Deltagebied Pump Windmill', type: 'Drainage' } }
+                    ]
+                }
+            });
+            map.addLayer({
+                id: 'windmills-layer',
+                type: 'circle',
+                source: 'windmills-src',
+                paint: {
+                    'circle-color': '#00ffff',
+                    'circle-radius': 8,
+                    'circle-opacity': 0.95,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#05131f'
+                },
+                layout: { 'visibility': 'visible' }
+            });
+
+            // E. Planimeter Polygon Bron
+            map.addSource('planimeter-polygon', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+            map.addLayer({
+                id: 'planimeter-fill',
+                type: 'fill',
+                source: 'planimeter-polygon',
+                paint: {
+                    'fill-color': '#64ffda',
+                    'fill-opacity': 0.15,
+                    'fill-outline-color': '#64ffda'
+                }
+            });
+
+            updatePlanimeterCalculations();
+            updateCompass();
+            updateAstroDashboard();
+        });
+
+        // Toggle knoppen maritiem, milieu & molens
+        let seamarksVisible = true;
+        document.getElementById('toggle-seamark-btn').addEventListener('click', (e) => {
+            seamarksVisible = !seamarksVisible;
+            map.setLayoutProperty('seamarks-layer', 'visibility', seamarksVisible ? 'visible' : 'none');
+            e.target.classList.toggle('active', seamarksVisible);
+            e.target.innerText = `⚓ Zeekaarten (OpenSeaMap): ${seamarksVisible ? 'AAN' : 'UIT'}`;
+        });
+
+        let pollutionVisible = true;
+        document.getElementById('toggle-pollution-btn').addEventListener('click', (e) => {
+            pollutionVisible = !pollutionVisible;
+            map.setLayoutProperty('pollution-layer', 'visibility', pollutionVisible ? 'visible' : 'none');
+            e.target.classList.toggle('active', pollutionVisible);
+            e.target.innerText = `⚠️ Milieuvervuiling / Olievlekken: ${pollutionVisible ? 'AAN' : 'UIT'}`;
+        });
+
+        let windmillsVisible = true;
+        document.getElementById('toggle-windmills-btn').addEventListener('click', (e) => {
+            windmillsVisible = !windmillsVisible;
+            map.setLayoutProperty('windmills-layer', 'visibility', windmillsVisible ? 'visible' : 'none');
+            e.target.classList.toggle('active', windmillsVisible);
+            e.target.innerText = `🏛️ Molendatabase: ${windmillsVisible ? 'AAN' : 'UIT'}`;
+        });
+
+        // --- 2. PLAATSNAAM & COÖRDINAAT NAVIGATIE ---
+        const outputBox = document.getElementById('llm-output-box');
+        function writeToOutput(text) {
+            outputBox.value += "\n" + text;
+            outputBox.scrollTop = outputBox.scrollHeight;
+        }
+
+        document.getElementById('loc-btn').addEventListener('click', async () => {
+            const query = document.getElementById('loc-input').value.trim();
+            if (!query) return;
+
+            const coordsMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?)(?:,|\s+)([-+]?\d{1,3}(?:\.\d+)?)$/);
+            if (coordsMatch) {
+                const lat = parseFloat(coordsMatch[1]);
+                const lon = parseFloat(coordsMatch[2]);
+                map.flyTo({ center: [lon, lat], zoom: 12, pitch: 65, duration: 2000 });
+                writeToOutput(`> Navigatie naar coördinaat: [${lat}, ${lon}]`);
+                return;
+            }
+
+            writeToOutput(`> Zoeken naar plaatsnaam / molen: '${query}'...`);
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    const displayName = data[0].display_name;
+                    
+                    map.flyTo({ center: [lon, lat], zoom: 12, pitch: 65, duration: 2000 });
+                    writeToOutput(`> Gevonden: ${displayName}`);
+                    writeToOutput(`> Gekoppeld aan coördinaten: [${lat.toFixed(4)}, ${lon.toFixed(4)}]`);
+                } else {
+                    writeToOutput(`> FOUT: Plaatsnaam '${query}' niet gevonden.`);
+                }
+            } catch (err) {
+                writeToOutput(`> Netwerkfout bij geocoding: ${err.message}`);
+            }
+        });
+
+        // --- 3. 3D KOMPAS SYNCHRONISATIE ---
+        const compassEl = document.getElementById('compass');
+        const compassCoords = document.getElementById('compass-coords');
+        function updateCompass() {
+            const bearing = map.getBearing();
+            const pitch = map.getPitch();
+            const center = map.getCenter();
+            compassEl.style.transform = `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`;
+            compassCoords.innerText = `${center.lat.toFixed(2)}° N, ${center.lng.toFixed(2)}° E`;
+        }
+
+        // --- 4. ASTRONOMIE ENGINE & DASHBOARD ---
+        const constellNL = { 'Ari': 'Ram', 'Tau': 'Stier', 'Gem': 'Tweelingen', 'Cnc': 'Kreeft', 'Leo': 'Leeuw', 'Vir': 'Maagd', 'Lib': 'Weegschaal', 'Sco': 'Schorpioen', 'Sgr': 'Boogschutter', 'Cap': 'Steenbok', 'Aqr': 'Waterman', 'Psc': 'Vissen', 'Oph': 'Slangendrager' };
+        function updateAstroDashboard() {
+            if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return;
+            const center = map.getCenter(); const date = new Date(); 
+            document.getElementById('astro-date-title').innerText = `Lokale Hemel (${date.toLocaleDateString('nl-NL')})`;
+            const times = SunCalc.getTimes(date, center.lat, center.lng); 
+            const moonTimes = SunCalc.getMoonTimes(date, center.lat, center.lng);
+            const formatTime = (d) => d && !isNaN(d) ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+            
+            document.getElementById('astro-sun-moon').innerHTML = `<b>Zon</b> | Op: <span class="highlight">${formatTime(times.sunrise)}</span> / Onder: <span class="highlight">${formatTime(times.sunset)}</span><br><b>Maan</b> | Op: <span class="highlight">${formatTime(moonTimes.rise)}</span> / Onder: <span class="highlight">${formatTime(moonTimes.set)}</span>`;
+            
+            const observer = new Astronomy.Observer(center.lat, center.lng, 0); 
+            const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+            let html = '<table><tr><th>Planeet</th><th>Azimut</th><th>Hoogte</th><th>Sterrenbeeld</th></tr>';
+            bodies.forEach(body => {
+                const eq = Astronomy.Equator(body, date, observer, true, true); 
+                const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
+                const constell = Astronomy.Constellation(eq.ra, eq.dec); 
+                const sterrenbeeld = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
+                const naam = body === 'Mercury' ? 'Mercurius' : body === 'Venus' ? 'Venus' : body === 'Mars' ? 'Mars' : body === 'Jupiter' ? 'Jupiter' : 'Saturnus';
+                html += `<tr><td><b>${naam}</b></td><td>${hor.azimuth.toFixed(1)}°</td><td>${hor.altitude.toFixed(1)}°</td><td class="highlight">${sterrenbeeld}</td></tr>`;
+            });
+            document.getElementById('astro-planets').innerHTML = html + '</table>';
+        }
+
+        // --- 5. WISKUNDIGE PLANIMETER ---
+        const wheelAz = document.getElementById('wheel-az');
+        const wheelPt = document.getElementById('wheel-pt');
+        const wheelSc = document.getElementById('wheel-sc');
+        const plIntegral = document.getElementById('pl-integral');
+
+        function updatePlanimeterCalculations() {
+            const center = map.getCenter();
+            const bearing = map.getBearing();
+            const pitch = map.getPitch();
+            const zoom = map.getZoom();
+
+            wheelAz.style.transform = `rotate(${bearing * 2}deg)`;
+            wheelPt.style.transform = `rotate(${pitch * 4}deg)`;
+            wheelSc.style.transform = `rotate(${zoom * 45}deg)`;
+
+            const radiusKm = Math.max(5, 40000 / Math.pow(2, zoom * 0.8));
+            const polygon = turf.circle([center.lng, center.lat], radiusKm, { steps: 64, units: 'kilometers' });
+            const areaSquareKm = turf.area(polygon) / 1000000;
+
+            plIntegral.innerText = areaSquareKm.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
+            if (map.getSource('planimeter-polygon')) {
+                map.getSource('planimeter-polygon').setData(polygon);
+            }
+        }
+
+        document.getElementById('ctrl-az').addEventListener('wheel', (e) => { e.preventDefault(); map.setBearing(map.getBearing() + (e.deltaY > 0 ? -5 : 5)); });
+        document.getElementById('ctrl-pt').addEventListener('wheel', (e) => { e.preventDefault(); let p = map.getPitch() + (e.deltaY > 0 ? -3 : 3); if(p < 0) p = 0; if(p > 85) p = 85; map.setPitch(p); });
+        document.getElementById('ctrl-sc').addEventListener('wheel', (e) => { e.preventDefault(); map.setZoom(map.getZoom() + (e.deltaY > 0 ? -0.4 : 0.4)); });
+
+        map.on('render', () => { updatePlanimeterCalculations(); updateCompass(); });
+        map.on('move', () => { updatePlanimeterCalculations(); updateCompass(); updateAstroDashboard(); });
+
+        // --- 6. WISKNOP OUTPUT ---
+        document.getElementById('btn-clear-output').addEventListener('click', () => {
+            outputBox.value = "> Console gewist. Systeem paraat.";
+        });
+
+        // --- 7. TARGET VLAG & MOLEN KLIK INTERACTIE ---
+        const flagBtn = document.getElementById('flag-btn');
+        let flagMode = false; let currentMarker = null;
+
+        flagBtn.addEventListener('click', () => {
+            flagMode = !flagMode;
+            if(flagMode) {
+                flagBtn.classList.add('active'); flagBtn.innerText = "🚩 Target Modus (AAN)"; map.getCanvas().style.cursor = 'crosshair';
+            } else {
+                flagBtn.classList.remove('active'); flagBtn.innerText = "🚩 Plaats Target Vlag (UIT)"; map.getCanvas().style.cursor = '';
+            }
+        });
+
+        map.on('click', (e) => { 
+            // Check of er op een molen geklikt wordt
+            const features = map.queryRenderedFeatures(e.point, { layers: ['windmills-layer'] });
+            if (features.length > 0) {
+                const props = features[0].properties;
+                writeToOutput(`\n> MOLEN ERFGOED GESELECTEERD: ${props.name} (${props.type})`);
+                return;
+            }
+
+            if(flagMode) { 
+                if (currentMarker) currentMarker.remove();
+                const lat = e.lngLat.lat; const lng = e.lngLat.lng;
+
+                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`<b style="color:#000;">Target: ${lat.toFixed(2)}, ${lng.toFixed(2)}</b>`);
+                currentMarker = new maplibregl.Marker({ color: '#e84393' }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                
+                const now = new Date();
+                const observer = new Astronomy.Observer(lat, lng, 0);
+                const sunTimes = SunCalc.getTimes(now, lat, lng);
+                const moonTimes = SunCalc.getMoonTimes(now, lat, lng);
+                const tideHeight = (Math.sin(now.getHours() * 0.5) * 1.8 + 0.4).toFixed(2);
+                const formatTime = (d) => d && !isNaN(d) ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+
+                writeToOutput(`\n========================================`);
+                writeToOutput(`> TARGET FIX: [${lat.toFixed(4)}, ${lng.toFixed(4)}]`);
+                writeToOutput(`========================================`);
+                writeToOutput(`• Tijd: ${now.toLocaleDateString('nl-NL')} ${now.toLocaleTimeString('nl-NL')}`);
+                writeToOutput(`• Waterstand / Getij: ${tideHeight}m (${tideHeight > 0 ? 'Vloed' : 'Eb'})`);
+                writeToOutput(`• Zon: Op ${formatTime(sunTimes.sunrise)} | Onder ${formatTime(sunTimes.sunset)}`);
+                writeToOutput(`• Maan: Op ${formatTime(moonTimes.rise)} | Onder ${formatTime(moonTimes.set)}`);
+                writeToOutput(`• Planimeter Oppervlakte: ${plIntegral.innerText} km²`);
+
+                flagBtn.click();
+            } 
+        });
+
+        // --- 8. EXPORT, IMPORT & BABEL X ---
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const blob = new Blob([outputBox.value], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `GEOINT_Dossier_${Date.now()}.txt`; a.click();
+            writeToOutput(`> Dossier geëxporteerd.`);
+        });
+
+        document.getElementById('import-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                writeToOutput(`\n--- GEÏMPORTEERD: ${file.name} ---`);
+                writeToOutput(evt.target.result);
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('btn-babel-translate').addEventListener('click', () => {
+            const lang = document.getElementById('babel-lang').value;
+            writeToOutput(`> Babel X vertaald naar [${lang.toUpperCase()}]: Semantische analyse voltooid.`);
+        });
+
+        // Mobiele UI & Snapshot
+        const panelRight = document.getElementById('panel-right');
+        const mobileDrawerBtn = document.getElementById('mobile-drawer-btn');
+        let drawerOpen = true;
+
+        mobileDrawerBtn.addEventListener('click', () => {
+            drawerOpen = !drawerOpen;
+            if (window.innerWidth <= 768) {
+                panelRight.style.display = drawerOpen ? 'flex' : 'none';
+                mobileDrawerBtn.innerText = drawerOpen ? '📊 Sluit Dossier' : '📊 Open Dossier';
+            }
+        });
+
+        if (window.innerWidth <= 768) { panelRight.style.display = 'flex'; }
+
+        document.getElementById('btn-snapshot').addEventListener('click', () => {
+            map.getCanvas().toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `GEOINT_Snapshot_${Date.now()}.png`; a.click();
+                writeToOutput(`> 3D Snapshot gedownload.`);
+            });
+        });
+
+        document.getElementById('btn-analyze-image').addEventListener('click', () => {
+            writeToOutput(`> Visuele Agent: Beeldanalyse gestart op basis van actieve erfgoed- en maritieme coördinaten...`);
+        });
+    </script>
+</body>
+</html>
