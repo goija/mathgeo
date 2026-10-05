@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GEOINT Data Raffinaderij - Integrale Synthese</title>
+    
+    <!-- Core Engine -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Geodesie, Wiskunde & OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    
+    <!-- Astronomie -->
+    <script src="https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: #05131f; font-family: 'Courier New', Courier, monospace; overflow: hidden; color: #e0e0e0; touch-action: manipulation; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+        
+        .glass-panel {
+            position: absolute; background: rgba(10, 25, 47, 0.85);
+            backdrop-filter: blur(12px); border: 1px solid rgba(100, 255, 218, 0.4);
+            border-radius: 8px; z-index: 10; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+            display: flex; flex-direction: column; max-height: 95vh; transition: background-color 0.3s, backdrop-filter 0.3s;
+        }
+        
+        .panel-content { padding: 12px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; }
+        .panel-content::-webkit-scrollbar { width: 4px; }
+        .panel-content::-webkit-scrollbar-thumb { background: rgba(100, 255, 218, 0.5); border-radius: 2px; }
+
+        .drag-handle {
+            background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid rgba(100, 255, 218, 0.4);
+            padding: 8px; text-align: left; font-size: 11px; color: #64ffda;
+            cursor: move; border-radius: 8px 8px 0 0; user-select: none; text-transform: uppercase; letter-spacing: 2px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .close-btn { color: #ff5252; cursor: pointer; font-weight: bold; font-size: 14px; padding: 0 4px; }
+        .close-btn:hover { color: #ffca28; }
+
+        h2 { margin-top: 0; font-weight: bold; color: #64ffda; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 4px; margin-bottom: 8px; }
+        
+        .btn { background: #64ffda; color: #05131f; border: none; padding: 8px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; margin-bottom: 8px; font-size: 11px; transition: 0.2s; }
+        .btn:hover { background: #4cd3b6; }
+        .mode-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 10px; width: 100%; margin-bottom: 8px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold; transition: all 0.2s; text-align: left; }
+        .mode-btn:hover { background: #334155; color: #fff; }
+        .mode-btn.active { background: #059669; border-color: #34d399; color: #fff; }
+        
+        .loc-input { width: 100%; padding: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.6); border: 1px solid #64ffda; color: #fff; border-radius: 4px; font-family: monospace; font-size: 11px; outline: none; }
+        
+        .output-textarea { width: 100%; background: #000; border: 1px solid #64ffda; color: #64ffda; border-radius: 4px; padding: 8px; font-family: 'Courier New', monospace; font-size: 11px; resize: none; margin-bottom: 8px; outline: none; flex-grow: 1;}
+        
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px; margin-top: 8px; border-top: 1px dotted rgba(100,255,218,0.3); padding-top: 8px; }
+        .data-label { color: #8b949e; text-transform: uppercase; }
+        .data-value { color: #64ffda; font-weight: bold; text-align: right; }
+        
+        #compass-container { position: absolute; top: 20px; left: calc(50% - 60px); width: 120px; z-index: 10; display: flex; flex-direction: column; align-items: center; pointer-events: auto; }
+        #compass { width: 90px; height: 90px; border-radius: 50%; background: rgba(10, 25, 47, 0.7); backdrop-filter: blur(8px); border: 2px solid rgba(100, 255, 218, 0.4); transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; color: #64ffda; font-weight: bold; font-size: 12px; margin-bottom: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
+        .compass-n { position: absolute; top: 6px; color: #ff5252; } .compass-s { position: absolute; bottom: 6px; } .compass-e { position: absolute; right: 10px; } .compass-w { position: absolute; left: 10px; }
+        .compass-arrow { position: absolute; top: 14px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 26px solid #ff5252; transform-origin: bottom center; z-index: 1; }
+        
+        #realtime-hud { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10, 25, 47, 0.85); border: 1px solid #64ffda; color: #64ffda; padding: 6px 12px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: bold; z-index: 10; pointer-events: none; }
+        #ui-toggle-btn { position: absolute; top: 10px; left: 10px; z-index: 20; background: rgba(10, 25, 47, 0.9); border: 1px solid #64ffda; color: #64ffda; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 11px; cursor: pointer; font-weight:bold; }
+        
+        .map-marker { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.8); }
+        .resizable-panel { resize: both; overflow: hidden; min-width: 480px; min-height: 400px; }
+        
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+        .calc-btn { background: #1e293b; color: #64ffda; border: 1px solid #334155; margin: 0; font-size: 14px; }
+        .calc-btn:hover { background: #334155; }
+        .calc-btn.op { background: #e74c3c; color: #fff; border-color: #c0392b; }
+        .calc-btn.op:hover { background: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <button id="ui-toggle-btn" onclick="resetUI()">👁 Reset UI</button>
+    <div id="realtime-hud">LIVE FOCUS: --.----° N, --.----° E</div>
+
+    <div id="compass-container" class="ui-element">
+        <div id="compass">
+            <div class="compass-n">N</div><div class="compass-e">E</div><div class="compass-s">S</div><div class="compass-w">W</div>
+            <div class="compass-arrow"></div>
+        </div>
+        <div style="background: rgba(10,25,47,0.8); border: 1px solid #64ffda; padding: 4px; border-radius: 4px; font-size: 10px; color:#ffca28; font-family:monospace;" id="compass-coords">0.000°, 0.000°</div>
+    </div>
+
+    <!-- VP1: MASTER PANEEL -->
+    <div id="vp1-control" class="glass-panel ui-element" style="top: 20px; left: 20px; width: 380px;">
+        <div class="drag-handle"><span class="title">≡ VP1: Master & Meetinstrumenten</span></div>
+        <div class="panel-content">
+            
+            <h2>🌍 Locatie & Navigatie</h2>
+            <div style="display:flex; gap:4px; margin-bottom: 4px;">
+                <input type="text" id="loc-input" class="loc-input" style="margin-bottom:0;" placeholder="Bijv: Reimerswaal of 51.4, 4.1">
+                <button id="loc-btn" class="btn" style="width: 60px; margin-bottom:0;">Zoek</button>
+            </div>
+            
+            <h2 style="margin-top: 8px;">🛠 Geavanceerde Planimeter & Tijd-Ruimte</h2>
+            <div style="display:flex; gap:4px; flex-wrap: wrap;">
+                <button id="flag-btn" class="mode-btn" style="margin-bottom:4px; flex: 1;">🚩 Multi-Vlag / Planimeter (UIT)</button>
+                <button id="measure-btn" class="mode-btn" style="margin-bottom:4px; flex: 1;">📏 Vrij Meetvizier (UIT)</button>
+            </div>
+            <button id="clear-flags-btn" class="btn" style="background:#ef4444; color:#fff;">🗑 Wis Alle Bakens & Planimeter</button>
+            
+            <div class="data-grid">
+                <div class="data-label">Oppervlakte (∬ dA):</div>
+                <div class="data-value"><span id="pl-area">0.000</span> km²</div>
+                <div class="data-label">Omtrek / Afstand:</div>
+                <div class="data-value"><span id="pl-perimeter">0.000</span> km</div>
+                <div class="data-label">Zwaartepunt (N):</div>
+                <div class="data-value" id="pl-cent-lat">--.----°</div>
+                <div class="data-label">Zwaartepunt (E):</div>
+                <div class="data-value" id="pl-cent-lng">--.----°</div>
+            </div>
+
+            <h2 style="margin-top: 8px;">📊 Open Data & Databases</h2>
+            <div style="display:grid; grid-template-columns: 1fr; gap:4px;">
+                <button id="toggle-molen-btn" class="mode-btn active">🌾 Molens Nederland (AAN)</button>
+                <button id="toggle-rws-btn" class="mode-btn" style="border-color:#0ea5e9; color:#38bdf8;">🌊 Rijkswaterstaat Meetnet (UIT)</button>
+                <button id="toggle-eu-btn" class="mode-btn" style="border-color:#3b82f6; color:#60a5fa;">🇪🇺 EU Natura 2000 Bakens (UIT)</button>
+            </div>
+
+            <h2 style="margin-top: 8px;">⚛️ Kwantum, Hydro & Analytische Simulaties</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
+                <button onclick="document.getElementById('vp10-solar').style.display='flex'" class="mode-btn" style="border-color: #f1c40f; color: #f1c40f;">☀️ Solar- & Schaduwstudies</button>
+                <button id="btn-hydro-kwantum" class="mode-btn" style="border-color: #3498db; color: #3498db;">🌊 Hydrodynamica</button>
+                <button onclick="document.getElementById('vp8-calc').style.display='flex'" class="mode-btn" style="border-color: #e74c3c; color: #e74c3c; grid-column: span 2;">🧮 Wetenschappelijke Rekenmachine</button>
+            </div>
+
+            <h2 style="margin-top: 8px;">🌊 Maritieme Injectie</h2>
+            <div style="display:flex; gap:4px; flex-wrap: wrap;">
+                <button id="zeelagen-btn" class="mode-btn" style="margin-bottom:4px; flex: 1; border-color: #3b82f6; color: #60a5fa;">Zeelagen Activeren</button>
+                <button id="zeekaarten-btn" class="mode-btn" style="margin-bottom:4px; flex: 1; border-color: #3b82f6; color: #60a5fa;">Zeekaarten Inladen</button>
+            </div>
+
+            <h2 style="margin-top: 8px;">⚙️ Interface & Modules</h2>
+            <button onclick="document.getElementById('vp5-plotter').style.display='flex'" class="mode-btn" style="border-color: #a855f7; color: #c084fc;">📉 Telemetrie, Media & Lagenbeheer (VP5)</button>
+            <button onclick="document.getElementById('vp4-data-panel').style.display='flex'" class="mode-btn" style="border-color: #64ffda; color: #64ffda;">✏️ Planimeter Vector Mirror (VP4)</button>
+            <button onclick="document.getElementById('vp9-ocr').style.display='flex'" class="mode-btn" style="border-color: #10b981; color: #34d399;">📷 WebRTC OCR & Camera</button>
+        </div>
+    </div>
+
+    <!-- VP2: DATA RAFFINADERIJ LOG -->
+    <div id="vp2-log" class="glass-panel ui-element" style="top: 20px; right: 20px; width: 420px; min-height: 250px;">
+        <div class="drag-handle"><span class="title">≡ VP2: Data Raffinaderij (Log)</span></div>
+        <div class="panel-content">
+            <textarea id="llm-output-box" class="output-textarea" style="height: 180px;" readonly>> Systeem geïnitialiseerd. De integrale synthese is online. Wachtend op input...</textarea>
+            <div style="display: flex; gap: 4px;">
+                <button id="btn-export" class="btn" style="background: #34d399; color: #000; margin-bottom:0;">💾 Export Log</button>
+                <button id="btn-clear-output" class="btn" style="background: #f87171; color: white; margin-bottom:0;">🗑 Wis Console</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VP4: PLANIMETER VECTOR MIRROR (DATA LOG + CANVAS) -->
+    <div id="vp4-data-panel" class="glass-panel ui-element" style="bottom: 20px; left: 420px; width: 420px; display: none;">
+        <div class="drag-handle" style="background: rgba(100, 255, 218, 0.2); border-color: #64ffda; color: #64ffda;"><span class="title">≡ VP4: Planimeter Vector Mirror</span><span class="close-btn" onclick="this.closest('.glass-panel').style.display='none'">✖</span></div>
+        <div class="panel-content">
+            <h2>Coördinaten Logboek, Meetgegevens & Tijd-Ruimte</h2>
+            <textarea id="vp4-coord-log" class="output-textarea" style="height: 200px; flex-grow: 0; line-height: 1.4; color: #f1c40f; overflow-y: auto;" readonly>Geen bakens geplaatst.</textarea>
+            
+            <h2 style="margin-top: 8px;">Vector Canvas Weergave</h2>
+            <div style="display:flex; gap:4px; margin-bottom: 4px; align-items:center;">
+                <input type="color" id="vp4-canvas-color" value="#ffca28" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; padding: 0;">
+                <button id="tool-vp4-text" class="btn" style="width:auto; padding:6px; margin:0; background:#34495e; color:#fff;">🔤 Tekst Plaatsen</button>
+                <button id="tool-vp4-mirror" class="btn" style="width:auto; padding:6px; margin:0; background:#3b82f6; color:#fff;">↔️ Spiegelweergave</button>
+            </div>
+            
+            <canvas id="vp4-canvas-mirror" width="380" height="200" style="background: #0a0a0a; border: 1px solid #64ffda; border-radius: 4px; width: 100%; touch-action: none; display:block; cursor: crosshair;"></canvas>
+            
+            <div style="display:flex; gap:4px; margin-top:8px;">
+                <button id="vp4-btn-export" class="btn" style="background: #34d399; color: #000; margin-bottom:0; flex:1;">💾 Exporteer Data Log</button>
+                <button id="vp4-btn-png" class="btn" style="background: #3b82f6; color: #fff; margin-bottom:0; flex:1;">🖼️ Opslaan PNG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VP5: TELEMETRIE, MEDIA, LAGEN & KAART CONTROLE -->
+    <div id="vp5-plotter" class="glass-panel resizable-panel ui-element" style="top: 290px; right: 460px; width: 540px; display: none;">
+        <div class="drag-handle" style="background: rgba(168, 85, 247, 0.2); border-color: #a855f7; color: #c084fc;"><span class="title">≡ VP5: Telemetrie & Lagenbeheer (Resize)</span><span class="close-btn" onclick="this.closest('.glass-panel').style.display='none'">✖</span></div>
+        <div class="panel-content" style="padding: 8px; display:flex; flex-direction:column; gap:8px;">
+            
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid #334155; border-radius: 4px; padding: 8px;">
+                <h2 style="margin-top: 0; color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">Basis Kaartlaag & Beheer</h2>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <select id="basemap-select" class="loc-input" style="flex: 2; margin-bottom: 0;">
+                        <option value="dark">Carto Dark Matter (Standaard)</option>
+                        <option value="satellite">Esri Satelliet (3D Globe)</option>
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="topo">OpenTopoMap</option>
+                        <option value="historical">Historisch (Kadaster Topotijdreis)</option>
+                    </select>
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <label style="font-size: 9px; color: #64ffda;">Kaart Opaciteit: <span id="opacity-val">100%</span></label>
+                        <input type="range" id="global-opacity" min="0" max="1" step="0.01" value="1.0" style="width: 100%;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                    <input type="text" id="vp5-loc-input" class="loc-input" style="margin-bottom:0; flex: 3;" placeholder="Zoek plaatsnaam in dit venster...">
+                    <button id="vp5-loc-btn" class="btn" style="width: auto; margin-bottom:0; flex: 1; background: #f59e0b; color:#000;">Zoek</button>
+                </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid #334155; border-radius: 4px; padding: 8px;">
+                <h2 style="margin-top: 0; color: #34d399; border-color: rgba(52, 211, 153, 0.3);">Grote Kaart Controle & Baken Sync</h2>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap: wrap;">
+                    <button id="vp5-map-zin" class="btn" style="width:auto; margin:0; padding: 4px 8px;">Z+</button>
+                    <button id="vp5-map-zout" class="btn" style="width:auto; margin:0; padding: 4px 8px;">Z-</button>
+                    <span style="font-size:10px; color:#94a3b8; margin-left:4px;">Azimut:</span>
+                    <input type="range" id="vp5-map-azi" min="0" max="360" value="0" style="width:60px;">
+                    <span style="font-size:10px; color:#94a3b8;">Pitch:</span>
+                    <input type="range" id="vp5-map-pitch" min="0" max="60" value="40" style="width:60px;">
+                    
+                    <div style="border-left: 1px solid #334155; height:20px; margin:0 4px;"></div>
+                    
+                    <input type="text" id="vp5-coord-in" class="loc-input" style="width:110px; margin:0; padding:4px;" placeholder="Lat, Lng">
+                    <button id="vp5-drop-baken" class="btn" style="width:auto; margin:0; padding: 4px 8px; background:#e84393; color:#fff;">📍 Baken</button>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-top: 4px;">
+                <input type="color" id="vp5-canvas-color" value="#ffca28" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; padding: 0;">
+                <button id="tool-vp5-draw" class="btn" style="width:auto; padding:6px; margin:0; background:#34495e; color:#ffca28;">✏️ Teken Lijn</button>
+                <button id="tool-vp5-text" class="btn" style="width:auto; padding:6px; margin:0; background:#34495e; color:#fff;">🔤 Tekst</button>
+                <button id="tool-vp5-clear" class="btn" style="width:auto; padding:6px; margin:0; background:#ef4444; color:#fff;">🗑 Wis Canvas</button>
+                
+                <div style="margin-left: auto; display:flex; align-items:center; gap: 4px;">
+                    <label style="font-size: 9px; color: #a855f7;">Paneel Opaciteit:</label>
+                    <input type="range" id="vp5-panel-opacity" min="0" max="1" step="0.05" value="0.85" style="width: 60px;">
+                </div>
+            </div>
+            
+            <div style="background:#0b1324; padding:6px; border:1px solid #1e293b; border-radius:4px; display:flex; gap:16px; font-size:11px; color:#94a3b8; font-family:monospace;">
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="transp-toggle"> <b>Gehele Paneel Transparantie</b></label>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="hue-toggle"> Filter (Hue)</label>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="invert-toggle"> Inversie</label>
+            </div>
+
+            <div id="media-container" style="flex-grow: 1; background: repeating-conic-gradient(#151e2b 0% 25%, #05131f 0% 50%) 50% / 16px 16px; border: 1px solid #334155; border-radius: 4px; display:flex; justify-content:center; align-items:center; overflow:hidden; position:relative; min-height: 200px;">
+                <img id="media-img" src="" style="width:100%; height:100%; object-fit:contain; background: #fff; position: absolute; top:0; left:0; display:none;">
+                <iframe id="media-iframe" src="https://pixelfed.social/p/vanvrijberghe/1012714303165192964/embed" width="100%" height="100%" frameborder="0" scrolling="no" style="background: #fff; position: absolute; top:0; left:0; pointer-events: none;"></iframe>
+                <canvas id="vp5-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 5; cursor: crosshair; touch-action: none;"></canvas>
+            </div>
+            
+            <div style="display:flex; gap:4px;">
+                <input type="text" id="media-url-input" class="loc-input" style="margin-bottom:0;" value="https://klimaat.data/oosterschelde_thermal_25jul.png">
+                <button id="media-load-btn" class="btn" style="width: 100px; margin-bottom:0; background:#a855f7; color:#fff;">Injecteer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VP7: ASTRONOMIE & HEMEL LOCATIE -->
+    <div id="vp7-astro" class="glass-panel ui-element" style="bottom: 20px; right: 20px; width: 420px;">
+        <div class="drag-handle" style="background: rgba(52, 152, 219, 0.2); border-color: #3498db; color: #3498db;"><span class="title">≡ VP7: Hemel Locatie & Astronomie</span></div>
+        <div class="panel-content">
+            <h2 id="astro-date-title" style="color: #3498db;">Lokale Hemel (Bezig met laden...)</h2>
+            <div id="astro-sun-moon" style="font-size:11px; margin-bottom: 8px; line-height:1.6;">Laden...</div>
+            <h2 style="color: #64ffda;">Planetaire Posities (Actueel)</h2>
+            <div id="astro-planets" style="margin-bottom: 8px;">Laden...</div>
+            <p id="bepi-colombo-data" style="font-size:10px; color:#8b949e; border-top: 1px dotted rgba(52,152,219,0.3); padding-top:4px;">Doelwit: Mercurius (BepiColombo) | Vector wordt berekend...</p>
+        </div>
+    </div>
+
+    <!-- VP8: WETENSCHAPPELIJKE REKENMACHINE -->
+    <div id="vp8-calc" class="glass-panel ui-element" style="top: 20px; left: 420px; width: 360px; display: none;">
+        <div class="drag-handle" style="background: rgba(231, 76, 60, 0.2); border-color: #e74c3c; color: #e74c3c;"><span class="title">≡ VP8: Wetenschappelijke Rekenmachine</span><span class="close-btn" onclick="this.closest('.glass-panel').style.display='none'">✖</span></div>
+        <div class="panel-content">
+            <p style="color:#e74c3c; font-size:9px; margin-bottom:4px; text-transform: uppercase;">Wiskundig Invoerveld (Math.js Engine)</p>
+            <input type="text" id="calc-display" class="loc-input" style="font-size: 14px; text-align: right; background: #000; color: #fff; margin-bottom: 12px; height: 40px;" placeholder="0">
+            
+            <div class="calc-grid">
+                <button class="btn calc-btn" onclick="addCalc('sin(')">sin</button>
+                <button class="btn calc-btn" onclick="addCalc('cos(')">cos</button>
+                <button class="btn calc-btn" onclick="addCalc('tan(')">tan</button>
+                <button class="btn calc-btn op" onclick="clearCalc()">C</button>
+                
+                <button class="btn calc-btn" onclick="addCalc('sqrt(')">√</button>
+                <button class="btn calc-btn" onclick="addCalc('^')">xʸ</button>
+                <button class="btn calc-btn" onclick="addCalc('pi')">π</button>
+                <button class="btn calc-btn op" onclick="addCalc('/')">/</button>
+
+                <button class="btn calc-btn" onclick="addCalc('7')">7</button>
+                <button class="btn calc-btn" onclick="addCalc('8')">8</button>
+                <button class="btn calc-btn" onclick="addCalc('9')">9</button>
+                <button class="btn calc-btn op" onclick="addCalc('*')">*</button>
+
+                <button class="btn calc-btn" onclick="addCalc('4')">4</button>
+                <button class="btn calc-btn" onclick="addCalc('5')">5</button>
+                <button class="btn calc-btn" onclick="addCalc('6')">6</button>
+                <button class="btn calc-btn op" onclick="addCalc('-')">-</button>
+
+                <button class="btn calc-btn" onclick="addCalc('1')">1</button>
+                <button class="btn calc-btn" onclick="addCalc('2')">2</button>
+                <button class="btn calc-btn" onclick="addCalc('3')">3</button>
+                <button class="btn calc-btn op" onclick="addCalc('+')">+</button>
+
+                <button class="btn calc-btn" onclick="addCalc('0')">0</button>
+                <button class="btn calc-btn" onclick="addCalc('.')">.</button>
+                <button class="btn calc-btn" onclick="addCalc('phi')">φ</button>
+                <button class="btn calc-btn op" style="background:#27ae60; border-color:#2ecc71;" onclick="calcEval()">=</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VP9: WEBRTC OCR & CAMERA -->
+    <div id="vp9-ocr" class="glass-panel ui-element" style="top: 20px; right: 460px; width: 400px; display: none;">
+        <div class="drag-handle" style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #34d399;"><span class="title">≡ VP9: WebRTC Camera & OCR Scan</span><span class="close-btn" onclick="this.closest('.glass-panel').style.display='none'">✖</span></div>
+        <div class="panel-content">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <video id="ocr-video" autoplay playsinline muted style="width: 100%; height: 180px; border-radius: 4px; border: 1px solid #10b981; background: #000; object-fit: cover;"></video>
+                <div style="display:flex; gap:4px;">
+                    <button id="start-ocr-cam-btn" class="btn" style="background: #10b981; color: #000; flex:1; margin-bottom:0;">📷 Start Camera</button>
+                    <button id="capture-ocr-btn" class="btn" style="background: #34495e; color: #fff; flex:1; margin-bottom:0;">🔍 Scan (OCR)</button>
+                </div>
+                <p style="color:#34d399; font-size:9px; margin-bottom:0;">Onafhankelijk OCR Logboek (Tesseract.js):</p>
+                <textarea id="ocr-output" style="width: 100%; height: 100px; background: #000; color: #fff; border: 1px solid #10b981; font-size: 11px; font-family: monospace; padding: 4px; resize: none;" readonly>Wachtend op scan of camerabeeld...</textarea>
+                <button id="vp9-btn-export" class="btn" style="background: #10b981; color: #000; margin-bottom:0;">💾 Exporteer OCR Log</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VP10: SOLAR- & SCHADUW INSTRUMENTARIUM -->
+    <div id="vp10-solar" class="glass-panel ui-element" style="top: 100px; left: 420px; width: 340px; display: none;">
+        <div class="drag-handle" style="background: rgba(241, 196, 15, 0.2); border-color: #f1c40f; color: #f1c40f;"><span class="title">≡ VP10: Solar- & Schaduw Instrumenten</span><span class="close-btn" onclick="this.closest('.glass-panel').style.display='none'">✖</span></div>
+        <div class="panel-content">
+            <p style="color:#f1c40f; font-size:10px; margin-bottom:8px;">Dynamische schaduwberekening gebaseerd op geplaatste bakens (of kaartcentrum).</p>
+            
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                <label style="color:#e0e0e0; font-size:11px; flex:1;">Objecthoogte (m):</label>
+                <input type="number" id="solar-height" class="loc-input" style="flex:1; margin-bottom:0;" value="10">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+                <label style="color:#e0e0e0; font-size:11px; display:flex; justify-content:space-between;">
+                    Tijdsloop Vandaag: <span id="solar-time-val" style="color:#f1c40f;">12:00</span>
+                </label>
+                <input type="range" id="solar-time-slider" min="0" max="23.99" step="0.25" value="12" style="width: 100%;">
+            </div>
+
+            <div class="data-grid" style="border-color: rgba(241,196,15,0.3);">
+                <div class="data-label">Zon Azimut:</div><div class="data-value" style="color:#f1c40f;"><span id="solar-azimuth">--</span>°</div>
+                <div class="data-label">Zon Hoogte:</div><div class="data-value" style="color:#f1c40f;"><span id="solar-altitude">--</span>°</div>
+                <div class="data-label">Schaduwlengte:</div><div class="data-value" style="color:#f1c40f;"><span id="solar-shadow">--</span> m</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const constellNL = { 'Ari': 'Ram', 'Tau': 'Stier', 'Gem': 'Tweelingen', 'Cnc': 'Kreeft', 'Leo': 'Leeuw', 'Vir': 'Maagd', 'Lib': 'Weegschaal', 'Sco': 'Schorpioen', 'Sgr': 'Boogschutter', 'Cap': 'Steenbok', 'Aqr': 'Waterman', 'Psc': 'Vissen' };
+
+        // --- UI & DRAG LOGICA ---
+        document.querySelectorAll('.glass-panel').forEach(panel => {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            const header = panel.querySelector('.drag-handle');
+            header.onmousedown = (e) => {
+                if (e.target.classList.contains('close-btn')) return;
+                e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY;
+                document.querySelectorAll('iframe').forEach(ifr => ifr.style.pointerEvents = 'none');
+                document.onmouseup = () => { 
+                    document.onmouseup = null; document.onmousemove = null; 
+                    document.querySelectorAll('iframe').forEach(ifr => ifr.style.pointerEvents = 'auto');
+                };
+                document.onmousemove = (ev) => {
+                    ev.preventDefault();
+                    pos1 = pos3 - ev.clientX; pos2 = pos4 - ev.clientY; pos3 = ev.clientX; pos4 = ev.clientY;
+                    panel.style.top = (panel.offsetTop - pos2) + "px";
+                    panel.style.left = (panel.offsetLeft - pos1) + "px";
+                    panel.style.right = 'auto'; panel.style.bottom = 'auto';
+                };
+            };
+        });
+
+        let uiVisible = true;
+        function resetUI() {
+            uiVisible = !uiVisible;
+            document.querySelectorAll('.ui-element').forEach(el => { el.style.opacity = uiVisible ? '1' : '0'; el.style.pointerEvents = uiVisible ? 'auto' : 'none'; });
+        }
+
+        const outputBox = document.getElementById('llm-output-box');
+        function writeToOutput(text) { outputBox.value += "\n" + text; outputBox.scrollTop = outputBox.scrollHeight; }
+
+        // --- MAP INITIALISATIE ---
+        const map = new maplibregl.Map({
+            container: 'map', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [4.1500, 51.4500], zoom: 8, pitch: 40, bearing: -15,
+            preserveDrawingBuffer: true, projection: 'globe'
+        });
+
+        const realtimeHud = document.getElementById('realtime-hud');
+        const compassCoords = document.getElementById('compass-coords');
+        const compass = document.getElementById('compass');
+
+        map.on('mousemove', (e) => { 
+            const latStr = e.lngLat.lat.toFixed(5); const lngStr = e.lngLat.lng.toFixed(5);
+            realtimeHud.innerText = `LIVE FOCUS: ${latStr}° N, ${lngStr}° E`; 
+        });
+
+        function updateCompassEnControls() {
+            const bearing = map.getBearing(), pitch = map.getPitch(), center = map.getCenter();
+            compass.style.transform = `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`;
+            compassCoords.innerText = `${center.lat.toFixed(4)}°, ${center.lng.toFixed(4)}°`;
+            
+            let b = bearing; if (b < 0) b += 360;
+            document.getElementById('vp5-map-azi').value = b;
+            document.getElementById('vp5-map-pitch').value = pitch;
+        }
+        map.on('render', updateCompassEnControls);
+
+        function reapplyVectorOverlays() {
+            if(!map.getSource('flag-poly-source')) {
+                map.addSource('flag-poly-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+                map.addLayer({ id: 'flag-poly-fill', type: 'fill', source: 'flag-poly-source', paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.25, 'fill-outline-color': '#ff5252' } });
+                map.addLayer({ id: 'flag-poly-line', type: 'line', source: 'flag-poly-source', paint: { 'line-color': '#ff5252', 'line-width': 3, 'line-dasharray': [2, 2] } });
+            }
+            if(!map.getSource('flag-labels-source')) {
+                map.addSource('flag-labels-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+                map.addLayer({
+                    id: 'flag-labels-layer', type: 'symbol', source: 'flag-labels-source',
+                    layout: { 'text-field': ['get', 'label'], 'text-size': 14, 'text-anchor': 'center' },
+                    paint: { 'text-color': '#ffca28', 'text-halo-color': '#000', 'text-halo-width': 2 }
+                });
+            }
+        }
+        map.on('load', () => { 
+            reapplyVectorOverlays(); 
+            updateAstroDashboard(); 
+        });
+
+        // --- VP5: LAGENBEHEER ---
+        let activeRasterLayers = [];
+        document.getElementById('basemap-select').addEventListener('change', (e) => {
+            const val = e.target.value; let styleObj;
+            if (val === 'dark') { styleObj = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'; } 
+            else if (val === 'satellite') { styleObj = { "version": 8, "sources": { "esri": { "type": "raster", "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], "tileSize": 256 } }, "layers": [{ "id": "esri-satellite", "type": "raster", "source": "esri" }] }; } 
+            else if (val === 'osm') { styleObj = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'; } 
+            else if (val === 'topo') { styleObj = { "version": 8, "sources": { "opentopo": { "type": "raster", "tiles": ["https://tile.opentopomap.org/{z}/{x}/{y}.png"], "tileSize": 256 } }, "layers": [{ "id": "opentopo-layer", "type": "raster", "source": "opentopo" }] }; } 
+            else if (val === 'historical') {
+                styleObj = { 
+                    "version": 8, 
+                    "sources": { "historisch": { "type": "raster", "tiles": ["https://service.pdok.nl/kadaster/topotijdreis/wmts/v1_0?layer=top1900&style=default&tilematrixset=EPSG:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/png&TileMatrix={z}&TileCol={x}&TileRow={y}"], "tileSize": 256 } }, 
+                    "layers": [{ "id": "historisch-layer", "type": "raster", "source": "historisch" }] 
+                };
+            }
+            map.setStyle(styleObj);
+            map.once('style.load', () => {
+                reapplyVectorOverlays();
+                if(map.getSource('measure-source')) {
+                    map.addLayer({ id: 'measure-line', type: 'line', source: 'measure-source', paint: { 'line-color': '#34d399', 'line-width': 4, 'line-dasharray': [2, 2] } });
+                }
+                activeRasterLayers.forEach(layer => {
+                    if(!map.getSource(layer.id)) {
+                        map.addSource(layer.id, { type: 'raster', tiles: [layer.url], tileSize: 256 });
+                        map.addLayer({ id: layer.id, type: 'raster', source: layer.id, paint: {'raster-opacity': parseFloat(document.getElementById('global-opacity').value)} });
+                    }
+                });
+            });
+        });
+
+        document.getElementById('global-opacity').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('opacity-val').innerText = `${Math.round(val * 100)}%`;
+            activeRasterLayers.forEach(layer => { if (map.getLayer(layer.id)) map.setPaintProperty(layer.id, 'raster-opacity', val); });
+        });
+
+        document.getElementById('vp5-panel-opacity').addEventListener('input', (e) => {
+            const val = e.target.value; const panel = document.getElementById('vp5-plotter');
+            panel.style.backgroundColor = `rgba(10, 25, 47, ${val})`;
+            if(val < 0.8) panel.style.backdropFilter = 'none'; else panel.style.backdropFilter = 'blur(12px)';
+        });
+
+        // --- OPEN DATABASES IMPORT LOGICA ---
+        let mapMarkers = { molens: [], rws: [], eu: [] };
+        function createDbMarkers(type, color, dataArr, name) {
+            dataArr.forEach(m => {
+                const el = document.createElement('div');
+                el.className = 'map-marker'; el.style.backgroundColor = color;
+                el.addEventListener('click', (ev) => {
+                    ev.stopPropagation(); writeToOutput(`\n> [DATABASE] ${name}: ${m.name}`);
+                    map.flyTo({ center: [m.lon, m.lat], zoom: 14, pitch: 60 });
+                });
+                mapMarkers[type].push(new maplibregl.Marker(el).setLngLat([m.lon, m.lat]).addTo(map));
+            });
+        }
+        const dataMolens = [ { lon: 4.1042, lat: 51.5451, name: 'De Nijverheid' }, { lon: 4.0833, lat: 51.5833, name: 'De Verwachting' } ];
+        const dataRWS = [ { lon: 4.1167, lat: 51.9500, name: 'Peilstation HvH' }, { lon: 3.5833, lat: 51.4500, name: 'Peilstation Vlissingen' } ];
+        const dataEU = [ { lon: 3.9500, lat: 51.6000, name: 'Natura 2000' } ];
+        createDbMarkers('molens', '#059669', dataMolens, 'Molens Nederland');
+
+        function toggleDb(btnId, type, color, dataArr, label) {
+            document.getElementById(btnId).addEventListener('click', (e) => {
+                const isActive = e.target.classList.toggle('active');
+                if (isActive) {
+                    if(mapMarkers[type].length === 0) createDbMarkers(type, color, dataArr, label);
+                    else mapMarkers[type].forEach(m => m.getElement().style.display = 'block');
+                    e.target.innerText = `✔️ ${label} (AAN)`;
+                } else {
+                    mapMarkers[type].forEach(m => m.getElement().style.display = 'none');
+                    e.target.innerText = `❌ ${label} (UIT)`;
+                }
+            });
+        }
+        toggleDb('toggle-molen-btn', 'molens', '#059669', dataMolens, 'Molens Nederland');
+        toggleDb('toggle-rws-btn', 'rws', '#0ea5e9', dataRWS, 'Rijkswaterstaat Meetnet');
+        toggleDb('toggle-eu-btn', 'eu', '#3b82f6', dataEU, 'EU Natura 2000 Bakens');
+
+        // --- VP1: MARITIEME INJECTIES ---
+        function addSeaLayer(id, url, name) {
+            if(map.getSource(id)) return;
+            map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256 });
+            map.addLayer({ id: id, type: 'raster', source: id, paint: {'raster-opacity': parseFloat(document.getElementById('global-opacity').value)} });
+            if(!activeRasterLayers.some(l => l.id === id)) { activeRasterLayers.push({id: id, url: url}); }
+            writeToOutput(`> Maritieme Injectie: ${name} geactiveerd.`);
+        }
+        document.getElementById('zeelagen-btn').addEventListener('click', () => { addSeaLayer('openseamap-marks', 'https://t1.openseamap.org/seamark/{z}/{x}/{y}.png', 'OpenSeaMap Navigatielagen'); });
+        document.getElementById('zeekaarten-btn').addEventListener('click', () => { addSeaLayer('gebco-bathy', 'https://wms.gebco.net/mapserv?request=getmap&service=wms&BBOX={bbox-epsg-3857}&crs=EPSG:3857&format=image/png&layers=GEBCO_LATEST&width=256&height=256&version=1.3.0', 'GEBCO Bathymetrische Zeekaart'); });
+
+        // --- VP8: WETENSCHAPPELIJKE REKENMACHINE (MATH.JS) ---
+        const calcDisplay = document.getElementById('calc-display');
+        function addCalc(val) { calcDisplay.value += val; }
+        function clearCalc() { calcDisplay.value = ''; }
+        function calcEval() {
+            try {
+                if(!calcDisplay.value) return;
+                const res = math.evaluate(calcDisplay.value);
+                calcDisplay.value = res;
+                writeToOutput(`> [VP8 Wiskunde Engine]: Resultaat = ${res}`);
+            } catch(e) { calcDisplay.value = 'Fout in expressie'; }
+        }
+
+        // --- VP9: WEBRTC OCR CAMERA MET TESSERACT.JS ---
+        let ocrStream = null;
+        document.getElementById('start-ocr-cam-btn').addEventListener('click', async (e) => {
+            if (ocrStream) {
+                ocrStream.getTracks().forEach(track => track.stop()); ocrStream = null;
+                document.getElementById('ocr-video').srcObject = null;
+                e.target.innerText = "📷 Start Camera"; e.target.style.background = "#10b981";
+            } else {
+                try {
+                    ocrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+                    document.getElementById('ocr-video').srcObject = ocrStream;
+                    e.target.innerText = "🛑 Stop Camera"; e.target.style.background = "#ef4444";
+                } catch (err) { alert("WebRTC fout: Camera toegang geweigerd of niet gevonden."); }
+            }
+        });
+
+        document.getElementById('capture-ocr-btn').addEventListener('click', () => {
+            if(!ocrStream) { alert("Start eerst de camera in VP9."); return; }
+            const video = document.getElementById('ocr-video');
+            const outputTxt = document.getElementById('ocr-output');
+            outputTxt.value = "> Starten van Tesseract OCR Engine...\n> Frame scannen, een moment geduld aub...";
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            Tesseract.recognize(tempCanvas, 'nld+eng')
+            .then(({ data: { text } }) => { outputTxt.value = "=== OCR RESULTAAT ===\n" + (text.trim() || "[Geen leesbare tekst gevonden]"); })
+            .catch(err => { outputTxt.value = "Fout bij OCR parsing: " + err; });
+        });
+        document.getElementById('vp9-btn-export').addEventListener('click', () => {
+            const data = document.getElementById('ocr-output').value;
+            const blob = new Blob([data], { type: 'text/plain' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `VP9_OCR_Log_${new Date().toISOString().slice(0,10)}.txt`; a.click();
+        });
+
+        // --- VP5: INJECTEER AFBEELDINGEN VS IFRAMES ---
+        document.getElementById('media-load-btn').addEventListener('click', () => {
+            let url = document.getElementById('media-url-input').value.trim();
+            if (!url) return;
+            const imgEl = document.getElementById('media-img');
+            const iframeEl = document.getElementById('media-iframe');
+            const isImage = url.match(/\.(jpeg|jpg|gif|png|webp|bmp)$/i) != null;
+            
+            if (isImage) {
+                iframeEl.style.display = 'none'; imgEl.style.display = 'block'; imgEl.src = url;
+            } else {
+                if (!url.endsWith('/embed') && url.includes('pixelfed')) url += '/embed';
+                imgEl.style.display = 'none'; iframeEl.style.display = 'block'; iframeEl.src = url;
+            }
+        });
+
+        document.getElementById('hue-toggle').addEventListener('change', updateMediaFilter);
+        document.getElementById('invert-toggle').addEventListener('change', updateMediaFilter);
+        function updateMediaFilter() {
+            const hue = document.getElementById('hue-toggle').checked;
+            const inv = document.getElementById('invert-toggle').checked;
+            const filterStr = `${hue ? 'hue-rotate(180deg) ' : ''}${inv ? 'invert(1)' : ''}`;
+            document.getElementById('media-img').style.filter = filterStr; document.getElementById('media-iframe').style.filter = filterStr;
+        }
+
+        document.getElementById('transp-toggle').addEventListener('change', (e) => {
+            const panels = document.querySelectorAll('.glass-panel');
+            if(e.target.checked) {
+                panels.forEach(p => { p.style.backgroundColor = 'rgba(10, 25, 47, 0.1)'; p.style.backdropFilter = 'none'; });
+            } else {
+                panels.forEach(p => { p.style.backgroundColor = 'rgba(10, 25, 47, 0.85)'; p.style.backdropFilter = 'blur(12px)'; });
+            }
+        });
+
+        // --- LOCATIE ZOEKEN ---
+        async function fetchLocation(val) {
+            if (!val) return;
+            if (val.toLowerCase().includes("reimerswaal")) { map.flyTo({ center: [4.172, 51.464], zoom: 13, pitch: 45 }); return; }
+            const match = val.match(/^([-+]?\d{1,2}(?:\.\d+)?)(?:,|\s+)([-+]?\d{1,3}(?:\.\d+)?)$/);
+            if (match) { map.flyTo({ center: [parseFloat(match[2]), parseFloat(match[1])], zoom: 12, pitch: 45 }); return; }
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}`, { headers: { 'Accept-Language': 'nl-NL,nl;q=0.9' }});
+                const data = await res.json();
+                if(data.length > 0) { map.flyTo({ center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], zoom: 12 }); } 
+            } catch(e) {}
+        }
+        document.getElementById('loc-btn').addEventListener('click', () => fetchLocation(document.getElementById('loc-input').value.trim()));
+        document.getElementById('vp5-loc-btn').addEventListener('click', () => fetchLocation(document.getElementById('vp5-loc-input').value.trim()));
+
+        // --- VP5: KAART CONTROLES & BAKEN PLAATSEN ---
+        document.getElementById('vp5-map-zin').addEventListener('click', () => map.zoomIn());
+        document.getElementById('vp5-map-zout').addEventListener('click', () => map.zoomOut());
+        document.getElementById('vp5-map-azi').addEventListener('input', (e) => map.setBearing(e.target.value));
+        document.getElementById('vp5-map-pitch').addEventListener('input', (e) => map.setPitch(e.target.value));
+
+        document.getElementById('vp5-drop-baken').addEventListener('click', () => {
+            const val = document.getElementById('vp5-coord-in').value.trim();
+            const match = val.match(/^([-+]?\d{1,2}(?:\.\d+)?)(?:,|\s+)([-+]?\d{1,3}(?:\.\d+)?)$/);
+            if (match) {
+                const lat = parseFloat(match[1]); const lng = parseFloat(match[2]);
+                
+                if(measureMode) {
+                    measurePoints.push([lng, lat]);
+                    processMeasureLine();
+                } else {
+                    flagsData.push([lng, lat]);
+                    const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`<b style="color:#000;font-family:monospace;font-size:10px;">TELEMETRIE NODE<br>${lat.toFixed(4)}, ${lng.toFixed(4)}<br><span style="color:#ff5252; cursor:pointer;">[Wis]</span></b>`);
+                    const marker = new maplibregl.Marker({ color: '#f59e0b' }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                    marker.getElement().addEventListener('click', (ev) => {
+                        ev.stopPropagation(); marker.remove();
+                        const idx = flagMarkers.indexOf(marker);
+                        if (idx > -1) { flagMarkers.splice(idx, 1); flagsData.splice(idx, 1); updateFlagPlanimeter(); }
+                    });
+                    flagMarkers.push(marker); updateFlagPlanimeter(); 
+                }
+                map.flyTo({ center: [lng, lat], zoom: 12 });
+            }
+        });
+
+        // --- PLANIMETER (MULTI-VLAG) & MEETVIZIER (LIJNEN) ---
+        let flagMode = false, measureMode = false; 
+        let flagMarkers = [], flagsData = [], measurePoints = [];
+        const flagBtn = document.getElementById('flag-btn'), measureBtn = document.getElementById('measure-btn');
+
+        flagBtn.addEventListener('click', () => {
+            flagMode = !flagMode; measureMode = false;
+            measureBtn.classList.remove('active'); measureBtn.innerText = `📏 Vrij Meetvizier (UIT)`;
+            flagBtn.classList.toggle('active', flagMode); flagBtn.innerText = `🚩 Multi-Vlag / Planimeter (${flagMode ? 'AAN' : 'UIT'})`;
+            map.getCanvas().style.cursor = flagMode ? 'crosshair' : '';
+        });
+
+        measureBtn.addEventListener('click', () => {
+            measureMode = !measureMode; flagMode = false;
+            flagBtn.classList.remove('active'); flagBtn.innerText = `🚩 Multi-Vlag / Planimeter (UIT)`;
+            measureBtn.classList.toggle('active', measureMode); measureBtn.innerText = `📏 Vrij Meetvizier (${measureMode ? 'AAN' : 'UIT'})`;
+            map.getCanvas().style.cursor = measureMode ? 'crosshair' : '';
+            if(!measureMode) {
+                if(map.getLayer('measure-line')) map.removeLayer('measure-line');
+                if(map.getSource('measure-source')) map.removeSource('measure-source');
+                measurePoints = [];
+                document.getElementById('vp4-coord-log').value = "Meetvizier afgesloten. Geen data.";
+            }
+        });
+
+        document.getElementById('clear-flags-btn').addEventListener('click', () => {
+            flagMarkers.forEach(m => m.remove());
+            flagMarkers = []; flagsData = []; measurePoints = [];
+            if(map.getLayer('measure-line')) map.removeLayer('measure-line');
+            if(map.getSource('measure-source')) map.removeSource('measure-source');
+            updateFlagPlanimeter();
+            document.getElementById('vp4-coord-log').value = "Alle bakens en meetlijnen zijn structureel gewist.";
+            writeToOutput("> Alle bakens en meetlijnen structureel gewist.");
+        });
+
+        function generateAstroLog(refLat, refLng) {
+            if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return "\n--- ASTRONOMIE (Laden...) ---";
+            const date = new Date();
+            const times = SunCalc.getTimes(date, refLat, refLng);
+            const moonTimes = SunCalc.getMoonTimes(date, refLat, refLng);
+            const fT = (d) => d && !isNaN(d) ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+
+            let txt = `\n\n--- TIJD-RUIMTE & ASTRONOMIE ---`;
+            txt += `\nLokale Hemel (${date.toLocaleDateString('nl-NL')})`;
+            txt += `\nGekalibreerd op: ${refLat.toFixed(5)}°, ${refLng.toFixed(5)}°`;
+            txt += `\nZon: Op ${fT(times.sunrise)} / Onder ${fT(times.sunset)}`;
+            txt += `\nMaan: Op ${fT(moonTimes.rise)} / Onder ${fT(moonTimes.set)}`;
+
+            const observer = new Astronomy.Observer(refLat, refLng, 0);
+            const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+            txt += `\n\nPlanetaire Posities (Actueel):`;
+            bodies.forEach(body => {
+                const eq = Astronomy.Equator(body, date, observer, true, true);
+                const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
+                const constell = Astronomy.Constellation(eq.ra, eq.dec);
+                const sb = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
+                txt += `\n- ${body.padEnd(8)}: Az ${hor.azimuth.toFixed(1).padStart(5)}° | Hgt ${hor.altitude.toFixed(1).padStart(5)}° | ${sb}`;
+            });
+            return txt;
+        }
+
+        function processMeasureLine() {
+            if(measurePoints.length > 1) {
+                const line = turf.lineString(measurePoints);
+                const distance = turf.length(line, {units: 'kilometers'});
+                
+                if(map.getSource('measure-source')) { map.getSource('measure-source').setData(line); } 
+                else {
+                    map.addSource('measure-source', { type: 'geojson', data: line });
+                    map.addLayer({ id: 'measure-line', type: 'line', source: 'measure-source', paint: { 'line-color': '#34d399', 'line-width': 4, 'line-dasharray': [2, 2] } });
+                }
+
+                document.getElementById('pl-perimeter').innerText = distance.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                document.getElementById('pl-area').innerText = "0.000";
+                document.getElementById('pl-cent-lat').innerText = "--.----°";
+                document.getElementById('pl-cent-lng').innerText = "--.----°";
+
+                let logText = `--- VRIJ MEETVIZIER (LIJNMETING) ---\nTotale Afstand: ${distance.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km\n\n--- COÖRDINATEN ROUTE ---\n`;
+                measurePoints.forEach((pt, i) => { logText += `[Punt ${i+1}] Lat: ${pt[1].toFixed(5)}°, Lng: ${pt[0].toFixed(5)}°\n`; });
+                
+                let refLat = measurePoints[measurePoints.length-1][1];
+                let refLng = measurePoints[measurePoints.length-1][0];
+                logText += generateAstroLog(refLat, refLng);
+                
+                document.getElementById('vp4-coord-log').value = logText;
+                updateAstroDashboard(); updateSolarCalculations();
+                renderVP4Canvas(measurePoints, '#34d399');
+            } else if (measurePoints.length === 1) {
+                document.getElementById('vp4-coord-log').value = `--- VRIJ MEETVIZIER ---\nStartpunt geplaatst.\nWachtend op vervolgpunten...\n\n[Punt 1] Lat: ${measurePoints[0][1].toFixed(5)}°, Lng: ${measurePoints[0][0].toFixed(5)}°`;
+                renderVP4Canvas(measurePoints, '#34d399');
+            }
+        }
+
+        function updateFlagPlanimeter() {
+            if (measureMode) return; 
+
+            let features = []; let labels = []; let areaVal = 0, perimeterVal = 0; let cLat = '--.----°', cLng = '--.----°';
+
+            if (flagsData.length > 1) {
+                if (flagsData.length > 2) {
+                    let polyCoords = [...flagsData, flagsData[0]];
+                    const poly = turf.polygon([polyCoords]); features.push(poly);
+                    areaVal = turf.area(poly) / 1000000;
+                    perimeterVal = turf.length(turf.lineString(polyCoords), {units: 'kilometers'});
+                    const centroid = turf.centroid(poly);
+                    cLat = `${centroid.geometry.coordinates[1].toFixed(5)}°`; cLng = `${centroid.geometry.coordinates[0].toFixed(5)}°`;
+                    centroid.properties = { label: areaVal.toFixed(2) + ' km²' }; labels.push(centroid);
+                } else {
+                    const line = turf.lineString(flagsData); features.push(line);
+                    perimeterVal = turf.length(line, {units: 'kilometers'});
+                    const mid = turf.along(line, perimeterVal / 2, {units: 'kilometers'});
+                    mid.properties = { label: perimeterVal.toFixed(2) + ' km' }; labels.push(mid);
+                }
+            }
+            
+            document.getElementById('pl-area').innerText = areaVal.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+            document.getElementById('pl-perimeter').innerText = perimeterVal.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+            document.getElementById('pl-cent-lat').innerText = cLat; document.getElementById('pl-cent-lng').innerText = cLng;
+
+            let logText = `--- MEETGEGEVENS PLANIMETER ---\nOppervlakte (∬ dA): ${areaVal.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km²\nOmtrek: ${perimeterVal.toLocaleString('nl-NL', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km\nZwaartepunt (N): ${cLat}\nZwaartepunt (E): ${cLng}\n\n--- COÖRDINATEN BAKENS ---\n`;
+            flagsData.forEach((pt, i) => { logText += `[Node ${i+1}] Lat: ${pt[1].toFixed(5)}°, Lng: ${pt[0].toFixed(5)}°\n`; });
+            
+            if (flagsData.length > 0) {
+                let refLat = (cLat !== '--.----°') ? parseFloat(cLat) : flagsData[flagsData.length-1][1];
+                let refLng = (cLng !== '--.----°') ? parseFloat(cLng) : flagsData[flagsData.length-1][0];
+                logText += generateAstroLog(refLat, refLng);
+            } else {
+                logText = "Geen bakens geplaatst.";
+            }
+
+            document.getElementById('vp4-coord-log').value = logText;
+
+            if (map.getSource('flag-poly-source')) { map.getSource('flag-poly-source').setData({ type: 'FeatureCollection', features: features }); }
+            if (map.getSource('flag-labels-source')) { map.getSource('flag-labels-source').setData({ type: 'FeatureCollection', features: labels }); }
+            
+            renderVP4Canvas(flagsData, '#64ffda'); 
+            updateAstroDashboard(); 
+            updateSolarCalculations();
+        }
+
+        map.on('click', (e) => {
+            if(flagMode) {
+                const lngLat = e.lngLat; flagsData.push([lngLat.lng, lngLat.lat]);
+                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`<b style="color:#000;font-family:monospace;font-size:10px;">NODE<br>${lngLat.lat.toFixed(4)}, ${lngLat.lng.toFixed(4)}<br><span style="color:#ff5252; cursor:pointer;">[Wis]</span></b>`);
+                const marker = new maplibregl.Marker({ color: '#dc2626' }).setLngLat(lngLat).setPopup(popup).addTo(map);
+                marker.getElement().addEventListener('click', (ev) => {
+                    ev.stopPropagation(); marker.remove();
+                    const idx = flagMarkers.indexOf(marker);
+                    if (idx > -1) { flagMarkers.splice(idx, 1); flagsData.splice(idx, 1); updateFlagPlanimeter(); }
+                });
+                flagMarkers.push(marker); updateFlagPlanimeter();
+            } else if(measureMode) {
+                measurePoints.push([e.lngLat.lng, e.lngLat.lat]);
+                processMeasureLine();
+            }
+        });
+
+        // --- VP4: CANVAS VECTOR MIRROR & EXPORT ---
+        const vp4Canvas = document.getElementById('vp4-canvas-mirror');
+        const ctx4 = vp4Canvas.getContext('2d');
+        let vp4IsMirrored = false;
+        let vp4Annotations = [];
+        let currentDrawToolVP4 = 'none';
+
+        document.getElementById('tool-vp4-mirror').addEventListener('click', () => {
+            vp4IsMirrored = !vp4IsMirrored; 
+            renderVP4Canvas(measureMode ? measurePoints : flagsData, measureMode ? '#34d399' : '#64ffda');
+        });
+        document.getElementById('tool-vp4-text').addEventListener('click', (e) => {
+            currentDrawToolVP4 = currentDrawToolVP4 === 'text' ? 'none' : 'text';
+            e.target.style.border = currentDrawToolVP4 === 'text' ? '2px solid #ffca28' : 'none';
+        });
+
+        vp4Canvas.addEventListener('mousedown', (e) => {
+            if (currentDrawToolVP4 === 'text') {
+                const rect = vp4Canvas.getBoundingClientRect(); 
+                let x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                if(vp4IsMirrored) x = vp4Canvas.width - x; 
+                const color = document.getElementById('vp4-canvas-color').value;
+                const text = prompt("Voer annotatietekst in voor Vector Mirror:");
+                if (text) { 
+                    vp4Annotations.push({ type: 'text', text: text, x: x, y: y, color: color }); 
+                    renderVP4Canvas(measureMode ? measurePoints : flagsData, measureMode ? '#34d399' : '#64ffda'); 
+                }
+            }
+        });
+
+        function renderVP4Canvas(dataArray, strokeColor) {
+            ctx4.clearRect(0, 0, vp4Canvas.width, vp4Canvas.height);
+            if (!dataArray) return;
+            
+            ctx4.save();
+            if (vp4IsMirrored) { ctx4.scale(-1, 1); ctx4.translate(-vp4Canvas.width, 0); }
+
+            if (dataArray.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                dataArray.forEach(pt => {
+                    if (pt[0] < minX) minX = pt[0]; if (pt[0] > maxX) maxX = pt[0];
+                    if (pt[1] < minY) minY = pt[1]; if (pt[1] > maxY) maxY = pt[1];
+                });
+                const padding = 20; const w = vp4Canvas.width - padding * 2; const h = vp4Canvas.height - padding * 2;
+                const rangeX = maxX - minX || 1; const rangeY = maxY - minY || 1;
+                const scaleX = w / rangeX; const scaleY = h / rangeY; const scale = Math.min(scaleX, scaleY);
+                const offsetX = padding + (w - rangeX * scale) / 2; const offsetY = padding + (h - rangeY * scale) / 2;
+
+                ctx4.beginPath(); ctx4.strokeStyle = strokeColor; ctx4.lineWidth = 2; ctx4.fillStyle = 'rgba(220, 38, 38, 0.4)'; 
+                dataArray.forEach((pt, i) => {
+                    const cx = offsetX + (pt[0] - minX) * scale; const cy = vp4Canvas.height - offsetY - (pt[1] - minY) * scale; 
+                    if (i === 0) ctx4.moveTo(cx, cy); else ctx4.lineTo(cx, cy);
+                });
+                if (dataArray.length > 2 && !measureMode) { ctx4.closePath(); ctx4.fill(); }
+                ctx4.stroke();
+
+                ctx4.fillStyle = '#ff5252';
+                dataArray.forEach((pt) => {
+                    const cx = offsetX + (pt[0] - minX) * scale; const cy = vp4Canvas.height - offsetY - (pt[1] - minY) * scale;
+                    ctx4.beginPath(); ctx4.arc(cx, cy, 3, 0, 2*Math.PI); ctx4.fill();
+                });
+            }
+
+            vp4Annotations.forEach(ann => {
+                if (ann.type === 'text') { 
+                    ctx4.fillStyle = ann.color; ctx4.font = '12px Courier New'; 
+                    ctx4.save();
+                    if(vp4IsMirrored) { ctx4.scale(-1, 1); ctx4.translate(-vp4Canvas.width, 0); }
+                    let renderX = vp4IsMirrored ? vp4Canvas.width - ann.x : ann.x;
+                    ctx4.fillText(ann.text, renderX, ann.y); 
+                    ctx4.restore();
+                }
+            });
+            ctx4.restore();
+        }
+
+        document.getElementById('vp4-btn-export').addEventListener('click', () => {
+            const data = document.getElementById('vp4-coord-log').value;
+            const blob = new Blob([data], { type: 'text/plain' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `VP4_Vector_Data_${new Date().toISOString().slice(0,10)}.txt`; a.click();
+        });
+        document.getElementById('vp4-btn-png').addEventListener('click', () => {
+            const a = document.createElement('a'); a.href = vp4Canvas.toDataURL('image/png');
+            a.download = `VP4_Planimeter_Mirror_${new Date().toISOString().slice(0,10)}.png`; a.click();
+        });
+
+        // --- VP5: CANVAS TEKENLAAG (OVER IFRAME) FIX ---
+        const vp5Canvas = document.getElementById('vp5-canvas');
+        const vp5Ctx = vp5Canvas.getContext('2d');
+        let vp5Annotations = []; let currentDrawToolVP5 = 'none'; let isDrawingVP5 = false; let currentPathVP5 = null;
+
+        new ResizeObserver(() => {
+            vp5Canvas.width = vp5Canvas.offsetWidth; vp5Canvas.height = vp5Canvas.offsetHeight; renderVp5Canvas();
+        }).observe(document.getElementById('media-container'));
+
+        document.getElementById('tool-vp5-draw').addEventListener('click', (e) => {
+            currentDrawToolVP5 = currentDrawToolVP5 === 'draw' ? 'none' : 'draw';
+            document.querySelectorAll('#vp5-plotter .btn').forEach(b => { if(b.innerText.includes('Teken') || b.innerText.includes('Tekst')) b.style.border = 'none' });
+            if(currentDrawToolVP5 === 'draw') e.target.style.border = '2px solid #ffca28';
+        });
+        document.getElementById('tool-vp5-text').addEventListener('click', (e) => {
+            currentDrawToolVP5 = currentDrawToolVP5 === 'text' ? 'none' : 'text';
+            document.querySelectorAll('#vp5-plotter .btn').forEach(b => { if(b.innerText.includes('Teken') || b.innerText.includes('Tekst')) b.style.border = 'none' });
+            if(currentDrawToolVP5 === 'text') e.target.style.border = '2px solid #ffca28';
+        });
+        document.getElementById('tool-vp5-clear').addEventListener('click', () => { vp5Annotations = []; vp5Ctx.clearRect(0, 0, vp5Canvas.width, vp5Canvas.height); });
+
+        vp5Canvas.addEventListener('mousedown', (e) => {
+            if (currentDrawToolVP5 === 'none') return;
+            const rect = vp5Canvas.getBoundingClientRect(); const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+            const color = document.getElementById('vp5-canvas-color').value;
+            if (currentDrawToolVP5 === 'draw') {
+                isDrawingVP5 = true; currentPathVP5 = { type: 'path', color: color, points: [{x, y}] }; vp5Annotations.push(currentPathVP5);
+            } else if (currentDrawToolVP5 === 'text') {
+                const text = prompt("Voer telemetrie annotatie in:");
+                if (text) { vp5Annotations.push({ type: 'text', text: text, x: x, y: y, color: color }); renderVp5Canvas(); }
+            }
+        });
+        vp5Canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawingVP5 || currentDrawToolVP5 !== 'draw') return;
+            const rect = vp5Canvas.getBoundingClientRect(); currentPathVP5.points.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            renderVp5Canvas();
+        });
+        vp5Canvas.addEventListener('mouseup', () => { isDrawingVP5 = false; });
+        vp5Canvas.addEventListener('mouseleave', () => { isDrawingVP5 = false; });
+
+        function renderVp5Canvas() {
+            vp5Ctx.clearRect(0, 0, vp5Canvas.width, vp5Canvas.height);
+            vp5Annotations.forEach(ann => {
+                if (ann.type === 'path') {
+                    vp5Ctx.beginPath(); vp5Ctx.strokeStyle = ann.color; vp5Ctx.lineWidth = 2;
+                    ann.points.forEach((p, i) => { if (i === 0) vp5Ctx.moveTo(p.x, p.y); else vp5Ctx.lineTo(p.x, p.y); });
+                    vp5Ctx.stroke();
+                } else if (ann.type === 'text') { 
+                    vp5Ctx.fillStyle = ann.color; vp5Ctx.font = '14px Courier New'; vp5Ctx.fillText(ann.text, ann.x, ann.y); 
+                }
+            });
+        }
+
+        // --- VP7 & VP10: ASTRONOMIE & SOLAR KOPPELING ---
+        function updateAstroDashboard() {
+            try {
+                if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return;
+                
+                let refLat, refLng;
+                const activeData = measureMode ? measurePoints : flagsData;
+
+                if (activeData.length > 0) {
+                    if (activeData.length >= 3 && !measureMode) {
+                        const poly = turf.polygon([[...activeData, activeData[0]]]);
+                        const centroid = turf.centroid(poly);
+                        refLng = centroid.geometry.coordinates[0];
+                        refLat = centroid.geometry.coordinates[1];
+                    } else {
+                        refLng = activeData[activeData.length - 1][0];
+                        refLat = activeData[activeData.length - 1][1];
+                    }
+                } else {
+                    const center = map.getCenter();
+                    refLat = center.lat; refLng = center.lng;
+                }
+
+                const date = new Date(); 
+                document.getElementById('astro-date-title').innerText = `Lokale Hemel op Bakens/Focus (${date.toLocaleDateString('nl-NL')})`;
+                const times = SunCalc.getTimes(date, refLat, refLng); 
+                const moonTimes = SunCalc.getMoonTimes(date, refLat, refLng);
+                const fT = (d) => d && !isNaN(d) ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+                document.getElementById('astro-sun-moon').innerHTML = `<b>Zon</b>: Op ${fT(times.sunrise)} / Onder ${fT(times.sunset)}<br><b>Maan</b>: Op ${fT(moonTimes.rise)} / Onder ${fT(moonTimes.set)}<br><i style="color:#8b949e;">Gekalibreerd op: ${refLat.toFixed(4)}°, ${refLng.toFixed(4)}°</i>`;
+                
+                const observer = new Astronomy.Observer(refLat, refLng, 0); 
+                const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+                let html = '<table style="width:100%; text-align:left; font-size:10px; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #3498db; padding-bottom:2px;">Planeet</th><th style="border-bottom:1px solid #3498db;">Azimut</th><th style="border-bottom:1px solid #3498db;">Hoogte</th><th style="border-bottom:1px solid #3498db;">Sterrenbeeld</th></tr>'; 
+                let bepiAz = 0;
+                bodies.forEach(body => {
+                    const eq = Astronomy.Equator(body, date, observer, true, true); 
+                    const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, 'normal');
+                    const constell = Astronomy.Constellation(eq.ra, eq.dec); 
+                    const sb = constellNL[constell.abbr || constell.name || constell] || constell.name || constell;
+                    html += `<tr><td style="padding:2px 0;"><b>${body}</b></td><td>${hor.azimuth.toFixed(1)}°</td><td>${hor.altitude.toFixed(1)}°</td><td style="color:#ffca28;">${sb}</td></tr>`;
+                    if (body === 'Mercury') bepiAz = hor.azimuth;
+                });
+                document.getElementById('astro-planets').innerHTML = html + '</table>';
+                document.getElementById('bepi-colombo-data').innerHTML = `Doelwit: Mercurius (BepiColombo)<br>Projectievector (Azimut): <span style="color:#64ffda;">${bepiAz.toFixed(2)}°</span>`;
+            } catch(err) { console.error("Astro Engine Error:", err); }
+        }
+
+        const solarTimeSlider = document.getElementById('solar-time-slider');
+        const solarTimeVal = document.getElementById('solar-time-val');
+        
+        function updateSolarCalculations() {
+            if (typeof SunCalc === 'undefined') return;
+            
+            let refLat, refLng;
+            if (flagsData.length > 0) { refLng = flagsData[flagsData.length - 1][0]; refLat = flagsData[flagsData.length - 1][1]; } 
+            else { const center = map.getCenter(); refLat = center.lat; refLng = center.lng; }
+            
+            const date = new Date();
+            const hours = Math.floor(solarTimeSlider.value); const minutes = Math.floor((solarTimeSlider.value - hours) * 60);
+            date.setHours(hours, minutes, 0);
+            solarTimeVal.innerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            
+            const pos = SunCalc.getPosition(date, refLat, refLng);
+            const azimuthDeg = pos.azimuth * 180 / Math.PI + 180; 
+            const altitudeDeg = pos.altitude * 180 / Math.PI;
+            
+            document.getElementById('solar-azimuth').innerText = azimuthDeg.toFixed(1);
+            document.getElementById('solar-altitude').innerText = altitudeDeg.toFixed(1);
+            
+            const objHeight = parseFloat(document.getElementById('solar-height').value) || 0;
+            let shadowLen = "ONEINDIG (Nacht)";
+            if (altitudeDeg > 0) { shadowLen = (objHeight / Math.tan(pos.altitude)).toFixed(2); }
+            document.getElementById('solar-shadow').innerText = shadowLen;
+        }
+        
+        solarTimeSlider.addEventListener('input', updateSolarCalculations);
+        document.getElementById('solar-height').addEventListener('input', updateSolarCalculations);
+
+        let lastAstroUpdate = 0;
+        map.on('move', () => { 
+            const now = Date.now(); 
+            if (now - lastAstroUpdate > 250) { 
+                if(flagsData.length === 0 && measurePoints.length === 0) { 
+                    updateAstroDashboard(); updateSolarCalculations(); 
+                }
+                lastAstroUpdate = now; 
+            } 
+        });   
+
+        // --- EXPORT LOGS ---
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const blob = new Blob([outputBox.value], { type: 'text/plain' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `GEOINT_Log_${new Date().toISOString().slice(0,10)}.txt`; a.click();
+        });
+        document.getElementById('btn-clear-output').addEventListener('click', () => { outputBox.value = "> Console gewist."; });
+    </script>
+</body>
+</html>
