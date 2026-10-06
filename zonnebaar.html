@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geautomatiseerde Schaduw- en Zonnestand Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            max-width: 650px;
+            margin: 30px auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #2980b9;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2471a3;
+        }
+        .results {
+            margin-top: 20px;
+            background: #ebf5fb;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 5px solid #2980b9;
+        }
+        .results p {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+        .error {
+            background: #fdebd0;
+            border-left-color: #e67e22;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Geautomatiseerde Schaduw Calculator</h2>
+    
+    <div class="form-group">
+        <label for="lat">Breedtegraad (Latitude, bijv. Tholen = 51.53):</label>
+        <input type="number" id="lat" value="51.5300" step="0.0001">
+    </div>
+
+    <div class="form-group">
+        <label for="lon">Lengtegraad (Longitude, bijv. Tholen = 4.15):</label>
+        <input type="number" id="lon" value="4.1500" step="0.0001">
+    </div>
+
+    <div class="form-group">
+        <label for="dateTime">Datum en Tijd (Lokale tijd):</label>
+        <input type="datetime-local" id="dateTime">
+    </div>
+
+    <div class="form-group">
+        <label for="objectHoogte">Objecthoogte (meters):</label>
+        <input type="number" id="objectHoogte" value="10" step="0.1">
+    </div>
+
+    <div class="form-group">
+        <label for="terreinHelling">Terreinhelling (graden, positief = omlaag):</label>
+        <input type="number" id="terreinHelling" value="2" step="0.1">
+    </div>
+
+    <button onclick="berekenAlles()">Bereken Zonnestand & Schaduw</button>
+
+    <div id="outputContainer"></div>
+
+    <script>
+        // Vul standaard huidige datum/tijd in
+        window.onload = function() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('dateTime').value = now.toISOString().slice(0,16);
+        };
+
+        function berekenZonnestand(date, lat, lon) {
+            // Vereenvoudigde, robuuste astronomische berekening voor elevatie en azimut
+            const rad = Math.PI / 180;
+            const deg = 180 / Math.PI;
+
+            const startOfYear = new Date(date.getFullYear(), 0, 1);
+            const dayOfYear = Math.floor((date - startOfYear) / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Tijd in decimalen UTC
+            const hoursUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+
+            // Zonne-declinatie (approx)
+            const gamma = 2 * Math.PI * (dayOfYear - 1) / 365;
+            const decl = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 
+                         0.006758 * Math.cos(2*gamma) + 0.000907 * Math.sin(2*gamma) - 
+                         0.002697 * Math.cos(3*gamma) + 0.00148 * Math.sin(3*gamma);
+
+            // Tijdsvereffening (Equation of Time in minuten)
+            const eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 
+                           0.014615 * Math.cos(2*gamma) - 0.040849 * Math.sin(2*gamma));
+
+            const timeOffset = eqtime + 4 * lon; // lon in graden
+            const tst = hoursUTC * 60 + timeOffset; // True Solar Time
+            const solarHourAngle = (tst / 4) - 180;
+
+            const latRad = lat * rad;
+            const haRad = solarHourAngle * rad;
+
+            // Zonne-elevatie geometrisch
+            const sinElev = Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad);
+            const elevGeom = Math.asin(sinElev) * deg;
+
+            // Zonne-azimut
+            const cosAz = (Math.sin(decl) - Math.sin(latRad) * sinElev) / (Math.cos(latRad) * Math.cos(Math.asin(sinElev)));
+            let az = Math.acos(Math.max(-1, Math.min(1, cosAz))) * deg;
+            if (solarHourAngle > 0) az = 360 - az;
+
+            return { elevatie: elevGeom, azimut: az };
+        }
+
+        function berekenAlles() {
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lon = parseFloat(document.getElementById('lon').value);
+            const dateInput = new Date(document.getElementById('dateTime').value);
+            const h = parseFloat(document.getElementById('objectHoogte').value);
+            const helling = parseFloat(document.getElementById('terreinHelling').value);
+
+            const container = document.getElementById('outputContainer');
+
+            if (isNaN(dateInput.getTime())) {
+                alert('Vul een geldige datum en tijd in.');
+                return;
+            }
+
+            // 1. Bereken zonnestand op basis van coördinaten en tijd
+            const zon = berekenZonnestand(dateInput, lat, lon);
+            const elevGeom = zon.elevatie;
+            const az = zon.azimut;
+
+            // 2. Atmosferische refractie (Saemundsson / Bennett)
+            let refractieGraden = 0;
+            if (elevGeom > 0) {
+                let rBoogminuten = 1.02 / Math.tan((elevGeom + 10.3 / (elevGeom + 5.11)) * Math.PI / 180);
+                refractieGraden = rBoogminuten / 60;
+            }
+
+            let elevSchijnbaar = elevGeom + refractieGraden;
+
+            if (elevSchijnbaar <= 0) {
+                container.innerHTML = `
+                    <div class="results error">
+                        <h3>Resultaat:</h3>
+                        <p><strong>Geometrische Elevatie:</strong> ${elevGeom.toFixed(2)}°</p>
+                        <p><strong>Status:</strong> Zon staat onder de horizon (Nacht / Schemering)</p>
+                    </div>`;
+                return;
+            }
+
+            // 3. Schaduwlengte & Azimut berekening
+            let elevRad = elevSchijnbaar * Math.PI / 180;
+            let hellingRad = helling * Math.PI / 180;
+
+            let schaduwLengte;
+            if (helling === 0) {
+                schaduwLengte = h / Math.tan(elevRad);
+            } else {
+                schaduwLengte = (h * Math.cos(hellingRad)) / Math.tan(elevRad + hellingRad);
+            }
+
+            let schaduwAzimut = (az + 180) % 360;
+
+            // 4. Weergave
+            container.innerHTML = `
+                <div class="results">
+                    <h3>Resultaten:</h3>
+                    <p><strong>Berekende Zonne-elevatie:</strong> ${elevGeom.toFixed(2)}° (Schijnbaar na refractie: ${elevSchijnbaar.toFixed(2)}°)</p>
+                    <p><strong>Zonne-azimut:</strong> ${az.toFixed(2)}°</p>
+                    <hr style="border:0; border-top:1px solid #d4e6f1; margin:8px 0;">
+                    <p><strong>Schaduwlengte:</strong> ${schaduwLengte.toFixed(2)} meter</p>
+                    <p><strong>Schaduwrichting (Azimut):</strong> ${schaduwAzimut.toFixed(2)}°</p>
+                </div>`;
+        }
+    </script>
+
+</body>
+</html>
