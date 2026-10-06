@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VP10: Mobile Sensor & Solar Telemetry</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: monospace, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px;
+        }
+        h2 { font-size: 1.2em; text-align: center; }
+        .dashboard {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+        .canvas-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .canvas-container h3 { margin: 0; color: #58a6ff; font-size: 0.95em; }
+        .panel {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .panel h4 {
+            margin: 0 0 5px 0; color: #f0f6fc;
+            border-bottom: 1px solid #30363d; padding-bottom: 5px; font-size: 0.9em;
+        }
+        canvas {
+            background-color: #ffffff; border-radius: 50%;
+            border: 3px solid #30363d; max-width: 260px; max-height: 260px;
+        }
+        label { display: flex; justify-content: space-between; font-weight: bold; font-size: 0.8em; margin-bottom: 3px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="number"], input[type="text"], input[type="datetime-local"], textarea, select {
+            width: 100%; background: #161b22; color: #c9d1d9;
+            border: 1px solid #30363d; padding: 6px; border-radius: 4px; box-sizing: border-box; font-family: monospace; font-size: 0.9em;
+        }
+        textarea { height: 50px; font-size: 0.8em; }
+        button {
+            background-color: #238636; color: white; border: none;
+            padding: 10px; border-radius: 5px; cursor: pointer;
+            font-weight: bold; width: 100%; font-size: 0.9em;
+        }
+        button:hover { background-color: #2ea043; }
+        .btn-secondary { background-color: #1f6feb; }
+        .btn-warning { background-color: #d73a49; }
+        .btn-small { padding: 6px; font-size: 0.8em; }
+        
+        .btn-sensor { background-color: #8b5cf6; }
+        .btn-sensor.active { background-color: #7c3aed; border: 1px solid #fff; }
+
+        .data-box { background-color: #161b22; border: 1px dashed #30363d; padding: 8px; border-radius: 5px; font-size: 0.8em; }
+        .data-box span { color: #58a6ff; font-weight: bold; }
+        .data-box p { margin: 3px 0; }
+        .warning { color: #f85149; font-weight: bold; display: none; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.75em; }
+        th, td { border: 1px solid #30363d; padding: 6px; text-align: left; }
+        th { background-color: #21262d; }
+        .video-container { display: flex; gap: 5px; }
+        video { width: 48%; height: 90px; object-fit: cover; background: #000; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h2>VP10: Mobile Sensor & Solar Telemetry</h2>
+    
+    <div class="dashboard">
+        
+        <!-- Canvassen -->
+        <div style="display:flex; justify-content: space-around; flex-wrap: wrap; gap: 10px;">
+            <div class="canvas-container">
+                <h3>Standaard (Noord Boven)</h3>
+                <canvas id="zonnewijzerCanvas1" width="240" height="240"></canvas>
+            </div>
+            <div class="canvas-container">
+                <h3>Gespiegeld (Zuid Boven)</h3>
+                <canvas id="zonnewijzerCanvas2" width="240" height="240"></canvas>
+            </div>
+        </div>
+
+        <!-- Mobiele Sensor Besturing -->
+        <div class="panel">
+            <h4>📱 Mobiele Hardware Sensoren</h4>
+            <button id="btnSensors" class="btn-sensor">🧭 Koppel Mobiele Kompas & Gyro</button>
+            <div class="data-box">
+                <p>Sensor Azimut (Kompas): <span id="sensorAzi">-</span>°</p>
+                <p>Sensor Pitch (Elevatie): <span id="sensorEle">-</span>°</p>
+            </div>
+        </div>
+
+        <!-- Locatie & Tijd -->
+        <div class="panel">
+            <h4>📍 Locatie & 🕒 Tijd</h4>
+            <div><input type="datetime-local" id="tijdInput" step="1"></div>
+            <select id="presetLocation">
+                <option value="52.2984,5.2505">Kies locatie preset...</option>
+                <option value="52.2855,5.2343">Tafelberg (Huizen)</option>
+                <option value="52.2227,5.4851">Nijkerk</option>
+                <option value="51.5472,4.0953">Scherpenisse</option>
+                <option value="59.3293,18.0686">Stockholm (SE)</option>
+                <option value="59.2753,15.2066">Örebro (SE)</option>
+                <option value="55.6761,12.5683">Denemarken (Kopenhagen)</option>
+                <option value="64.1814,-51.6941">Groenland (Nuuk)</option>
+                <option value="56.9496,24.1052">Letland (Riga)</option>
+                <option value="64.1466,-21.9426">IJsland (Reykjavik)</option>
+                <option value="45.4215,-75.6972">Canada (Ottawa)</option>
+                <option value="40.7127,-74.0134">WTC New York (US)</option>
+            </select>
+            <div style="display: flex; gap: 5px;">
+                <input type="number" id="latInput" step="0.0001" value="52.2984">
+                <input type="number" id="lonInput" step="0.0001" value="5.2505">
+            </div>
+            <button id="btnNuLocatie">📍 Haal GPS-locatie op</button>
+        </div>
+
+        <!-- Zonparameters -->
+        <div class="panel">
+            <h4>☀️️ Zonparameters & Quaternion</h4>
+            <div>
+                <label>Zon Azimut (°): <span id="azimutVal">297.2</span></label>
+                <input type="range" id="azimut" min="0" max="720" step="0.1" value="297.2">
+            </div>
+            <div>
+                <label>Zon Elevatie (°): <span id="elevatieVal">31.9</span></label>
+                <input type="range" id="elevatie" min="-90" max="90" step="0.1" value="31.9">
+            </div>
+            <div>
+                <label>Objecthoogte (h): <span id="hoogteVal">10</span></label>
+                <input type="range" id="objectHoogte" min="1" max="50" step="1" value="10">
+            </div>
+            <div class="data-box">
+                <p id="zonOnderWaarschuwing" class="warning">⚠️ De zon is onder</p>
+                <div id="schaduwData">
+                    <p>Schaduwlengte: <span id="schaduwLengteDisplay">0.00</span></p>
+                    <p>Schaduw Azimut: <span id="schaduwAzimutDisplay">0.0</span>°</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- WebRTC Video P2P -->
+        <div class="panel">
+            <h4>🎥 P2P Video & OSINT</h4>
+            <div class="video-container">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <video id="remoteVideo" autoplay playsinline></video>
+            </div>
+            <button id="btnStartCamera" class="btn-warning btn-small" style="margin-top:5px;">📹 Start Camera</button>
+            <textarea id="webrtcSignal" placeholder="Plak Offer/Answer code..."></textarea>
+            <div style="display: flex; gap:3px;">
+                <button id="btnCreateOffer" class="btn-secondary btn-small">1. Offer</button>
+                <button id="btnCreateAnswer" class="btn-secondary btn-small">2. Answer</button>
+                <button id="btnAcceptAnswer" class="btn-secondary btn-small">3. Accepteer</button>
+            </div>
+            <p style="font-size: 0.75em; text-align:center; margin:5px 0;">Status: <span id="webrtcStatus" style="color: #f39c12;">Niet verbonden</span></p>
+        </div>
+
+        <!-- Logboek -->
+        <div class="panel">
+            <h4>📖 Logboek & OSINT</h4>
+            <input type="text" id="osintTarget" placeholder="Case / Doelwit ID" style="margin-bottom:5px;">
+            <div style="display: flex; gap: 5px;">
+                <button id="btnLog" class="btn-small">Log Status</button>
+                <button id="btnExport" class="btn-secondary btn-small">CSV</button>
+                <button id="btnExportOSINT" class="btn-sensor btn-small">Rapport</button>
+            </div>
+            <div style="max-height: 120px; overflow-y: auto; margin-top:5px;">
+                <table id="logTable">
+                    <thead><tr><th>Tijd</th><th>Lat,Lon</th><th>Zon Azi</th><th>Schad.L</th></tr></thead>
+                    <tbody id="logBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas1 = document.getElementById('zonnewijzerCanvas1');
+        const canvas2 = document.getElementById('zonnewijzerCanvas2');
+        const ctx1 = canvas1.getContext('2d'); const ctx2 = canvas2.getContext('2d');
+        const cx = canvas1.width / 2; const cy = canvas1.height / 2;
+
+        const ui = {
+            azi: document.getElementById('azimut'), ele: document.getElementById('elevatie'),
+            hgt: document.getElementById('objectHoogte'), lat: document.getElementById('latInput'),
+            lon: document.getElementById('lonInput'), time: document.getElementById('tijdInput'),
+            preset: document.getElementById('presetLocation')
+        };
+        const disp = {
+            azi: document.getElementById('azimutVal'), ele: document.getElementById('elevatieVal'),
+            hgt: document.getElementById('hoogteVal'), sLen: document.getElementById('schaduwLengteDisplay'),
+            sAzi: document.getElementById('schaduwAzimutDisplay'), warn: document.getElementById('zonOnderWaarschuwing'),
+            data: document.getElementById('schaduwData')
+        };
+        
+        let currentData = { sLen: 0, sAzi: 0, isOnder: false, shadowLen: 0, shadowAzi: 0 };
+        let logbookData = [];
+
+        ui.time.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0,19);
+
+        // --- QUATERNION WISKUNDE ENGINE ---
+        class Quaternion {
+            constructor(w=1, x=0, y=0, z=0) { this.w = w; this.x = x; this.y = y; this.z = z; }
+            static fromAxisAngle(axis, angleRad) {
+                const s = Math.sin(angleRad / 2);
+                return new Quaternion(Math.cos(angleRad / 2), axis[0]*s, axis[1]*s, axis[2]*s);
+            }
+            multiply(q) {
+                return new Quaternion(
+                    this.w*q.w - this.x*q.x - this.y*q.y - this.z*q.z,
+                    this.w*q.x + this.x*q.w + this.y*q.z - this.z*q.y,
+                    this.w*q.y - this.x*q.z + this.y*q.w + this.z*q.x,
+                    this.w*q.z + this.x*q.y - this.y*q.x + this.z*q.w
+                );
+            }
+            rotateVector(v) {
+                const qVec = new Quaternion(0, v[0], v[1], v[2]);
+                const qInv = new Quaternion(this.w, -this.x, -this.y, -this.z);
+                const res = this.multiply(qVec).multiply(qInv);
+                return [res.x, res.y, res.z];
+            }
+        }
+
+        function berekenZonEnSchaduw3D(aziDeg, eleDeg, h) {
+            const aziRad = -(aziDeg * Math.PI) / 180; 
+            const eleRad = (eleDeg * Math.PI) / 180;
+            const startZon = [0, 1, 0];
+            const qTotaal = Quaternion.fromAxisAngle([0, 0, 1], aziRad).multiply(Quaternion.fromAxisAngle([1, 0, 0], eleRad));
+            const rotSun = qTotaal.rotateVector(startZon);
+            
+            const sunX = rotSun[0], sunY = rotSun[1], sunZ = rotSun[2];
+            let shadowX = 0, shadowY = 0, shadowAzi = 0, shadowLen = 0;
+            const isZonOnder = (sunZ <= 0);
+
+            if (!isZonOnder) {
+                shadowX = -h * (sunX / sunZ); shadowY = -h * (sunY / sunZ);
+                shadowLen = Math.sqrt(shadowX*shadowX + shadowY*shadowY);
+                shadowAzi = (Math.atan2(shadowX, shadowY) * (180 / Math.PI) + 360) % 360;
+            }
+            return { isOnder: isZonOnder, sun3D: { x: sunX, y: sunY, z: sunZ }, shadow2D: { x: shadowX, y: shadowY }, shadowLen, shadowAzi };
+        }
+
+        function berekenZonPositie() {
+            const d = new Date(ui.time.value);
+            const lat = parseFloat(ui.lat.value), lon = parseFloat(ui.lon.value);
+            if (isNaN(d.getTime()) || isNaN(lat) || isNaN(lon)) return;
+
+            const sunPos = SunCalc.getPosition(d, lat, lon);
+            let berekendeAzi = ((sunPos.azimuth * 180 / Math.PI) + 180 + 360) % 360; 
+            ui.azi.value = berekendeAzi;
+            ui.ele.value = sunPos.altitude * 180 / Math.PI;
+            updateAll();
+        }
+
+        function updateAll() {
+            const azi = parseFloat(ui.azi.value), ele = parseFloat(ui.ele.value), h = parseFloat(ui.hgt.value);
+            disp.azi.innerText = azi.toFixed(1); disp.ele.innerText = ele.toFixed(1); disp.hgt.innerText = h;
+
+            currentData = berekenZonEnSchaduw3D(azi, ele, h);
+            
+            if (currentData.isOnder) {
+                disp.warn.style.display = 'block'; disp.data.style.display = 'none';
+            } else {
+                disp.warn.style.display = 'none'; disp.data.style.display = 'block';
+                disp.sLen.innerText = currentData.shadowLen.toFixed(2);
+                disp.sAzi.innerText = currentData.shadowAzi.toFixed(1);
+            }
+            teken(ctx1, false, currentData); teken(ctx2, true, currentData);
+        }
+
+        function teken(ctx, isMirrored, qData) {
+            ctx.clearRect(0, 0, 240, 240);
+            const sign = isMirrored ? -1 : 1;
+            
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+            for(let i=0; i<=240; i+=20) { 
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 240); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(240, i); ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1;
+            for(let r = 30; r <= 100; r += 25) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.stroke(); }
+            ctx.beginPath(); ctx.moveTo(cx, 10); ctx.lineTo(cx, 230); ctx.moveTo(10, cy); ctx.lineTo(230, cy); ctx.stroke();
+            
+            ctx.fillStyle = '#4b5563'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            if (isMirrored) { ctx.fillText('Z', cx, 15); ctx.fillText('N', cx, 225); ctx.fillText('W', 225, cy); ctx.fillText('O', 15, cy); } 
+            else { ctx.fillText('N', cx, 15); ctx.fillText('Z', cx, 225); ctx.fillText('O', 225, cy); ctx.fillText('W', 15, cy); }
+
+            if (!qData.isOnder) {
+                const sX = cx + sign * (qData.shadow2D.x * 3.5); const sY = cy - sign * (qData.shadow2D.y * 3.5);
+                ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(sX, sY); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(44, 62, 80, 0.7)'; ctx.stroke();
+            }
+
+            const zX = cx + sign * (qData.sun3D.x * 95); const zY = cy - sign * (qData.sun3D.y * 95);
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(zX, zY); ctx.setLineDash([3,3]); 
+            ctx.lineWidth=1; ctx.strokeStyle = qData.isOnder?'#9ca3af':'#f59e0b'; ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.arc(zX, zY, 7, 0, 2*Math.PI); 
+            ctx.fillStyle = qData.isOnder?'#4b5563':'#fbbf24'; ctx.fill(); 
+            ctx.lineWidth=2; ctx.strokeStyle=qData.isOnder?'#374151':'#d97706'; ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 2*Math.PI); ctx.fillStyle = '#000'; ctx.fill();
+        }
+
+        // --- MOBIELE SENSORES (COMPASS & GYRO) ---
+        let sensorsActive = false;
+        document.getElementById('btnSensors').addEventListener('click', async function() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const response = await DeviceOrientationEvent.requestPermission();
+                    if (response === 'granted') { activateSensors(this); } 
+                    else { alert("Sensor permissie geweigerd."); }
+                } catch(e) { alert(e); }
+            } else { activateSensors(this); }
+        });
+
+        function activateSensors(btn) {
+            sensorsActive = true;
+            btn.classList.add('active');
+            btn.innerText = "🧭 Sensoren Actief ✅";
+            
+            window.addEventListener('deviceorientation', (e) => {
+                if (!sensorsActive) return;
+                // alpha = compass direction (0-360), beta = front/back tilt (-180 to 180)
+                const alpha = e.alpha !== null ? e.alpha : 0;
+                const beta = e.beta !== null ? e.beta : 0;
+                
+                document.getElementById('sensorAzi').innerText = alpha.toFixed(1);
+                document.getElementById('sensorEle').innerText = beta.toFixed(1);
+
+                // Koppel direct aan de zon sliders
+                ui.azi.value = alpha;
+                ui.ele.value = Math.max(1, Math.min(90, 90 - Math.abs(beta))); // Map tilt naar elevatie
+                updateAll();
+            });
+        }
+
+        // --- EVENT LISTENERS ---
+        ui.preset.addEventListener('change', (e) => {
+            if(!e.target.value || e.target.value.indexOf(',') === -1) return;
+            const [lat, lon] = e.target.value.split(',');
+            ui.lat.value = lat; ui.lon.value = lon;
+            berekenZonPositie();
+        });
+
+        [ui.time, ui.lat, ui.lon].forEach(el => el.addEventListener('change', berekenZonPositie));
+        [ui.azi, ui.ele, ui.hgt].forEach(el => el.addEventListener('input', updateAll));
+        
+        document.getElementById('btnNuLocatie').addEventListener('click', () => {
+            if(navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    ui.lat.value = pos.coords.latitude.toFixed(4);
+                    ui.lon.value = pos.coords.longitude.toFixed(4);
+                    berekenZonPositie();
+                }, err => alert("GPS Fout: " + err.message), {enableHighAccuracy: true});
+            }
+        });
+
+        // Logboek & Export
+        document.getElementById('btnLog').addEventListener('click', () => {
+            const entry = {
+                tijd: ui.time.value.replace('T', ' '), latlon: `${ui.lat.value}, ${ui.lon.value}`,
+                azi: parseFloat(ui.azi.value).toFixed(1), sLen: currentData.isOnder ? '-' : currentData.shadowLen.toFixed(2)
+            };
+            logbookData.push(entry);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${entry.tijd}</td><td>${entry.latlon}</td><td>${entry.azi}°</td><td>${entry.sLen}</td>`;
+            document.getElementById('logBody').prepend(tr);
+        });
+
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if(logbookData.length === 0) return alert("Log is leeg.");
+            const csv = "Tijd,LatLon,Zon_Azimut,Schaduwlengte\n" + logbookData.map(e => Object.values(e).join(",")).join("\n");
+            const a = document.createElement('a'); a.href = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+            a.download = 'log.csv'; a.click();
+        });
+
+        // WebRTC Camera
+        document.getElementById('btnStartCamera').addEventListener('click', async function() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
+                document.getElementById('localVideo').srcObject = stream;
+                this.style.backgroundColor = "#2ea043"; this.innerText = "Camera Actief ✅";
+            } catch (err) { alert("Camera mislukt: " + err.message); }
+        });
+
+        berekenZonPositie();
+    </script>
+</body>
+</html>
