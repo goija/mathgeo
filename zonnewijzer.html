@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zonnewijzer & Schaduw Simulatie</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: monospace, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .dashboard {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: flex;
+            gap: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 300px;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 50%;
+            border: 4px solid #30363d;
+        }
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .data-box {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        .data-box span { color: #58a6ff; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>VP10: Solar & Schaduw Instrumenten (Zonnewijzer)</h2>
+    
+    <div class="dashboard">
+        <!-- Canvas voor de zonnewijzer -->
+        <canvas id="zonnewijzerCanvas" width="400" height="400"></canvas>
+
+        <!-- Bedieningspaneel -->
+        <div class="controls">
+            <div>
+                <label>Zon Azimut (°): <span id="azimutVal">151.1</span></label>
+                <input type="range" id="azimut" min="0" max="360" step="0.1" value="151.1">
+            </div>
+            <div>
+                <label>Zon Hoogte/Elevatie (°): <span id="elevatieVal">30.2</span></label>
+                <input type="range" id="elevatie" min="1" max="90" step="0.1" value="30.2">
+            </div>
+            <div>
+                <label>Objecthoogte (h): <span id="hoogteVal">10</span></label>
+                <input type="range" id="objectHoogte" min="1" max="50" step="1" value="10">
+            </div>
+
+            <div class="data-box">
+                <p>--- SCHADUW BEREKENING ---</p>
+                <p>Formule: <i>L = h / tan(elevatie)</i></p>
+                <p>Schaduwlengte: <span id="schaduwLengteDisplay">17.18</span> eenheden</p>
+                <p>Schaduw Azimut: <span id="schaduwAzimutDisplay">331.1</span>°</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('zonnewijzerCanvas');
+        const ctx = canvas.getContext('2d');
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+
+        // Elementen ophalen
+        const azimutInput = document.getElementById('azimut');
+        const elevatieInput = document.getElementById('elevatie');
+        const hoogteInput = document.getElementById('objectHoogte');
+        
+        const azimutVal = document.getElementById('azimutVal');
+        const elevatieVal = document.getElementById('elevatieVal');
+        const hoogteVal = document.getElementById('hoogteVal');
+        const schaduwLengteDisplay = document.getElementById('schaduwLengteDisplay');
+        const schaduwAzimutDisplay = document.getElementById('schaduwAzimutDisplay');
+
+        // Hulpfunctie: graden naar radialen
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180);
+        }
+
+        function tekenZonnewijzer() {
+            // Waarden inlezen
+            const azimut = parseFloat(azimutInput.value);
+            const elevatie = parseFloat(elevatieInput.value);
+            const h = parseFloat(hoogteInput.value);
+
+            // Update text labels
+            azimutVal.innerText = azimut;
+            elevatieVal.innerText = elevatie;
+            hoogteVal.innerText = h;
+
+            // Wiskundige Schaduwberekening
+            // L = h / tan(elevatie)
+            const schaduwLengte = h / Math.tan(deg2rad(elevatie));
+            const schaduwAzimut = (azimut + 180) % 360;
+
+            schaduwLengteDisplay.innerText = schaduwLengte.toFixed(2);
+            schaduwAzimutDisplay.innerText = schaduwAzimut.toFixed(1);
+
+            // Canvas schoonmaken
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Teken kompas/wijzerplaat
+            tekenKompas();
+
+            // Visuele schaalfactor (pixels per eenheid lengte)
+            const schaal = 5; 
+            const visueleLengte = schaduwLengte * schaal;
+
+            // 2. Schaduw Vector Berekenen
+            // Canvas Y as is omgedraaid (boven is 0), 0 graden (Noord) wijst naar boven (-Y)
+            const schaduwX = cx + visueleLengte * Math.sin(deg2rad(schaduwAzimut));
+            const schaduwY = cy - visueleLengte * Math.cos(deg2rad(schaduwAzimut));
+
+            // Teken de schaduwlijn
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(schaduwX, schaduwY);
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = 'rgba(44, 62, 80, 0.7)'; // Donkergrijs/blauw voor schaduw
+            ctx.stroke();
+
+            // 3. Positie van de Zon weergeven (aan de rand van het canvas)
+            const zonAfstand = 170; // Vaste afstand voor de visuele zon
+            const zonX = cx + zonAfstand * Math.sin(deg2rad(azimut));
+            const zonY = cy - zonAfstand * Math.cos(deg2rad(azimut));
+            
+            // Stippellijn naar de zon
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(zonX, zonY);
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#f39c12';
+            ctx.stroke();
+            ctx.setLineDash([]); // reset
+
+            // Teken het Zon-icoon
+            ctx.beginPath();
+            ctx.arc(zonX, zonY, 12, 0, 2 * Math.PI);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#d35400';
+            ctx.stroke();
+
+            // 4. Teken het centrale object (de 'Gnomon')
+            ctx.beginPath();
+            ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+        }
+
+        function tekenKompas() {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            
+            // Concentrische cirkels
+            for(let r = 50; r <= 150; r += 50) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            // Assenkruis (Noord-Zuid, Oost-West)
+            ctx.beginPath();
+            ctx.moveTo(cx, 10); ctx.lineTo(cx, canvas.height - 10);
+            ctx.moveTo(10, cy); ctx.lineTo(canvas.width - 10, cy);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N', cx, 20);
+            ctx.fillText('Z', cx, canvas.height - 20);
+            ctx.fillText('O', canvas.width - 20, cy);
+            ctx.fillText('W', 20, cy);
+        }
+
+        // Event listeners voor de sliders
+        azimutInput.addEventListener('input', tekenZonnewijzer);
+        elevatieInput.addEventListener('input', tekenZonnewijzer);
+        hoogteInput.addEventListener('input', tekenZonnewijzer);
+
+        // Initiële tekening bij het laden
+        tekenZonnewijzer();
+    </script>
+</body>
+</html>
