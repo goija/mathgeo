@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>63 Klokstappen - 111 Reeks Schets Model</title>
+    <style>
+        body {
+            background-color: #12151a;
+            color: #e6edf3;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        canvas {
+            background: #1c2128;
+            border: 1px solid #444c56;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .controls {
+            margin: 15px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: 1px solid #2ea043;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #2ea043; }
+    </style>
+</head>
+<body>
+
+    <h2>63 Klokstappen | 111-Reeks Ruimtefase (Schets 4315)</h2>
+    <div class="controls">
+        <button onclick="stapVooruit()">Klokstap +1</button>
+        <button onclick="autoLoop()">Auto Run</button>
+        <span id="stapInfo">Stap: 0 / 63 | Modulo 21: 0 (Ring 0)</span>
+    </div>
+
+    <canvas id="schetsCanvas" width="700" height="420"></canvas>
+
+    <script>
+        const canvas = document.getElementById("schetsCanvas");
+        const ctx = canvas.getContext("2d");
+        let huidigeStap = 0;
+        let timer = null;
+
+        function tekenXBox(x, y, size, active) {
+            ctx.strokeStyle = active ? "#f78166" : "#768390";
+            ctx.lineWidth = active ? 2.5 : 1.2;
+            ctx.strokeRect(x - size/2, y - size/2, size, size);
+
+            // Diagonaal kruis (uit de schets)
+            ctx.beginPath();
+            ctx.moveTo(x - size/2, y - size/2);
+            ctx.lineTo(x + size/2, y + size/2);
+            ctx.moveTo(x + size/2, y - size/2);
+            ctx.lineTo(x - size/2, y + size/2);
+            ctx.stroke();
+        }
+
+        function tekenDriehoek(x, y, size, active) {
+            ctx.strokeStyle = active ? "#58a6ff" : "#768390";
+            ctx.lineWidth = active ? 2.5 : 1.2;
+            ctx.beginPath();
+            ctx.moveTo(x - size/2, y - size/3);
+            ctx.lineTo(x + size/2, y - size/3);
+            ctx.lineTo(x, y + (2*size)/3);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function tekenHexagon(x, y, r, active) {
+            ctx.strokeStyle = active ? "#3fb950" : "#768390";
+            ctx.lineWidth = active ? 2.5 : 1.2;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                let a = (i * Math.PI) / 3;
+                let hx = x + r * Math.cos(a);
+                let hy = y + r * Math.sin(a);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Driehoeken Rij (1)
+            for (let i = 0; i < 10; i++) {
+                let x = 60 + i * 62;
+                let active = (huidigeStap % 10 === i);
+                tekenDriehoek(x, 60, 36 - i * 1.8, active);
+            }
+
+            // 2. Gekruiste Vierkanten Rij (2) - Ruimtefase / Roer / Dach
+            for (let i = 0; i < 10; i++) {
+                let x = 60 + i * 62;
+                let active = (Math.floor(huidigeStap / 3) % 10 === i);
+                tekenXBox(x, 150, 36 - i * 1.8, active);
+            }
+
+            // 3. Hexagonen Rij (3)
+            for (let i = 0; i < 10; i++) {
+                let x = 60 + i * 62;
+                let active = ((huidigeStap * 3) % 10 === i);
+                tekenHexagon(x, 240, 20 - i * 1.1, active);
+            }
+
+            // 4. Cirkels & Maatverdeling (Onderzijde)
+            for (let i = 0; i < 10; i++) {
+                let x = 60 + i * 62;
+                let r = 18 - i * 1.0;
+                ctx.strokeStyle = "#444c56";
+                ctx.beginPath();
+                ctx.arc(x, 320, Math.max(r, 4), 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            // Liniaalstrepen onderaan
+            ctx.strokeStyle = "#768390";
+            ctx.beginPath();
+            ctx.moveTo(35, 380);
+            ctx.lineTo(665, 380);
+            for (let x = 35; x <= 665; x += 15.75) {
+                let h = (x % 63 === 0) ? 12 : 6;
+                ctx.moveTo(x, 380);
+                ctx.lineTo(x, 380 - h);
+            }
+            ctx.stroke();
+
+            // Statusupdate
+            let ring = Math.floor((huidigeStap % 63) / 21);
+            let lokaleStap = huidigeStap % 21;
+            document.getElementById("stapInfo").innerText = 
+                `Klokstap: ${huidigeStap % 63} / 63 | Ring: ${ring} (Lokale stap: ${lokaleStap}) | Δ=111 sprong: ${(huidigeStap * 111) % 63}`;
+        }
+
+        function stapVooruit() {
+            huidigeStap = (huidigeStap + 1) % 63;
+            render();
+        }
+
+        function autoLoop() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+            } else {
+                timer = setInterval(stapVooruit, 180);
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>
