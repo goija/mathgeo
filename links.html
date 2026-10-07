@@ -1,16 +1,9 @@
-Hier is een compleet, gestructureerd HTML-bestand dat direct fungeert als een overzichtelijke navigatiehub voor je Vercel-omgeving.
-
-De bestanden zijn logisch gecategoriseerd (Dashboards, Astronomie, Geo/OSINT, etc.) en de interface is opgemaakt in een strak, donker dashboard-design dat aansluit bij je eerdere webinterfaces.
-
-Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.html` overschrijven) in je GitHub-repository.
-
-```html
 <!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MathGeo Seven | Navigatie & Index</title>
+    <title>MathGeo Seven | Volledige Systeemnavigatie</title>
     <style>
         :root {
             --bg-color: #0f141a;
@@ -45,18 +38,18 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         h1 {
             color: #ffffff;
             margin: 0 0 10px 0;
-            font-size: 2em;
+            font-size: 2.2em;
             letter-spacing: 1px;
         }
 
         .base-url {
             color: var(--text-muted);
-            font-size: 0.9em;
+            font-size: 0.95em;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
             gap: 25px;
         }
 
@@ -65,7 +58,7 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
         .category-card h2 {
@@ -93,7 +86,8 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         }
 
         li {
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            word-break: break-all;
         }
 
         a {
@@ -138,8 +132,8 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
 
 <div class="container">
     <header>
-        <h1>MathGeo Seven Systeemnavigatie</h1>
-        <div class="base-url">Deployment: <a href="https://mathgeo-seven.vercel.app/" target="_blank">https://mathgeo-seven.vercel.app/</a></div>
+        <h1>MathGeo Seven | Index</h1>
+        <div class="base-url">Live Deployment: <a href="https://mathgeo-seven.vercel.app/" target="_blank">https://mathgeo-seven.vercel.app/</a></div>
     </header>
 
     <div class="grid">
@@ -148,14 +142,14 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>3D Matrices & Dashboards</h2>
             <ul>
-                <li><a href="geodesic_matrix_dashboard.html">geodesic_matrix_dashboard.html</a></li>
-                <li><a href="integrale_3d_matrix_dashboard.html">integrale_3d_matrix_dashboard.html</a></li>
-                <li><a href="integrale_3d_matrix_synthese.html">integrale_3d_matrix_synthese.html</a></li>
-                <li><a href="integrale_3d_matrix_synthese(1).html">integrale_3d_matrix_synthese(1).html</a></li>
-                <li><a href="integrale_3d_matrix_synthese(2).html">integrale_3d_matrix_synthese(2).html</a></li>
-                <li><a href="mathgeo_seven_advanced_dashboard.html">mathgeo_seven_advanced_dashboard.html</a></li>
-                <li><a href="geodetisch_magritte_dashboard.html">geodetisch_magritte_dashboard.html</a></li>
-                <li><a href="geodetische_cartografische_matrix_dashboard.html">geodetische_cartografische_matrix_dashboard.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geodesic_matrix_dashboard.html" target="_blank">geodesic_matrix_dashboard.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_dashboard.html" target="_blank">integrale_3d_matrix_dashboard.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese.html" target="_blank">integrale_3d_matrix_synthese.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(1).html" target="_blank">integrale_3d_matrix_synthese(1).html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(2).html" target="_blank">integrale_3d_matrix_synthese(2).html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/mathgeo_seven_advanced_dashboard.html" target="_blank">mathgeo_seven_advanced_dashboard.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geodetisch_magritte_dashboard.html" target="_blank">geodetisch_magritte_dashboard.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geodetische_cartografische_matrix_dashboard.html" target="_blank">geodetische_cartografische_matrix_dashboard.html</a></li>
             </ul>
         </div>
 
@@ -163,10 +157,10 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>Astronomisch & Telemetrie</h2>
             <ul>
-                <li><a href="bol.html">bol.html</a></li>
-                <li><a href="mzon.html">mzon.html</a></li>
-                <li><a href="zonnebaar.html">zonnebaar.html</a></li>
-                <li><a href="zonnewijzer.html">zonnewijzer.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/bol.html" target="_blank">bol.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/mzon.html" target="_blank">mzon.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/zonnebaar.html" target="_blank">zonnebaar.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/zonnewijzer.html" target="_blank">zonnewijzer.html</a></li>
             </ul>
         </div>
 
@@ -174,13 +168,13 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>Geo, OSINT & Navigatie</h2>
             <ul>
-                <li><a href="geocommand.html">geocommand.html</a></li>
-                <li><a href="geocomandmobiel.html">geocomandmobiel.html</a></li>
-                <li><a href="mapplotter.html">mapplotter.html</a></li>
-                <li><a href="osint.html">osint.html</a></li>
-                <li><a href="snijpunt.html">snijpunt.html</a></li>
-                <li><a href="vortex_heatmap.html">vortex_heatmap.html</a></li>
-                <li><a href="vortex_kalibrator.html">vortex_kalibrator.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geocommand.html" target="_blank">geocommand.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geocomandmobiel.html" target="_blank">geocomandmobiel.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/mapplotter.html" target="_blank">mapplotter.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/osint.html" target="_blank">osint.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/snijpunt.html" target="_blank">snijpunt.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/vortex_heatmap.html" target="_blank">vortex_heatmap.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/vortex_kalibrator.html" target="_blank">vortex_kalibrator.html</a></li>
             </ul>
         </div>
 
@@ -188,8 +182,8 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>P2P, WebRTC & Client</h2>
             <ul>
-                <li><a href="clientside.html">clientside.html</a></li>
-                <li><a href="spiegel.html">spiegel.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/clientside.html" target="_blank">clientside.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/spiegel.html" target="_blank">spiegel.html</a></li>
             </ul>
         </div>
 
@@ -197,9 +191,9 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>Data Analyse (R / MD)</h2>
             <ul>
-                <li><a href="geodetic_mayan_network_v2.R" class="script" target="_blank">geodetic_mayan_network_v2.R</a></li>
-                <li><a href="vortex_omni_bridge_analyse.R" class="script" target="_blank">vortex_omni_bridge_analyse.R</a></li>
-                <li><a href="alert-tuning-audit-checklist.md" class="script" target="_blank">alert-tuning-audit-checklist.md</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/geodetic_mayan_network_v2.R" class="script" target="_blank">geodetic_mayan_network_v2.R</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/vortex_omni_bridge_analyse.R" class="script" target="_blank">vortex_omni_bridge_analyse.R</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/alert-tuning-audit-checklist.md" class="script" target="_blank">alert-tuning-audit-checklist.md</a></li>
             </ul>
         </div>
 
@@ -207,8 +201,8 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>Directories</h2>
             <ul>
-                <li><a href="3d/" class="folder">/3d</a></li>
-                <li><a href="rust/" class="folder">/rust</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/3d/" class="folder" target="_blank">/3d</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/rust/" class="folder" target="_blank">/rust</a></li>
             </ul>
         </div>
 
@@ -216,28 +210,26 @@ Je kunt deze code kopiëren en opslaan als `links.html` (of hiermee je `index.ht
         <div class="category-card">
             <h2>Overig & Experimenteel</h2>
             <ul>
-                <li><a href="index.html">index.html</a></li>
-                <li><a href="links.html">links.html</a></li>
-                <li><a href="work.html">work.html</a></li>
-                <li><a href="18980.html">18980.html</a></li>
-                <li><a href="klokstappen.html">klokstappen.html</a></li>
-                <li><a href="lowerman.html">lowerman.html</a></li>
-                <li><a href="pdf.html">pdf.html</a></li>
-                <li><a href="tuinieren.html">tuinieren.html</a></li>
-                <li><a href="wetenschap.html">wetenschap.html</a></li>
-                <li><a href="gemini-code-1790779583503.html">gemini-code-1790779583503.html</a></li>
-                <li><a href="gemini-code-1790838575691.html">gemini-code-1790838575691.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/index.html" target="_blank">index.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/links.html" target="_blank">links.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/work.html" target="_blank">work.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/18980.html" target="_blank">18980.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/klokstappen.html" target="_blank">klokstappen.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/lowerman.html" target="_blank">lowerman.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/pdf.html" target="_blank">pdf.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/tuinieren.html" target="_blank">tuinieren.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/wetenschap.html" target="_blank">wetenschap.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/gemini-code-1790779583503.html" target="_blank">gemini-code-1790779583503.html</a></li>
+                <li><a href="https://mathgeo-seven.vercel.app/gemini-code-1790838575691.html" target="_blank">gemini-code-1790838575691.html</a></li>
             </ul>
         </div>
 
     </div>
 
     <footer>
-        Geconsolideerde repository navigatie | Automatisch gegenereerd
+        Vercel Deployment URL: https://mathgeo-seven.vercel.app/ | Laatst bijgewerkt: Oktober 2026
     </footer>
 </div>
 
 </body>
 </html>
-
-```
