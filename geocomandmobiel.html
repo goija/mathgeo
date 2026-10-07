@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GEOINT Command Center - Mobile Ready, Layers & Advanced Export</title>
+    
+    <!-- Ontwerp en ontwikkeling: Bedrijven en overheid hebben geen toestemming tot gebruik van mijn code. -->
+
+    <!-- Kaart & Wiskunde Bibliotheken -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    
+    <!-- P2P & Document Export Bibliotheken -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #64ffda; --primary-hover: #4cd3b6;
+            --bg-dark: #05131f; --panel-bg: rgba(10, 25, 47, 0.92);
+            --border-color: rgba(100, 255, 218, 0.4);
+            --text-main: #e0e0e0; --text-muted: #8a9ba8;
+            --info: #3498db; --sun: #facc15; --moon: #ecf0f1;
+            --time: #a78bfa; --shadow: #3b82f6;
+            --red-accent: #ff4757; --vp4-green: #2ecc71;
+            --compass-bg: #1e2530;
+        }
+
+        body { margin: 0; padding: 0; background-color: var(--bg-dark); font-family: 'Courier New', Courier, monospace; overflow: hidden; color: var(--text-main); }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+        
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 30px; height: 30px; pointer-events: none; z-index: 5;
+            border: 2px solid rgba(100, 255, 218, 0.5); border-radius: 50%;
+            box-shadow: 0 0 15px rgba(100, 255, 218, 0.3); background: radial-gradient(circle, rgba(0,0,0,0.8) 10%, transparent 15%);
+        }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: var(--primary); }
+        #crosshair::before { top: 14px; left: -10px; width: 50px; height: 2px; opacity: 0.8; }
+        #crosshair::after { left: 14px; top: -10px; height: 50px; width: 2px; opacity: 0.8; }
+
+        .sidebar {
+            position: absolute; top: 15px; bottom: 15px;
+            background: var(--panel-bg); backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color); border-radius: 8px;
+            z-index: 10; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        #sidebar-left { left: 15px; width: 350px; }
+        #sidebar-right { right: 15px; width: 400px; }
+
+        .sidebar-header { background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid var(--border-color); padding: 8px; text-align: center; font-size: 11px; color: var(--primary); font-weight: bold; letter-spacing: 1px; }
+        .panel-content { padding: 12px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; }
+        .panel-content::-webkit-scrollbar { width: 4px; }
+        .panel-content::-webkit-scrollbar-thumb { background: rgba(100, 255, 218, 0.5); border-radius: 2px; }
+
+        h2 { margin: 0; color: var(--primary); font-size: 10.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .row-group { display: flex; gap: 6px; align-items: center; }
+
+        .loc-input, select, input[type="text"], input[type="number"], input[type="datetime-local"], textarea.loc-input { 
+            width: 100%; padding: 6px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary); color: #fff; border-radius: 4px; font-family: monospace; font-size: 11px; box-sizing: border-box; outline: none; color-scheme: dark;
+        }
+        input[type="color"] { padding: 0; height: 28px; width: 40px; border: 1px solid var(--primary); background: transparent; cursor: pointer; }
+        input[type="checkbox"] { accent-color: var(--primary); transform: scale(1.2); margin-right: 5px; cursor: pointer; }
+        
+        .btn { background: var(--primary); color: var(--bg-dark); border: none; padding: 7px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; font-size: 11px; width: 100%; box-sizing: border-box; transition: 0.2s; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-time { background: var(--time); color: #000; }
+        .btn-r { background: #2ecc71; color: #fff; }
+
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        .btn-preset { background: rgba(52, 152, 219, 0.2); border: 1px solid var(--info); color: #fff; padding: 6px; font-size: 10px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .btn-preset:hover { background: var(--info); }
+
+        .math-box { border: 1px solid var(--shadow); background: rgba(0, 0, 0, 0.65); padding: 8px; font-family: monospace; font-size: 9.5px; color: #e0e0e0; border-radius: 3px; }
+        
+        /* Draggable Windows */
+        .drag-window {
+            position: absolute; background: rgba(13, 27, 36, 0.95); border: 1px solid var(--primary); border-radius: 6px;
+            z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: none; flex-direction: column; resize: both; overflow: hidden;
+        }
+        .drag-header { background: rgba(100, 255, 218, 0.15); border-bottom: 1px solid var(--primary); padding: 8px 10px; font-size: 10px; font-weight: bold; color: var(--primary); cursor: move; display: flex; justify-content: space-between; align-items: center; }
+        .drag-close { cursor: pointer; color: #e74c3c; font-size: 14px; padding: 0 5px; }
+        
+        #layer-window { top: 20px; left: 380px; width: 340px; min-width: 250px; min-height: 250px; }
+        #planimeter-window { bottom: 20px; left: 380px; width: 300px; min-width: 250px; min-height: 300px; max-height: 85vh; }
+        #vp4-window { top: 20px; left: 700px; width: 500px; min-width: 400px; min-height: 600px; max-height: 95vh; }
+        #p2p-window { top: 50px; left: 100px; width: 400px; min-width: 350px; min-height: 550px; max-height: 90vh; }
+
+        .pl-dials-container { display: flex; justify-content: space-around; padding: 10px 5px; background: rgba(0,0,0,0.3); border-bottom: 1px dotted rgba(255,255,255,0.2); }
+        .pl-dial-wrapper { display: flex; flex-direction: column; align-items: center; }
+        .pl-dial-label { color: var(--text-muted); font-size: 8.5px; text-align: center; margin-bottom: 4px; }
+        .pl-dial-outer { width: 36px; height: 36px; border-radius: 50%; border: 4px dashed; display: flex; justify-content: center; align-items: center; cursor: ns-resize; transition: transform 0.08s linear; }
+        .pl-dial-inner { width: 10px; height: 10px; border-radius: 50%; border: 2px dotted; transition: transform 0.08s linear; }
+        .outer-cyan { border-color: var(--primary); } .outer-red { border-color: var(--red-accent); } .outer-blue { border-color: var(--info); }
+        
+        .canvas-container { position: relative; flex-grow: 1; display: flex; flex-direction: column; min-height: 150px; overflow: hidden; border: 1px solid var(--primary); border-radius: 4px; }
+        .canvas-wrapper { position: relative; flex-grow: 1; width: 100%; overflow: hidden; }
+        .viewport-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+        .vp4-btn { background: var(--info); color: white; border: none; padding: 4px 8px; font-size: 9px; font-family: inherit; font-weight: bold; border-radius: 3px; cursor: pointer; }
+        
+        /* Map Labels */
+        .custom-text-label {
+            background: rgba(0,0,0,0.85); color: #fff; padding: 5px 8px; border-radius: 4px;
+            font-size: 11px; font-family: monospace; border: 2px solid var(--primary);
+            white-space: nowrap; cursor: grab; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+        }
+        .custom-text-label:active { cursor: grabbing; }
+
+        .layer-item { display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        /* MapLibre Controls Positioning */
+        .maplibregl-ctrl-top-right { top: 15px; right: 430px; z-index: 9; }
+        .maplibregl-ctrl-bottom-right { bottom: 15px; right: 430px; z-index: 9; }
+        .maplibregl-ctrl-bottom-left { bottom: 15px; left: 380px; z-index: 9; }
+
+        /* MOBILE RESPONSIVE UI */
+        #mobile-hud { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 50; gap: 10px; background: rgba(10, 25, 47, 0.85); padding: 8px 15px; border-radius: 30px; border: 1px solid var(--primary); box-shadow: 0 4px 15px rgba(0,0,0,0.7); backdrop-filter: blur(10px); }
+        .mob-btn { background: transparent; color: var(--primary); border: none; font-size: 12px; font-weight: bold; font-family: monospace; cursor: pointer; text-transform: uppercase; }
+        .mob-btn:hover { color: #fff; }
+
+        @media screen and (max-width: 900px) {
+            .sidebar { display: none; top: 10px; bottom: 80px; left: 10px; right: 10px; width: auto !important; max-height: 80vh; z-index: 60; }
+            .sidebar.active { display: flex; }
+            #mobile-hud { display: flex; }
+            .maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { display: none !important; }
+            .drag-window { top: 5% !important; left: 5% !important; right: 5% !important; width: 90% !important; height: 85vh !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <div id="crosshair"></div>
+
+    <!-- MOBIELE HUD NAVIGATIE -->
+    <div id="mobile-hud">
+        <button class="mob-btn" onclick="toggleMobileSidebar('sidebar-left')">🛠 Toolbox</button>
+        <span style="color: var(--primary);">|</span>
+        <button class="mob-btn" onclick="toggleMobileSidebar('sidebar-right')">⚙️ Telemetrie</button>
+    </div>
+
+    <!-- LINKER ZIJBALK -->
+    <aside id="sidebar-left" class="sidebar">
+        <div class="sidebar-header">
+            <span>≡ 3D Terrain & Toolbox</span>
+            <span class="drag-close" style="float:right; display:none;" onclick="toggleMobileSidebar('sidebar-left')">✖</span>
+        </div>
+        <div class="panel-content">
+            
+            <div class="input-group">
+                <h2>📍 Navigatie & Zoeken</h2>
+                <div class="row-group" style="margin-bottom: 4px;">
+                    <input type="text" id="loc-input" class="loc-input" placeholder="Plaatsnaam of Lat, Lng">
+                    <button id="loc-btn" class="btn" style="width: 80px;">Zoek</button>
+                </div>
+                <div class="preset-grid">
+                    <button class="btn-preset" onclick="flyToPOI([5.1667, 52.2833], 15)">Tafelberg</button>
+                    <button class="btn-preset" onclick="flyToPOI([4.0833, 51.5480], 15)">Vlierberg</button>
+                    <button class="btn-preset" onclick="flyToPOI([4.0760, 51.5470], 15)" style="background: rgba(232, 67, 147, 0.2);">St-Maartensdijk</button>
+                    <button class="btn-preset" onclick="flyToPOI([4.8952, 52.3702], 14)">Amsterdam</button>
+                    <button class="btn-preset" onclick="flyToPOI([4.4777, 51.9244], 14)">Rotterdam</button>
+                    <button class="btn-preset" onclick="flyToPOI([5.1214, 52.0907], 14)">Utrecht</button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <h2>🛠 Vector Toolbox (Draggable)</h2>
+                <select id="tool-select" class="loc-input" style="border-color: #e84393; font-weight: bold; font-size: 11px; height: 32px; background: rgba(232, 67, 147, 0.1);">
+                    <option value="navigate">🖐 Navigatie (Map vrij)</option>
+                    <option value="flag">🚩 Target Vlag (Vizier Meting)</option>
+                    <option value="sun-pointer">☀️ Zonnemeter (Live Vector)</option>
+                    <option value="moon-pointer">🌙 Maanmeter (Live Vector)</option>
+                    <option value="shadow-pointer">🌑 Schaduwmeter (Live Vector)</option>
+                    <option value="plano-pointer">📍 Plano Pointer (50m Cirkel)</option>
+                    <option value="text">🔤 Tekstlabel Invoegen</option>
+                    <option disabled>──────────</option>
+                    <option value="line">📏 Lijn Tekenen (Vast)</option>
+                    <option value="dashed-line">✂️ Stippellijn (Vast)</option>
+                    <option value="polygon">🛑 Vlak / Polygoon (Vast)</option>
+                    <option value="bezier">〰️ Bézier Curve (Vast)</option>
+                </select>
+                
+                <div class="row-group" style="margin-top: 5px;">
+                    <input type="color" id="draw-color" value="#3498db" title="Kies Kleur">
+                    <button id="btn-finish-shape" class="btn" style="background: var(--vp4-green); color: #000; flex: 1;">✅ Voltooi Lijn/Vorm</button>
+                </div>
+                <button id="btn-clear-tools" class="btn" style="background: #e74c3c; margin-top: 4px;">🗑 Wis Alle Tools & Data</button>
+            </div>
+            
+            <div class="input-group" style="margin-top: auto;">
+                <h2>🖥 Workstations</h2>
+                <button onclick="document.getElementById('layer-window').style.display = 'flex'" class="btn" style="background: #9b59b6; color: white; margin-bottom: 5px;">🪟 Kaartlagen & Overlays</button>
+                <button onclick="document.getElementById('planimeter-window').style.display = 'flex'" class="btn" style="background: var(--shadow); color: white; margin-bottom: 5px;">🧭 3D Kompas Instrument</button>
+                <button onclick="document.getElementById('vp4-window').style.display = 'flex'" class="btn" style="background: var(--info); color: white; margin-bottom: 5px;">🪟 VP4 Vector Mirror & Tools</button>
+                <button onclick="document.getElementById('p2p-window').style.display = 'flex'" class="btn" style="background: #e67e22; color: white;">📡 P2P Data Link & Video</button>
+                
+                <!-- Advanced Export Options -->
+                <div style="font-size: 9px; color: #2ecc71; text-align: center; font-weight: bold; margin-top: 10px;" id="log-counter">0 records in RAM</div>
+                <div class="row-group" style="margin-top: 4px;">
+                    <button id="btn-export-csv" class="btn btn-r" style="flex: 1; font-size: 9px;" title="Exporteer als CSV">CSV</button>
+                    <button id="btn-export-json" class="btn btn-r" style="flex: 1; background: #e67e22; font-size: 9px;" title="Exporteer als JSON">JSON</button>
+                    <button id="btn-export-txt" class="btn btn-r" style="flex: 1; background: #9b59b6; font-size: 9px;" title="Exporteer als Tekst">TXT</button>
+                    <button id="btn-export-pdf" class="btn btn-r" style="flex: 1; background: #e74c3c; font-size: 9px;" title="Exporteer als PDF Document">PDF</button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- RECHTER ZIJBALK -->
+    <aside id="sidebar-right" class="sidebar">
+        <div class="sidebar-header">
+            <span>≡ Ruimte-Tijd & Telemetrie</span>
+            <span class="drag-close" style="float:right; display:none;" onclick="toggleMobileSidebar('sidebar-right')">✖</span>
+        </div>
+        <div class="panel-content">
+            <div class="input-group">
+                <h2>⏳ Tijdreis Module (Simulatie)</h2>
+                <div class="row-group">
+                    <input type="datetime-local" id="sim-time" class="loc-input" style="flex: 2;">
+                    <button id="btn-set-time" class="btn btn-time" style="flex: 1;">Projecteer</button>
+                </div>
+                <button id="btn-realtime" class="btn" style="background: #34495e; color: #fff;">▶ Live Real-Time</button>
+            </div>
+
+            <div class="input-group">
+                <h2>☀️ Target & Terrein Instellingen</h2>
+                <div class="row-group">
+                    <label style="font-size: 9.5px; color: var(--primary); flex: 1.2;">Target IP:</label>
+                    <input type="text" id="target-ip" placeholder="127.0.0.1" style="flex: 2; padding: 4px;">
+                </div>
+                <div class="row-group">
+                    <label style="font-size: 9.5px; color: var(--primary); flex: 1.2;">Gnomon H (m):</label>
+                    <input type="number" id="gnomon-height" value="39.2" step="0.1" style="flex: 2; padding: 4px;">
+                </div>
+                <div class="row-group">
+                    <label style="font-size: 9.5px; color: var(--primary); flex: 1.2;">Terrein Helling (°):</label>
+                    <input type="number" id="terrain-slope" value="3" step="0.1" style="flex: 2; padding: 4px;">
+                </div>
+                <div class="row-group">
+                    <label style="font-size: 9.5px; color: var(--primary); flex: 1.2;">Wal Afstand (m Y):</label>
+                    <input type="number" id="wall-dist" value="25" step="0.1" style="flex: 2; padding: 4px;">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <h2>🧮 Live Geometrie Vizier (Kruis)</h2>
+                <div class="math-box">
+                    <strong>Tijd/IP:</strong> <span id="math-time">--</span> | <span id="math-ip" style="color: var(--primary);">--</span><br>
+                    <strong>Zon Elev/Azi:</strong> <span id="math-elev">0.00</span>° | <span id="math-azi">0.00</span>°<br>
+                    <strong>Maan Elev/Azi:</strong> <span id="math-moon-elev">0.00</span>° | <span id="math-moon-azi">0.00</span>°<br>
+                    <strong>Schaduw L (Helling):</strong> <strong style="color: var(--sun);" id="math-len">0.00</strong> m<br>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.2); margin: 4px 0;">
+                    <strong style="color: #e84393;">Wal-Pointer Intersectie:</strong><br>
+                    Hit op Wal?: <span id="math-wal-hit">Nee</span><br>
+                    X-As Snijpunt: <span id="math-wal-x">0.00</span> m<br>
+                    Geprojecteerde Schaduw H: <strong style="color: var(--info);" id="math-wal-h">0.00</strong> m
+                </div>
+            </div>
+
+            <div class="input-group">
+                <h2>💻 Terminal (math.js)</h2>
+                <textarea id="calc-invoer" class="loc-input" style="height: 38px;" placeholder="Bijv: det([-1, 2; 3, 1])"></textarea>
+                <button id="btn-calc" class="btn" style="background: var(--primary); color: #000;">Bereken Formule</button>
+                <div style="font-size: 9.5px; color: var(--primary); margin-top: 2px;" id="calc-uitvoer">Gereed voor invoer...</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- WORKSTATION 1: KAARTLAGEN & OVERLAYS -->
+    <div id="layer-window" class="drag-window">
+        <div class="drag-header" id="layer-header">
+            <span>≡ MAPLIBRE KAARTLAGEN & OVERLAYS</span>
+            <span class="drag-close" onclick="document.getElementById('layer-window').style.display='none'">✖</span>
+        </div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto;">
+            <label style="font-size: 10px; color: var(--primary); font-weight: bold;">🌍 BASISKAART PROVIDERS</label>
+            <select id="layer-base-select" class="loc-input" style="margin-bottom: 10px;">
+                <option value="dark">Carto Dark Matter (Standaard Vector)</option>
+                <option value="light">Carto Light (Helder Vector)</option>
+                <option value="satellite">Esri Satellite (Hi-Res Raster)</option>
+                <option value="osm">OpenStreetMap (Standaard Raster)</option>
+                <option value="topo">OpenTopoMap (Reliëf Raster)</option>
+                <option value="hist">Esri NatGeo (Historisch Raster)</option>
+                <option value="street">Esri World Street (Raster)</option>
+            </select>
+            
+            <label style="font-size: 10px; color: var(--primary); font-weight: bold; margin-top: 5px;">📡 TRANSPARANTE OVERLAYS</label>
+            <div class="layer-item"><input type="checkbox" id="chk-grid"> <span style="font-size: 11px;">🌐 Geodetisch Coördinaten Grid</span></div>
+            <div class="layer-item"><input type="checkbox" id="chk-sea"> <span style="font-size: 11px;">⚓ OpenSeaMap (Maritiem)</span></div>
+            <div class="layer-item"><input type="checkbox" id="chk-rail"> <span style="font-size: 11px;">🚂 OpenRailwayMap (Spoorwegen)</span></div>
+            <div class="layer-item"><input type="checkbox" id="chk-hike"> <span style="font-size: 11px;">🥾 Waymarked Trails (Wandelroutes)</span></div>
+            <div class="layer-item"><input type="checkbox" id="chk-cycle"> <span style="font-size: 11px;">🚲 Waymarked Trails (Fietsroutes)</span></div>
+        </div>
+    </div>
+
+    <!-- WORKSTATION 2: KOMPAS WINDOW -->
+    <div id="planimeter-window" class="drag-window">
+        <div class="drag-header" id="planimeter-header">
+            <span>≡ 3D KOMPAS OVERZICHT</span>
+            <span class="drag-close" onclick="document.getElementById('planimeter-window').style.display='none'">✖</span>
+        </div>
+        <div style="padding: 10px; display: flex; flex-direction: column; flex-grow: 1;">
+            <div class="canvas-container" style="background: var(--compass-bg); border-color: #333e4f;">
+                <div class="canvas-wrapper"><canvas id="compass-canvas" class="viewport-canvas"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WORKSTATION 3: VP4 MIRROR VENSTER (NU MET ALLE HULPGEREEDSCHAPPEN & EXPORT) -->
+    <div id="vp4-window" class="drag-window">
+        <div class="drag-header" id="vp4-header">
+            <span>≡ VP4: VECTOR MIRROR & TOOLBOX</span>
+            <span class="drag-close" onclick="document.getElementById('vp4-window').style.display='none'">✖</span>
+        </div>
+        
+        <!-- VP4 Mini Dials voor Map Navigatie -->
+        <div class="pl-dials-container" style="padding: 5px; background: rgba(0,0,0,0.6); border-bottom: 1px solid var(--primary);">
+            <div class="pl-dial-wrapper"><div class="pl-dial-label" style="margin-bottom:2px;">AZIMUT</div><div class="pl-dial-outer outer-cyan" style="width:25px; height:25px; border-width:2px;" data-type="bearing"><div class="pl-dial-inner inner-red" style="width:8px; height:8px; border-width:1px;"></div></div></div>
+            <div class="pl-dial-wrapper"><div class="pl-dial-label" style="margin-bottom:2px;">PITCH</div><div class="pl-dial-outer outer-red" style="width:25px; height:25px; border-width:2px;" data-type="pitch"><div class="pl-dial-inner inner-cyan" style="width:8px; height:8px; border-width:1px;"></div></div></div>
+            <div class="pl-dial-wrapper"><div class="pl-dial-label" style="margin-bottom:2px;">ZOOM</div><div class="pl-dial-outer outer-blue" style="width:25px; height:25px; border-width:2px;" data-type="zoom"><div class="pl-dial-inner inner-yellow" style="width:8px; height:8px; border-width:1px;"></div></div></div>
+        </div>
+
+        <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto;">
+            
+            <div style="display: flex; gap: 5px;">
+                <button class="vp4-btn" id="btn-vp4-labels" style="background: #e67e22; flex: 1;">🔤 Label Punten</button>
+                <div style="display: flex; gap: 2px; flex: 1;">
+                    <button class="vp4-btn" id="vp4-exp-txt" style="background: var(--vp4-green); color: #000; flex:1;" title="TXT">TXT</button>
+                    <button class="vp4-btn" id="vp4-exp-json" style="background: #e67e22; flex:1;" title="JSON">JSON</button>
+                    <button class="vp4-btn" id="vp4-exp-pdf" style="background: #e74c3c; flex:1;" title="PDF">PDF</button>
+                </div>
+            </div>
+            
+            <div style="background: #000; border: 1px solid var(--primary); padding: 6px; font-size: 9px; color: var(--sun); line-height: 1.35; max-height: 65px; overflow-y: auto; flex-shrink: 0;" id="vp4-terminal-text">Systeem initialiseert...</div>
+            
+            <div style="text-align: center; font-family: monospace; font-size: 11px; color: var(--info); font-weight: bold;" id="vp4-stramien-area">
+                Oppervlakte Stramien: -- m²
+            </div>
+
+            <div class="canvas-container" style="background: #ffffff;">
+                <div style="display: flex; gap: 6px; padding: 6px; background: rgba(0,0,0,0.8); border-bottom: 1px solid var(--primary); z-index: 2;">
+                    <button class="vp4-btn" id="btn-vp4-mirror">↔ Spiegel Stramien</button>
+                    <button class="vp4-btn" id="btn-vp4-savepng" style="background: #9b59b6;">🖼 Sla PNG Op</button>
+                </div>
+                <div class="canvas-wrapper"><canvas id="vector-canvas" class="viewport-canvas"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WORKSTATION 4: P2P TACTISCHE DATA LINK & VIDEO -->
+    <div id="p2p-window" class="drag-window">
+        <div class="drag-header" id="p2p-header">
+            <span>≡ P2P TACTISCHE DATA LINK & VIDEO</span>
+            <span class="drag-close" onclick="document.getElementById('p2p-window').style.display='none'">✖</span>
+        </div>
+        <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: hidden;">
+            <div style="font-size: 10px; color: var(--primary);">Mijn Node ID: <strong id="my-peer-id" style="color: var(--sun); user-select: all;">Initialiseren...</strong></div>
+            <div class="row-group">
+                <input type="text" id="remote-peer-id" class="loc-input" placeholder="Voer Remote ID in...">
+                <button id="btn-connect-peer" class="btn" style="width: 80px; background: var(--vp4-green); color: #000;">Verbind</button>
+            </div>
+            <div class="p2p-video-container">
+                <video id="local-video" class="p2p-video" autoplay muted playsinline></video>
+                <video id="remote-video" class="p2p-video" autoplay playsinline></video>
+            </div>
+            <div id="p2p-chat-box" class="p2p-chat-box"><div class="chat-msg" style="text-align: center; color: var(--text-muted);">Systeem Gereed voor P2P link.</div></div>
+            <div class="row-group">
+                <input type="text" id="p2p-chat-input" class="loc-input" placeholder="Type bericht..." style="flex: 1;">
+                <button id="btn-send-chat" class="btn" style="width: 60px;">Zend</button>
+            </div>
+            <div class="row-group" style="margin-top: 2px;">
+                <input type="file" id="p2p-file-input" style="display: none;" accept=".svg,.png,.jpg,.jpeg,.geojson,.kml,.json">
+                <button class="btn" style="background: var(--shadow); color: white;" onclick="document.getElementById('p2p-file-input').click()">📁 Bestand (Map/Geo) Delen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- MOBILE HUD & SIDEBAR TOGGLE ---
+        function toggleMobileSidebar(id) {
+            const sidebars = document.querySelectorAll('.sidebar');
+            const target = document.getElementById(id);
+            const isCurrentlyActive = target.classList.contains('active');
+            
+            sidebars.forEach(s => s.classList.remove('active'));
+            
+            if (!isCurrentlyActive) {
+                target.classList.add('active');
+                target.querySelector('.drag-close').style.display = window.innerWidth <= 900 ? 'block' : 'none';
+            }
+        }
+
+        // --- BUGFIX: DRAG LOGICA VOOR VENSTERS ---
+        let highestZIndex = 100;
+        function makeDraggable(elmnt, header) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            elmnt.onmousedown = () => { elmnt.style.zIndex = ++highestZIndex; };
+            header.onmousedown = (e) => {
+                if(e.target.tagName === 'BUTTON' || e.target.tagName === 'SPAN' && e.target.className === 'drag-close') return;
+                e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+                document.onmousemove = (ev) => {
+                    ev.preventDefault(); pos1 = pos3 - ev.clientX; pos2 = pos4 - ev.clientY; pos3 = ev.clientX; pos4 = ev.clientY;
+                    elmnt.style.top = (elmnt.offsetTop - pos2) + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+                };
+            };
+        }
+        makeDraggable(document.getElementById("vp4-window"), document.getElementById("vp4-header"));
+        makeDraggable(document.getElementById("planimeter-window"), document.getElementById("planimeter-header"));
+        makeDraggable(document.getElementById("layer-window"), document.getElementById("layer-header"));
+        makeDraggable(document.getElementById("p2p-window"), document.getElementById("p2p-header"));
+
+        // --- MAP INITIALISATIE ---
+        const map = new maplibregl.Map({
+            container: 'map', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [5.1667, 52.2833], zoom: 16, pitch: 45, bearing: 0, preserveDrawingBuffer: true 
+        });
+
+        // --- MAPLIBRE TOOLSETS INJECTIE ---
+        map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+        map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+        map.addControl(new maplibregl.ScaleControl({ maxWidth: 200, unit: 'metric' }), 'bottom-left');
+        map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'bottom-right');
+
+        // --- GLOBALE VARIABELEN ---
+        let globalSunAz = 0, globalSunEl = 0, globalMoonAz = 0, globalMoonEl = 0, globalShadowLen = 0, globalIsNight = false;
+        let wallX = 0, wallH = 0, hitsWall = false;
+        let timeOffset = 0, isSimulating = false, isMirrored = false, lastMoveUpdate = 0;
+        let logboekData = [];
+
+        // --- TOOLBOX ARRAYS ---
+        let drawnShapes = [];       
+        let activeLineCoords = [];  
+        let activeLineLabels = [];  
+        let targetFlags = [];       
+        let dynamicPointers = [];   
+        let planoPointers = [];     
+        let textMarkers = [];       
+
+        const fanColors = { 8:"#0000ff", 9:"#3300cc", 10:"#660099", 11:"#990066", 12:"#cc0033", 13:"#ff6600", 14:"#ffcc00", 15:"#ff9900", 16:"#cc6600", 17:"#cc3300", 18:"#990000", 19:"#660000", 20:"#330000" };
+
+        map.on('load', () => {
+            // Dem
+            map.addSource('terrain-source', { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], encoding: 'terrarium', tileSize: 256 });
+            map.setTerrain({ source: 'terrain-source', exaggeration: 1.8 });
+
+            // Basis Lagen (Providers)
+            map.addSource('light-tiles', { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'light-layer', type: 'raster', source: 'light-tiles', layout: {visibility: 'none'} });
+            map.addSource('sat-tiles', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 }); map.addLayer({ id: 'sat-layer', type: 'raster', source: 'sat-tiles', layout: {visibility: 'none'} });
+            map.addSource('osm-tiles', { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'osm-layer', type: 'raster', source: 'osm-tiles', layout: {visibility: 'none'} });
+            map.addSource('topo-tiles', { type: 'raster', tiles: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'topo-layer', type: 'raster', source: 'topo-tiles', layout: {visibility: 'none'} });
+            map.addSource('hist-tiles', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 }); map.addLayer({ id: 'hist-layer', type: 'raster', source: 'hist-tiles', layout: {visibility: 'none'} });
+            map.addSource('street-tiles', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 }); map.addLayer({ id: 'street-layer', type: 'raster', source: 'street-tiles', layout: {visibility: 'none'} });
+
+            // Overlays
+            map.addSource('seamarks-src', { type: 'raster', tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'seamarks-layer', type: 'raster', source: 'seamarks-src', layout: {visibility: 'none'} });
+            map.addSource('rail-src', { type: 'raster', tiles: ['https://a.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'rail-layer', type: 'raster', source: 'rail-src', layout: {visibility: 'none'} });
+            map.addSource('hike-src', { type: 'raster', tiles: ['https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'hike-layer', type: 'raster', source: 'hike-src', layout: {visibility: 'none'} });
+            map.addSource('cycle-src', { type: 'raster', tiles: ['https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png'], tileSize: 256 }); map.addLayer({ id: 'cycle-layer', type: 'raster', source: 'cycle-src', layout: {visibility: 'none'} });
+
+            map.addSource('grid-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); map.addLayer({ id: 'grid-layer', type: 'line', source: 'grid-source', paint: { 'line-color': 'rgba(100, 255, 218, 0.4)', 'line-width': 1, 'line-dasharray': [2, 4] }, layout: {visibility: 'none'} });
+
+            // Vizier Vectoren
+            map.addSource('sun-fan', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); map.addLayer({ id: 'sun-fan-lines', type: 'line', source: 'sun-fan', paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.8 } });
+            map.addSource('shadow-vector', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); map.addLayer({ id: 'shadow-line', type: 'line', source: 'shadow-vector', paint: { 'line-color': '#3b82f6', 'line-width': 4, 'line-opacity': 0.8, 'line-dasharray': [2, 2] } });
+
+            // Statische Tekeningen Lagen
+            map.addSource('drawn-shapes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({ id: 'drawn-poly', type: 'fill', source: 'drawn-shapes', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.3 } });
+            map.addLayer({ id: 'drawn-line', type: 'line', source: 'drawn-shapes', filter: ['all', ['==', '$type', 'LineString'], ['!=', ['get', 'dashed'], true]], paint: { 'line-color': ['get', 'color'], 'line-width': 3 } });
+            map.addLayer({ id: 'drawn-line-dashed', type: 'line', source: 'drawn-shapes', filter: ['all', ['==', '$type', 'LineString'], ['==', ['get', 'dashed'], true]], paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-dasharray': [2, 2] } });
+
+            map.addSource('active-draw', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({ id: 'active-draw-poly', type: 'fill', source: 'active-draw', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.3 } });
+            map.addLayer({ id: 'active-draw-line', type: 'line', source: 'active-draw', filter: ['==', '$type', 'LineString'], paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-dasharray': [2, 2] } });
+            map.addLayer({ id: 'active-draw-pts', type: 'circle', source: 'active-draw', filter: ['==', '$type', 'Point'], paint: { 'circle-color': '#e74c3c', 'circle-radius': 4 } });
+
+            // Dynamische Lagen 
+            map.addSource('dynamic-lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({ id: 'dynamic-lines-dashed', type: 'line', source: 'dynamic-lines', filter: ['==', ['get', 'dashed'], true], paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-dasharray': [2, 2] } });
+            map.addLayer({ id: 'dynamic-lines-solid', type: 'line', source: 'dynamic-lines', filter: ['!=', ['get', 'dashed'], true], paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'] } });
+
+            map.addSource('plano-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({ id: 'plano-layer-fill', type: 'fill', source: 'plano-source', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 } });
+            map.addLayer({ id: 'plano-layer-line', type: 'line', source: 'plano-source', paint: { 'line-color': ['get', 'color'], 'line-width': 2 } });
+
+            map.addSource('p2p-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({ id: 'p2p-layer-fill', type: 'fill', source: 'p2p-source', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#9b59b6', 'fill-opacity': 0.4 } });
+            map.addLayer({ id: 'p2p-layer-line', type: 'line', source: 'p2p-source', filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#9b59b6', 'line-width': 4 } });
+
+            setInterval(() => coreTelemetry(true), 1000); 
+            
+            map.on('move', () => {
+                updateGraticule(); 
+                const nu = Date.now();
+                if (nu - lastMoveUpdate > 40) { lastMoveUpdate = nu; coreTelemetry(false); drawCompassMirror(); }
+            });
+
+            new ResizeObserver(drawCanvasMirror).observe(document.getElementById('vector-canvas').parentElement);
+            new ResizeObserver(drawCompassMirror).observe(document.getElementById('compass-canvas').parentElement);
+        });
+
+        // --- LAYER WORKSTATION LOGICA ---
+        document.getElementById('layer-base-select').addEventListener('change', (e) => {
+            const layers = ['sat-layer', 'osm-layer', 'topo-layer', 'hist-layer', 'street-layer', 'light-layer'];
+            layers.forEach(l => map.setLayoutProperty(l, 'visibility', 'none'));
+            if (e.target.value !== 'dark') map.setLayoutProperty(e.target.value + '-layer', 'visibility', 'visible');
+        });
+        document.getElementById('chk-sea').addEventListener('change', (e) => { map.setLayoutProperty('seamarks-layer', 'visibility', e.target.checked ? 'visible' : 'none'); });
+        document.getElementById('chk-rail').addEventListener('change', (e) => { map.setLayoutProperty('rail-layer', 'visibility', e.target.checked ? 'visible' : 'none'); });
+        document.getElementById('chk-hike').addEventListener('change', (e) => { map.setLayoutProperty('hike-layer', 'visibility', e.target.checked ? 'visible' : 'none'); });
+        document.getElementById('chk-cycle').addEventListener('change', (e) => { map.setLayoutProperty('cycle-layer', 'visibility', e.target.checked ? 'visible' : 'none'); });
+        
+        document.getElementById('chk-grid').addEventListener('change', (e) => { 
+            map.setLayoutProperty('grid-layer', 'visibility', e.target.checked ? 'visible' : 'none'); 
+            if (e.target.checked) updateGraticule();
+        });
+
+        function updateGraticule() {
+            if (!map.isStyleLoaded() || !document.getElementById('chk-grid').checked) return;
+            const b = map.getBounds(); let features = [];
+            const step = map.getZoom() > 14 ? 0.005 : (map.getZoom() > 10 ? 0.05 : 0.5);
+            const minLng = Math.floor(b.getWest() / step) * step; const maxLng = Math.ceil(b.getEast() / step) * step;
+            const minLat = Math.floor(b.getSouth() / step) * step; const maxLat = Math.ceil(b.getNorth() / step) * step;
+            for (let lng = minLng; lng <= maxLng; lng += step) features.push(turf.lineString([[lng, minLat], [lng, maxLat]]));
+            for (let lat = minLat; lat <= maxLat; lat += step) features.push(turf.lineString([[minLng, lat], [maxLng, lat]]));
+            if (map.getSource('grid-source')) map.getSource('grid-source').setData(turf.featureCollection(features));
+        }
+
+        // --- MAP CONTROLS & GEOCODING ---
+        window.flyToPOI = function(coords, zoomLevel) { map.flyTo({ center: coords, zoom: zoomLevel, pitch: 45 }); };
+        
+        document.getElementById('loc-btn').addEventListener('click', async () => {
+            const val = document.getElementById('loc-input').value.trim();
+            if(!val) return;
+            const match = val.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/); 
+            if(match) {
+                flyToPOI([parseFloat(match[2]), parseFloat(match[1])], 15);
+            } else {
+                document.getElementById('loc-btn').innerText = "...";
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}`);
+                    const data = await res.json();
+                    if(data && data.length > 0) flyToPOI([parseFloat(data[0].lon), parseFloat(data[0].lat)], 14);
+                    else alert("Locatie niet gevonden.");
+                } catch(e) { alert("Fout bij zoeken."); }
+                document.getElementById('loc-btn').innerText = "Zoek";
+            }
+        });
+
+        document.getElementById('btn-snapshot').addEventListener('click', () => {
+            map.getCanvas().toBlob((blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `GEOINT_Snap_${Date.now()}.png`; a.click(); });
+        });
+
+        // --- TOOLBOX INTERACTIE ---
+        document.getElementById('tool-select').addEventListener('change', (e) => {
+            const tool = e.target.value;
+            map.getCanvas().style.cursor = tool !== 'navigate' ? 'crosshair' : '';
+            activeLineCoords = []; activeLineLabels = []; renderActiveDraw(); drawCanvasMirror();
+        });
+
+        map.on('click', (e) => {
+            const tool = document.getElementById('tool-select').value;
+            if (tool === 'navigate') return;
+
+            const pt = [e.lngLat.lng, e.lngLat.lat];
+            const color = document.getElementById('draw-color').value;
+
+            if (['line', 'dashed-line', 'polygon', 'bezier'].includes(tool)) {
+                activeLineCoords.push(pt); activeLineLabels.push(`P${activeLineCoords.length}`); renderActiveDraw(); drawCanvasMirror();
+            } else if (tool === 'flag') {
+                const ip = document.getElementById('target-ip').value || '127.0.0.1';
+                const popup = new maplibregl.Popup({ offset: 25, closeOnClick: false }).setHTML("Berekenen...");
+                const marker = new maplibregl.Marker({ color: '#e84393', draggable: true }).setLngLat(pt).setPopup(popup).addTo(map);
+                const flagObj = { id: Date.now(), coord: pt, ip: ip, marker: marker };
+                marker.on('drag', () => { flagObj.coord = [marker.getLngLat().lng, marker.getLngLat().lat]; coreTelemetry(false); });
+                marker.on('dragend', () => coreTelemetry(true)); targetFlags.push(flagObj); marker.togglePopup(); coreTelemetry(true);
+            } else if (tool === 'text') {
+                const txt = prompt("Voer labeltekst in:");
+                if (txt) {
+                    const el = document.createElement('div'); el.className = 'custom-text-label'; el.style.borderColor = color; el.innerText = txt;
+                    const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(pt).addTo(map); textMarkers.push(marker);
+                }
+            } else if (tool === 'plano-pointer') {
+                const marker = new maplibregl.Marker({ color: '#e67e22', scale: 0.8, draggable: true }).setLngLat(pt).addTo(map);
+                const planoObj = { id: Date.now(), coord: pt, color: color, marker: marker };
+                marker.on('drag', () => { planoObj.coord = [marker.getLngLat().lng, marker.getLngLat().lat]; updatePlanoLayer(); });
+                planoPointers.push(planoObj); updatePlanoLayer();
+            } else if (['sun-pointer', 'moon-pointer', 'shadow-pointer'].includes(tool)) {
+                let mColor = tool === 'sun-pointer' ? '#facc15' : (tool === 'moon-pointer' ? '#ecf0f1' : '#3b82f6');
+                const marker = new maplibregl.Marker({ color: mColor, scale: 0.6, draggable: true }).setLngLat(pt).addTo(map);
+                const ptrObj = { id: Date.now(), coord: pt, type: tool, color: mColor, marker: marker };
+                marker.on('drag', () => { ptrObj.coord = [marker.getLngLat().lng, marker.getLngLat().lat]; coreTelemetry(false); });
+                dynamicPointers.push(ptrObj); coreTelemetry(true);
+            }
+        });
+
+        document.getElementById('btn-finish-shape').addEventListener('click', () => {
+            if (activeLineCoords.length < 2) return;
+            const tool = document.getElementById('tool-select').value; const color = document.getElementById('draw-color').value;
+            try {
+                if (tool === 'polygon' && activeLineCoords.length >= 3) { drawnShapes.push({ type: 'Feature', properties: { color: color }, geometry: turf.polygon([[...activeLineCoords, activeLineCoords[0]]]).geometry }); } 
+                else if (tool === 'bezier' && activeLineCoords.length >= 3) { const bz = turf.bezierSpline(turf.lineString(activeLineCoords)); drawnShapes.push({ type: 'Feature', properties: { color: color, dashed: false }, geometry: bz.geometry }); } 
+                else { drawnShapes.push({ type: 'Feature', properties: { color: color, dashed: (tool === 'dashed-line') }, geometry: turf.lineString(activeLineCoords).geometry }); }
+            } catch(err) { drawnShapes.push({ type: 'Feature', properties: { color: color, dashed: false }, geometry: turf.lineString(activeLineCoords).geometry }); }
+            activeLineCoords = []; activeLineLabels = []; renderActiveDraw(); updateDrawnShapes(); drawCanvasMirror();
+        });
+
+        document.getElementById('btn-clear-tools').addEventListener('click', () => {
+            targetFlags.forEach(t => t.marker.remove()); targetFlags = []; dynamicPointers.forEach(p => p.marker.remove()); dynamicPointers = [];
+            planoPointers.forEach(p => p.marker.remove()); planoPointers = []; textMarkers.forEach(m => m.remove()); textMarkers = [];
+            drawnShapes = []; activeLineCoords = []; activeLineLabels = [];
+            if (map.getSource('p2p-source')) map.getSource('p2p-source').setData({type: 'FeatureCollection', features: []});
+            renderActiveDraw(); updateDrawnShapes(); updatePlanoLayer(); coreTelemetry(true); drawCanvasMirror();
+        });
+
+        function renderActiveDraw() {
+            if (!map.isStyleLoaded()) return; let features = [];
+            if (activeLineCoords.length > 0) {
+                const color = document.getElementById('draw-color').value; const tool = document.getElementById('tool-select').value;
+                activeLineCoords.forEach(c => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: c } }));
+                if (activeLineCoords.length > 1) {
+                    if (tool === 'polygon' && activeLineCoords.length >= 3) features.push({ type: 'Feature', properties: { color }, geometry: turf.polygon([[...activeLineCoords, activeLineCoords[0]]]).geometry });
+                    else if (tool === 'bezier' && activeLineCoords.length >= 3) { try { features.push({ type: 'Feature', properties: { color }, geometry: turf.bezierSpline(turf.lineString(activeLineCoords)).geometry }); } catch(e) { features.push({ type: 'Feature', properties: { color }, geometry: turf.lineString(activeLineCoords).geometry }); } } 
+                    else features.push({ type: 'Feature', properties: { color }, geometry: turf.lineString(activeLineCoords).geometry });
+                }
+            }
+            if (map.getSource('active-draw')) map.getSource('active-draw').setData({ type: 'FeatureCollection', features: features });
+        }
+        function updateDrawnShapes() { if (map.getSource('drawn-shapes')) map.getSource('drawn-shapes').setData({ type: 'FeatureCollection', features: drawnShapes }); }
+        function updatePlanoLayer() {
+            let features = []; planoPointers.forEach(p => { features.push({ type: 'Feature', properties: { color: p.color }, geometry: turf.circle(p.coord, 0.05, {steps: 64, units: 'kilometers'}).geometry }); });
+            if (map.getSource('plano-source')) map.getSource('plano-source').setData({ type: 'FeatureCollection', features: features });
+        }
+
+        // --- WISKUNDE / TELEMETRIE MET BUGFIX (TIME OFFSET) ---
+        function applyTimeSimulation() {
+            const v = document.getElementById('sim-time').value; 
+            if(v) { 
+                timeOffset = new Date(v).getTime() - Date.now(); 
+                isSimulating = true;
+                coreTelemetry(true); 
+            }
+        }
+        document.getElementById('btn-set-time').addEventListener('click', applyTimeSimulation);
+        document.getElementById('sim-time').addEventListener('input', applyTimeSimulation);
+
+        document.getElementById('btn-realtime').addEventListener('click', () => { 
+            isSimulating = false; timeOffset = 0; document.getElementById('sim-time').value = ''; coreTelemetry(true); 
+        });
+        
+        ['gnomon-height', 'terrain-slope', 'wall-dist', 'target-ip'].forEach(id => document.getElementById(id).addEventListener('input', () => coreTelemetry(true)));
+
+        function coreTelemetry(forceLog = false) {
+            if (!map.isStyleLoaded()) return;
+            
+            // BUGFIX: Tijd blijft doortikken dankzij Time Offset
+            const now = isSimulating ? new Date(Date.now() + timeOffset) : new Date();
+            
+            const center = map.getCenter(); const centerPt = [center.lng, center.lat];
+            
+            const gnomonHeight = parseFloat(document.getElementById('gnomon-height').value) || 39.2;
+            const slopeDeg = parseFloat(document.getElementById('terrain-slope').value) || 0;
+            const wallDistY = parseFloat(document.getElementById('wall-dist').value) || 25;
+            const targetIP = document.getElementById('target-ip').value || '127.0.0.1';
+
+            const sunPos = SunCalc.getPosition(now, center.lat, center.lng);
+            globalSunAz = (sunPos.azimuth * 180 / Math.PI + 180) % 360; globalSunEl = sunPos.altitude * 180 / Math.PI;
+            const moonPos = SunCalc.getMoonPosition(now, center.lat, center.lng);
+            globalMoonAz = (moonPos.azimuth * 180 / Math.PI + 180) % 360; globalMoonEl = moonPos.altitude * 180 / Math.PI;
+            
+            globalIsNight = globalSunEl <= 0; let effAlt = globalSunEl - slopeDeg; 
+            if (!globalIsNight && effAlt > 0.5) globalShadowLen = Math.min((gnomonHeight / Math.tan(effAlt * Math.PI / 180)), 50000); else globalShadowLen = !globalIsNight ? 50000 : 0;
+            const shadowAzimuthDeg = (globalSunAz + 180) % 360;
+
+            let shadowAzRad = shadowAzimuthDeg * Math.PI / 180; let dx = globalShadowLen * Math.sin(shadowAzRad); let dy = globalShadowLen * Math.cos(shadowAzRad);
+            hitsWall = false; wallX = 0; wallH = 0;
+            if (wallDistY > 0 && dy > 0 && dy >= wallDistY) hitsWall = true; 
+            if (wallDistY < 0 && dy < 0 && dy <= wallDistY) hitsWall = true; 
+            if (hitsWall) { wallX = (wallDistY / dy) * dx; let distHit = Math.sqrt(wallX*wallX + wallDistY*wallDistY); wallH = Math.max(0, gnomonHeight - distHit * Math.tan(effAlt * Math.PI / 180)); }
+
+            document.getElementById('math-time').innerText = now.toLocaleTimeString('nl-NL'); document.getElementById('math-ip').innerText = targetIP;
+            document.getElementById('math-elev').innerText = globalSunEl.toFixed(2); document.getElementById('math-azi').innerText = globalSunAz.toFixed(2);
+            document.getElementById('math-moon-elev').innerText = globalMoonEl.toFixed(2); document.getElementById('math-moon-azi').innerText = globalMoonAz.toFixed(2);
+            document.getElementById('math-len').innerText = globalIsNight ? "NACHT" : globalShadowLen.toFixed(2); document.getElementById('math-wal-hit').innerText = hitsWall ? "JA" : "NEE";
+            document.getElementById('math-wal-x').innerText = hitsWall ? wallX.toFixed(2) : "0.00"; document.getElementById('math-wal-h').innerText = hitsWall ? wallH.toFixed(2) : "0.00";
+
+            let fanFeatures = []; 
+            for (let h = 8; h <= 20; h++) {
+                let t = new Date(now); t.setUTCHours(h - Math.round(centerPt[0]/15), 0, 0, 0); 
+                let pos = SunCalc.getPosition(t, centerPt[1], centerPt[0]);
+                if (pos.altitude > 0) fanFeatures.push({ type: 'Feature', properties: { color: fanColors[h], width: 2 }, geometry: { type: 'LineString', coordinates: [ centerPt, turf.destination(centerPt, 0.3, (pos.azimuth * 180 / Math.PI + 360) % 360, { units: 'kilometers' }).geometry.coordinates ] } });
+            }
+            if (map.getSource('sun-fan')) map.getSource('sun-fan').setData({ type: 'FeatureCollection', features: fanFeatures });
+            if (map.getSource('shadow-vector')) {
+                if (globalIsNight || globalShadowLen === 0) map.getSource('shadow-vector').setData({ type: 'FeatureCollection', features: [] });
+                else map.getSource('shadow-vector').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [ centerPt, turf.destination(centerPt, globalShadowLen / 1000, shadowAzimuthDeg, { units: 'kilometers' }).geometry.coordinates ] } });
+            }
+
+            let dynFeatures = [];
+            targetFlags.forEach(t => dynFeatures.push({ type: 'Feature', properties: { color: '#e84393', width: 2, dashed: true }, geometry: { type: 'LineString', coordinates: [ centerPt, t.coord ] } }));
+            dynamicPointers.forEach(p => {
+                let az = 0, distKm = 2.0; 
+                if (p.type === 'sun-pointer') { const sp = SunCalc.getPosition(now, p.coord[1], p.coord[0]); az = (sp.azimuth * 180 / Math.PI + 180) % 360; if (sp.altitude <= 0) distKm = 0; } 
+                else if (p.type === 'moon-pointer') { const mp = SunCalc.getMoonPosition(now, p.coord[1], p.coord[0]); az = (mp.azimuth * 180 / Math.PI + 180) % 360; if (mp.altitude <= 0) distKm = 0; } 
+                else if (p.type === 'shadow-pointer') { const sp = SunCalc.getPosition(now, p.coord[1], p.coord[0]); az = ((sp.azimuth * 180 / Math.PI + 180) % 360 + 180) % 360; let elDeg = sp.altitude * 180 / Math.PI; if (elDeg > 0.5) { distKm = Math.min((gnomonHeight / Math.tan(elDeg * Math.PI / 180)) / 1000, 15); } else { distKm = elDeg > 0 ? 15 : 0; } }
+                if (distKm > 0) dynFeatures.push({ type: 'Feature', properties: { color: p.color, width: 3, dashed: false }, geometry: { type: 'LineString', coordinates: [p.coord, turf.destination(p.coord, distKm, az, {units: 'kilometers'}).geometry.coordinates] } });
+            });
+            if (map.getSource('dynamic-lines')) map.getSource('dynamic-lines').setData({ type: 'FeatureCollection', features: dynFeatures });
+
+            if (forceLog) {
+                targetFlags.forEach(t => {
+                    const distMeters = turf.distance(centerPt, t.coord, {units: 'meters'}).toFixed(2); const normBearing = (turf.bearing(centerPt, t.coord) + 360) % 360;
+                    const tSun = SunCalc.getPosition(now, t.coord[1], t.coord[0]);
+                    const popupHTML = `<div style="color: black; font-family: monospace; font-size: 11px; line-height: 1.4;"><strong style="color: #e84393;">🚩 TARGET: ${t.ip}</strong><br><hr style="border:0; border-top:1px solid #ccc; margin:3px 0;"><strong>Afstand Vizier:</strong> ${distMeters} m<br><strong>Hoek (Azimut):</strong> ${normBearing.toFixed(1)}°<br><strong>Zon Elevatie:</strong> ${(tSun.altitude * 180 / Math.PI).toFixed(2)}°</div>`;
+                    if(t.marker.getPopup()) t.marker.getPopup().setHTML(popupHTML);
+                });
+
+                document.getElementById('vp4-terminal-text').innerText = `[SYS ID: GEO-TOOL-v16]\nTijd: ${now.toISOString()}\nVizier: ${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}\nZon El: ${globalSunEl.toFixed(2)}° | Az: ${globalSunAz.toFixed(2)}°\nMaan El: ${globalMoonEl.toFixed(2)}° | Az: ${globalMoonAz.toFixed(2)}°\nSchaduw L: ${globalShadowLen.toFixed(2)}m\nActieve Tool: ${document.getElementById('tool-select').value}`;
+                
+                logboekData.push({ Timestamp: now.toISOString(), Lat: center.lat.toFixed(4), Lng: center.lng.toFixed(4), SunAzi: globalSunAz.toFixed(2), SunElev: globalSunEl.toFixed(2), ShadowLen: globalShadowLen.toFixed(2), WallHit: hitsWall });
+                document.getElementById('log-counter').innerText = `${logboekData.length} records in RAM`;
+            }
+        }
+
+        // --- MATH.JS & EXPORTS ---
+        document.getElementById('btn-calc').addEventListener('click', () => { try { document.getElementById('calc-uitvoer').innerText = math.format(math.evaluate(document.getElementById('calc-invoer').value), {precision: 10}); } catch (err) { document.getElementById('calc-uitvoer').innerText = `Fout: ${err.message}`; } });
+
+        function getLogDataString() {
+            let txt = "GEOINT COMMAND CENTER LOGBOEK\n=================================\n\n";
+            logboekData.forEach(r => { txt += `Tijd: ${r.Timestamp} | Lat: ${r.Lat}, Lng: ${r.Lng} | Zon El: ${r.SunElev}°, Az: ${r.SunAzi}° | Schaduw: ${r.ShadowLen}m\n`; });
+            return txt;
+        }
+
+        document.getElementById('btn-export-csv').addEventListener('click', () => {
+            if (logboekData.length === 0) return alert("Logboek is leeg.");
+            const headers = Object.keys(logboekData[0]); let csv = headers.join(",") + "\n";
+            logboekData.forEach(row => { csv += headers.map(h => row[h]).join(",") + "\n"; });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `GEO_Log_${Date.now()}.csv`; a.click();
+        });
+        document.getElementById('btn-export-json').addEventListener('click', () => {
+            if (logboekData.length === 0) return alert("Logboek is leeg.");
+            const blob = new Blob([JSON.stringify(logboekData, null, 2)], { type: 'application/json;charset=utf-8;' }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `GEO_Log_${Date.now()}.json`; a.click();
+        });
+        document.getElementById('btn-export-txt').addEventListener('click', () => {
+            if (logboekData.length === 0) return alert("Logboek is leeg.");
+            const blob = new Blob([getLogDataString()], { type: 'text/plain;charset=utf-8;' }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `GEO_Log_${Date.now()}.txt`; a.click();
+        });
+        document.getElementById('btn-export-pdf').addEventListener('click', () => {
+            if (logboekData.length === 0) return alert("Logboek is leeg.");
+            const { jsPDF } = window.jspdf; const doc = new jsPDF(); doc.setFontSize(14); doc.text("GEOINT Command Center Logboek", 10, 10); doc.setFontSize(9); let y = 20;
+            logboekData.forEach((r, i) => { if (y > 280) { doc.addPage(); y = 10; } doc.text(`${r.Timestamp} | Lat: ${r.Lat}, Lng: ${r.Lng} | Zon: ${r.SunElev}° | Schaduw: ${r.ShadowLen}m`, 10, y); y += 7; });
+            doc.save(`GEO_Log_${Date.now()}.pdf`);
+        });
+
+        document.getElementById('btn-inline-exportlog').addEventListener('click', () => {
+            const blob = new Blob([document.getElementById('vp4-terminal-text').innerText], { type: 'text/plain;charset=utf-8;' }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `VP4_Log_${Date.now()}.txt`; a.click();
+        });
+
+        // --- PLANIMETER (DIALS & COMPASS) ---
+        document.querySelectorAll('.pl-dial-outer').forEach(dial => {
+            let rOut = 0, rIn = 0; const inner = dial.querySelector('.pl-dial-inner'); const type = dial.getAttribute('data-type');
+            dial.addEventListener('wheel', (e) => {
+                e.preventDefault(); const delta = e.deltaY > 0 ? 15 : -15; rOut += delta; rIn -= (delta * 1.5);
+                dial.style.transform = `rotate(${rOut}deg)`; if (inner) inner.style.transform = `rotate(${rIn}deg)`;
+                if (!map.isStyleLoaded()) return;
+                if (type === 'bearing') map.setBearing(e.deltaY > 0 ? map.getBearing() - 5 : map.getBearing() + 5);
+                if (type === 'pitch') map.setPitch(Math.max(0, Math.min(85, e.deltaY > 0 ? map.getPitch() - 2 : map.getPitch() + 2)));
+                if (type === 'zoom') map.setZoom(e.deltaY > 0 ? map.getZoom() - 0.2 : map.getZoom() + 0.2);
+            });
+        });
+        function updatePlanimeterArea() { if (!map.isStyleLoaded()) return; document.getElementById('pl-area').innerText = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 3 }).format(turf.area(turf.bboxPolygon([map.getBounds().getWest(), map.getBounds().getSouth(), map.getBounds().getEast(), map.getBounds().getNorth()])) / 1e6); }
+
+        function drawCompassMirror() {
+            try {
+                const canvas = document.getElementById('compass-canvas'); if (!canvas || canvas.offsetParent === null) return; 
+                const ctx = canvas.getContext('2d'); const rect = canvas.parentElement.getBoundingClientRect();
+                if(rect.width === 0 || rect.height === 0) return; if(canvas.width !== rect.width || canvas.height !== rect.height) { canvas.width = rect.width; canvas.height = rect.height; }
+                const cx = canvas.width / 2, cy = canvas.height / 2; const radius = Math.max(0.1, Math.min(cx, cy) - 20); if (radius <= 0.1) return;
+                ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save(); ctx.translate(cx, cy);
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1; [0.33, 0.66, 1].forEach(fac => { ctx.beginPath(); ctx.arc(0,0, radius * fac, 0, Math.PI*2); ctx.stroke(); });
+
+                const bearing = map.getBearing() || 0; ctx.rotate(-bearing * Math.PI / 180);
+                ctx.font = '10px Arial'; ctx.fillStyle = '#3498db'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const dirs = ['N/N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW'];
+                for(let i=0; i<8; i++) { const angle = (i * 45 - 90) * Math.PI / 180; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(radius * Math.cos(angle), radius * Math.sin(angle)); ctx.stroke(); ctx.save(); ctx.translate((radius + 12) * Math.cos(angle), (radius + 12) * Math.sin(angle)); ctx.rotate(bearing * Math.PI / 180); ctx.fillText(dirs[i], 0, 0); ctx.restore(); }
+                ctx.setLineDash([]);
+                
+                const sunAngle = (globalSunAz - 90) * Math.PI / 180; const shadowAngle = ((globalSunAz + 180) % 360 - 90) * Math.PI / 180; const moonAngle = (globalMoonAz - 90) * Math.PI / 180;
+                if (!globalIsNight) { const headlen = 10; ctx.strokeStyle = '#3498db'; ctx.fillStyle = '#3498db'; ctx.lineWidth = 2.5; let toX = radius * Math.cos(shadowAngle), toY = radius * Math.sin(shadowAngle); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(toX, toY); ctx.stroke(); ctx.beginPath(); ctx.moveTo(toX, toY); ctx.lineTo(toX - headlen * Math.cos(shadowAngle - Math.PI/6), toY - headlen * Math.sin(shadowAngle - Math.PI/6)); ctx.lineTo(toX - headlen * Math.cos(shadowAngle + Math.PI/6), toY - headlen * Math.sin(shadowAngle + Math.PI/6)); ctx.lineTo(toX, toY); ctx.fill(); }
+                
+                const headlen2 = 10; ctx.strokeStyle = '#facc15'; ctx.fillStyle = '#facc15'; ctx.lineWidth = 2.5; let fx = radius * Math.cos(sunAngle), fy = radius * Math.sin(sunAngle); ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(0,0); ctx.stroke(); let invAngle = Math.atan2(-fy, -fx); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0 - headlen2 * Math.cos(invAngle - Math.PI/6), 0 - headlen2 * Math.sin(invAngle - Math.PI/6)); ctx.lineTo(0 - headlen2 * Math.cos(invAngle + Math.PI/6), 0 - headlen2 * Math.sin(invAngle + Math.PI/6)); ctx.lineTo(0,0); ctx.fill();
+                
+                if (globalMoonEl > 0) { ctx.strokeStyle = '#ecf0f1'; ctx.fillStyle = '#ecf0f1'; ctx.lineWidth = 1.5; let mx = radius * 0.8 * Math.cos(moonAngle), my = radius * 0.8 * Math.sin(moonAngle); ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(0,0); ctx.stroke(); ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI*2); ctx.fill(); }
+                ctx.restore();
+            } catch(e) {}
+        }
+
+        // --- VP4 VECTOR CANVAS MIRROR ---
+        const vCanvas = document.getElementById('vector-canvas'); const vCtx = vCanvas.getContext('2d');
+        document.getElementById('btn-vp4-mirror').addEventListener('click', () => { isMirrored = !isMirrored; drawCanvasMirror(); });
+        document.getElementById('btn-vp4-savepng').addEventListener('click', () => { const a = document.createElement('a'); a.download = `VP4_Vector_${Date.now()}.png`; a.href = vCanvas.toDataURL("image/png"); a.click(); });
+        document.getElementById('btn-vp4-labels').addEventListener('click', () => {
+            if (activeLineCoords.length === 0) return alert("Je moet eerst punten tekenen.");
+            for (let i = 0; i < activeLineCoords.length; i++) {
+                const newLabel = prompt(`Voer een naam in voor punt ${i+1} (Huidig: ${activeLineLabels[i]}):`, activeLineLabels[i]);
+                if (newLabel !== null && newLabel.trim() !== '') activeLineLabels[i] = newLabel.trim();
+            }
+            drawCanvasMirror();
+        });
+
+        function drawCanvasMirror() {
+            try {
+                if (!vCanvas || vCanvas.offsetParent === null) return; 
+                const rect = vCanvas.parentElement.getBoundingClientRect(); if(rect.width === 0 || rect.height === 0) return;
+                if(vCanvas.width !== rect.width || vCanvas.height !== rect.height) { vCanvas.width = rect.width; vCanvas.height = rect.height; }
+                vCtx.fillStyle = '#ffffff'; vCtx.fillRect(0, 0, vCanvas.width, vCanvas.height);
+                
+                const areaEl = document.getElementById('vp4-stramien-area');
+                if (activeLineCoords.length >= 3 && document.getElementById('tool-select').value === 'polygon') {
+                    areaEl.innerText = `Oppervlakte Stramien: ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(turf.area(turf.polygon([[...activeLineCoords, activeLineCoords[0]]])))} m²`;
+                } else { areaEl.innerText = `Oppervlakte Stramien: -- m²`; }
+
+                if (activeLineCoords.length === 0) return;
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity; const aspect = Math.cos(map.getCenter().lat * Math.PI / 180);
+                activeLineCoords.forEach(c => { let x = c[0] * aspect; let y = c[1]; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; });
+                const pad = 40; const dw = vCanvas.width - (pad * 2), dh = vCanvas.height - (pad * 2);
+                const dx = maxX - minX || 1, dy = maxY - minY || 1; const sc = Math.min(dw / dx, dh / dy); const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+
+                vCtx.strokeStyle = '#e0e0e0'; vCtx.lineWidth = 0.8; vCtx.setLineDash([4, 4]); vCtx.beginPath();
+                for (let i = 1; i <= 5; i++) { let y = pad + i * (dh/6); vCtx.moveTo(pad, y); vCtx.lineTo(vCanvas.width - pad, y); let x = pad + i * (dw/6); vCtx.moveTo(x, pad); vCtx.lineTo(x, vCanvas.height - pad); } vCtx.stroke(); vCtx.setLineDash([]);
+                vCtx.save(); if (isMirrored) { vCtx.translate(vCanvas.width, 0); vCtx.scale(-1, 1); }
+                vCtx.beginPath(); let screenPts = [];
+                activeLineCoords.forEach((coord, i) => { const sx = vCanvas.width/2 + ((coord[0] * aspect) - cx) * sc; const sy = vCanvas.height/2 - (coord[1] - cy) * sc; screenPts.push([sx, sy]); if (i === 0) vCtx.moveTo(sx, sy); else vCtx.lineTo(sx, sy); });
+                const tool = document.getElementById('tool-select').value;
+                if (activeLineCoords.length >= 3 && tool === 'polygon') { vCtx.closePath(); vCtx.fillStyle = 'rgba(52, 152, 219, 0.35)'; vCtx.fill(); }
+                vCtx.strokeStyle = '#2980b9'; vCtx.lineWidth = 2.5; vCtx.stroke();
+                
+                vCtx.font = '9px Arial'; vCtx.textAlign = 'center'; vCtx.textBaseline = 'middle';
+                for (let i = 0; i < screenPts.length; i++) {
+                    if (activeLineCoords.length < 3 && i === screenPts.length - 1) break;
+                    let p1 = screenPts[i], p2 = screenPts[(i + 1) % screenPts.length]; let mx = (p1[0] + p2[0]) / 2, my = (p1[1] + p2[1]) / 2; let txt = activeLineLabels[i] || `P${i+1}`; let tw = vCtx.measureText(txt).width;
+                    vCtx.fillStyle = '#fff9c4'; vCtx.fillRect(mx - tw/2 - 3, my - 7, tw + 6, 14); vCtx.strokeStyle = '#b2bec3'; vCtx.strokeRect(mx - tw/2 - 3, my - 7, tw + 6, 14); vCtx.fillStyle = '#2d3436'; vCtx.fillText(txt, mx, my);
+                }
+                screenPts.forEach((p, i) => {
+                    vCtx.beginPath(); vCtx.arc(p[0], p[1], 4.5, 0, Math.PI * 2); vCtx.fillStyle = '#e84118'; vCtx.fill();
+                    vCtx.fillStyle = '#000'; vCtx.font = 'bold 11px Arial'; let lbl = activeLineLabels[i] || `P${i+1}`; vCtx.fillText(lbl, p[0], p[1] - 12);
+                });
+                vCtx.restore();
+            } catch(e) {}
+        }
+
+        // --- P2P WEBRTC LOGICA ---
+        let peer = null; let conn = null; let mediaCall = null; let localStream = null;
+        const chatBox = document.getElementById('p2p-chat-box'); const chatInput = document.getElementById('p2p-chat-input');
+        
+        function logChat(msg, type = 'system') {
+            const el = document.createElement('div'); el.className = `chat-msg ${type === 'local' ? 'chat-local' : (type === 'remote' ? 'chat-remote' : '')}`;
+            if(type === 'system') el.style.color = 'var(--text-muted)';
+            el.innerHTML = msg; chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        peer = new Peer({ debug: 2 });
+        peer.on('open', (id) => { document.getElementById('my-peer-id').innerText = id; logChat("Node ID verkregen. Wacht op inkomende link..."); });
+        peer.on('error', (err) => { logChat("P2P Fout: " + err.type, "system"); });
+        peer.on('connection', (c) => { if(conn && conn.open) { c.close(); return; } conn = c; setupDataChannel(); });
+        peer.on('call', async (call) => {
+            mediaCall = call;
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                document.getElementById('local-video').srcObject = localStream; call.answer(localStream); 
+                call.on('stream', (remoteStream) => { document.getElementById('remote-video').srcObject = remoteStream; });
+            } catch(err) { logChat("Geen camera.", "system"); call.answer(); }
+        });
+
+        document.getElementById('btn-connect-peer').addEventListener('click', async () => {
+            const targetId = document.getElementById('remote-peer-id').value.trim(); if(!targetId) return alert("Voer een Remote ID in.");
+            conn = peer.connect(targetId); setupDataChannel();
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                document.getElementById('local-video').srcObject = localStream;
+                mediaCall = peer.call(targetId, localStream);
+                mediaCall.on('stream', (remoteStream) => { document.getElementById('remote-video').srcObject = remoteStream; });
+            } catch(err) { logChat("Kan camera niet starten.", "system"); }
+        });
+
+        function setupDataChannel() {
+            conn.on('open', () => { logChat(`P2P Link Open met: ${conn.peer}`); document.getElementById('btn-connect-peer').style.background = "var(--shadow)"; document.getElementById('btn-connect-peer').innerText = "Verbonden"; });
+            conn.on('data', (data) => {
+                if (data.type === 'text') { logChat(`<b>[Remote]:</b> ${data.payload}`, 'remote'); } 
+                else if (data.type === 'file') { logChat(`<b>[Remote]:</b> Bestand: ${data.filename}`, 'remote'); handleIncomingFile(data.filename, data.filetype, data.payload); }
+            });
+            conn.on('close', () => { logChat("Data Link Verbroken."); document.getElementById('btn-connect-peer').style.background = "var(--vp4-green)"; document.getElementById('btn-connect-peer').innerText = "Verbind"; conn = null; });
+        }
+
+        document.getElementById('btn-send-chat').addEventListener('click', () => {
+            if(!conn || !conn.open) return alert("Geen P2P verbinding.");
+            const msg = chatInput.value.trim(); if(!msg) return;
+            conn.send({ type: 'text', payload: msg }); logChat(`<b>[Mij]:</b> ${msg}`, 'local'); chatInput.value = '';
+        });
+        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') document.getElementById('btn-send-chat').click(); });
+
+        document.getElementById('p2p-file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if(!file) return; if(!conn || !conn.open) return alert("Je moet verbonden zijn.");
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                conn.send({ type: 'file', filename: file.name, filetype: file.type || file.name.split('.').pop(), payload: ev.target.result });
+                logChat(`<b>[Mij]:</b> Bestand: ${file.name}`, 'local');
+            }; reader.readAsDataURL(file); 
+        });
+
+        function handleIncomingFile(filename, filetype, base64data) {
+            const isGeoJSON = filename.toLowerCase().endsWith('.geojson') || filename.toLowerCase().endsWith('.json');
+            const link = document.createElement('a'); link.href = base64data; link.download = filename; link.className = 'file-msg'; link.innerText = `⬇️ Open: ${filename}`;
+            chatBox.appendChild(link); chatBox.scrollTop = chatBox.scrollHeight;
+            if (isGeoJSON) {
+                try {
+                    const jsonStr = atob(base64data.split(',')[1]); const geoData = JSON.parse(jsonStr);
+                    if (map.getSource('p2p-source')) { map.getSource('p2p-source').setData(geoData); logChat("✅ GeoJSON geladen.", "system"); }
+                } catch(e) { logChat("Fout bij parseren GeoJSON: " + e.message, "system"); }
+            }
+        }
+    </script>
+</body>
+</html>
