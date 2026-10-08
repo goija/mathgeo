@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - 441-Matrix & Optica</title>
+    <style>
+        body { margin: 0; background-color: #03070e; color: #4af; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        .panel { 
+            background: rgba(8, 15, 30, 0.85); 
+            border: 1px solid rgba(30, 80, 140, 0.5); 
+            border-radius: 4px; 
+            padding: 20px; 
+            position: absolute; 
+            z-index: 10; 
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.1); 
+            backdrop-filter: blur(8px); 
+            max-height: 85vh; 
+            overflow-y: auto; 
+        }
+        
+        .panel::-webkit-scrollbar { width: 4px; }
+        .panel::-webkit-scrollbar-track { background: transparent; }
+        .panel::-webkit-scrollbar-thumb { background: #258; }
+        
+        #left-panel { top: 20px; left: 20px; width: 330px; }
+        #right-panel { top: 20px; right: 20px; width: 280px; }
+        
+        h1, h2, h3 { color: #8df; margin-top: 0; font-weight: normal; }
+        h1 { font-size: 1.3em; border-bottom: 1px solid #258; padding-bottom: 10px; margin-bottom: 20px; letter-spacing: 1px;}
+        h2 { font-size: 1.0em; color: #5bf; margin-top: 20px; letter-spacing: 0.5px;}
+        
+        ul { list-style-type: none; padding-left: 10px; margin-bottom: 15px; color: #79b; font-size: 0.85em; line-height: 1.6; border-left: 1px solid #246;}
+        li { padding-left: 10px; }
+        li span { color: #d0dbe5; font-weight: bold; }
+        
+        .highlight-orange { color: #e90 !important; }
+        .highlight-red { color: #f04 !important; }
+        .highlight-green { color: #0f8 !important; }
+        .highlight-purple { color: #b6f !important; }
+        
+        #footer-text { 
+            position: absolute; 
+            bottom: 30px; 
+            width: 100%; 
+            text-align: center; 
+            font-style: italic; 
+            font-size: 1.2em; 
+            color: #468; 
+            opacity: 0.7; 
+            z-index: 10; 
+            pointer-events: none; 
+            letter-spacing: 3px;
+        }
+        
+        .cluster-box { 
+            font-size: 0.7em; 
+            color: #579; 
+            background: rgba(0,0,0,0.6); 
+            padding: 10px; 
+            border: 1px solid #246; 
+            margin-top: 15px; 
+            height: 90px; 
+            overflow: hidden; 
+            position: relative;
+        }
+        .cluster-content { animation: scrollUp 25s linear infinite; }
+        @keyframes scrollUp { 0% { transform: translateY(100%); } 100% { transform: translateY(-100%); } }
+    </style>
+</head>
+<body>
+
+    <div id="left-panel" class="panel">
+        <h1>De Integrale Synthese</h1>
+        
+        <h2>1. Trans-Atlantische Vector</h2>
+        <ul>
+            <li>Grootcirkel: <span>291°</span></li>
+            <li>Noordelijke afwijking: <span>20.91° (Modulo 21)</span></li>
+        </ul>
+
+        <h2>2. Geodetische Ankerpunten</h2>
+        <ul>
+            <li>Scherpenisse: <span>290.91°</span></li>
+            <li><span class="highlight-orange">St. Maartensdijk:</span> <span>290.89°</span></li>
+            <li>Veere: <span>290.64°</span></li>
+        </ul>
+
+        <h2>3. Zeeuwse Driehoeksmeting</h2>
+        <ul>
+            <li>Basislijn: <span>28.3 km</span></li>
+            <li>Cyclus: <span>28-Daagse Maancyclus</span></li>
+        </ul>
+
+        <h2>4. Mediterrane Atmosferische Optica</h2>
+        <ul>
+            <li>Ankerpunt: <span class="highlight-red">Osimo (IT)</span></li>
+            <li>Oppervlakte Stramien: <span>3.633 km²</span></li>
+            <li>Mercurius Vector: <span>186.15° (Libra)</span></li>
+            <li>Optische Code: <span>Fata Morgana & Reflectie Inversie</span></li>
+        </ul>
+        
+        <div class="cluster-box">
+            <div class="cluster-content" id="city-scroll"></div>
+        </div>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <h2>Matrix Knooppunten</h2>
+        <ul style="border: none;">
+            <li>⚪ <span>WTC1 (NYC Nulpunt)</span></li>
+            <li>🔵 <span>Trans-Atlantische As</span></li>
+            <li><span class="highlight-orange">🟠</span> <span>St. Maartensdijk (Historisch)</span></li>
+            <li><span class="highlight-green">🟢</span> <span>Zeeuwse Ankers</span></li>
+            <li><span class="highlight-red">🔴</span> <span>Osimo (Mediterrane Anker)</span></li>
+            <li><span class="highlight-purple">🟣</span> <span>Mediterrane Cluster (75 Nodes)</span></li>
+        </ul>
+
+        <h2 style="margin-top: 25px;">Atmosferische Parameters</h2>
+        <ul style="border: none;">
+            <li>Zichtlijn Buiging: <span>Actief (Temperatuurinversie)</span></li>
+            <li>Spiegeling (Z-as): <span>Gesynchroniseerd</span></li>
+            <li>Diepte Focus: <span>Atmosferisch Perspectief</span></li>
+        </ul>
+    </div>
+
+    <div id="footer-text">Ceci n'est pas une matrice.</div>
+
+    <canvas id="matrixCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 75 Plaatsnamen uit het R-script
+        const cities = ["Acquaviva", "Agugliano", "ANCONA", "Apiro", "Appignano", "Arcevia", "Aspio", "Assisi", "Barbara", "Barcaglione", "Belforte del Chienti", "Belvedere Ostrense", "Borghetto", "Brugnetto", "Camerano", "Camerino", "Castelfidardo", "Castelraimondo", "Cerreto d'Esi", "Chiaravalle", "Chiesanuova", "Cingoli", "Civitanova Alta", "Civitanova Marche", "Colbuccaro", "Corinaldo", "Corridonia", "Costacciaro", "Fabriano", "Falconara Marittima", "Fossato di Vico", "Gualdo Tadino", "Jesi", "Loreto", "Macerata", "Marcelli", "Matelica", "Monsano", "Montacuto", "Monte San Vito", "Montecassiano", "Montecosaro", "Montefano", "Morro d'Alba", "Morrovalle", "Nocera Umbra", "Numana", "Offagna", "Ostra", "Ostra Vetere", "Passatempo", "Paterno", "PERUGIA", "Piediripa", "Piane della Rancia", "Poggio", "Poggio San Vicino", "Pollenza", "Porto Potenza Picena", "Porto Recanati", "Porto Sant'Elpidio", "Potenza Picena", "Recanati", "Ripe", "Sambucheto", "San Biagio", "San Claudio Stazione", "San Severino Marche", "Sant'Elpidio a Mare", "Serra de' Conti", "Serrapetrona", "Sigillo", "Staffolo", "Tolentino", "Treia", "Valfabbrica"];
+        
+        // Vul scrollvenster
+        document.getElementById('city-scroll').innerHTML = cities.join('<br>');
+
+        const nodes = [
+            { name: "WTC1", x: -450, z: 150, color: "#ffffff", size: 6, type: 'primary' },
+            { name: "St. Maartensdijk", x: -120, z: -10, color: "#ff8800", size: 7, type: 'primary' },
+            { name: "Scherpenisse", x: -140, z: 15, color: "#00ff88", size: 4, type: 'anchor' },
+            { name: "Veere", x: -160, z: -25, color: "#00ff88", size: 4, type: 'anchor' },
+            { name: "Bergen op Zoom", x: -90, z: 25, color: "#00ff88", size: 4, type: 'anchor' },
+            { name: "Osimo", x: 280, z: -120, color: "#ff0044", size: 8, type: 'primary' }
+        ];
+
+        // Genereer het wolk-stramien (oppervlakte) van 75 steden rond Osimo
+        cities.forEach(city => {
+            nodes.push({
+                name: city,
+                x: 280 + (Math.random() * 200 - 100), 
+                z: -120 + (Math.random() * 180 - 90), 
+                yOffset: Math.random() * 40 - 20, 
+                color: "#bb66ff",
+                size: 1 + Math.random() * 1.5,
+                type: 'cluster'
+            });
+        });
+
+        let time = 0;
+
+        function draw() {
+            // Atmosferische dichtheid (motion blur / fade)
+            ctx.fillStyle = "rgba(3, 7, 14, 0.35)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2 + 50; // horizon
+            const perspective = 550;
+
+            // Teken het grid (wateroppervlak / matrix)
+            ctx.strokeStyle = "rgba(30, 80, 140, 0.1)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i = -1000; i <= 1000; i+=100) {
+                // Atmosferische golving in het grondvlak
+                let waveZ = Math.sin(time*0.5 + i*0.01) * 15;
+                let scale1 = perspective / (perspective + i + waveZ);
+                let py1 = cy + 120 * scale1;
+                ctx.moveTo(0, py1);
+                ctx.lineTo(canvas.width, py1);
+            }
+            ctx.stroke();
+
+            // Sorteer nodes op Z (verste eerst voor atmosferisch perspectief)
+            nodes.sort((a, b) => b.z - a.z);
+
+            nodes.forEach(node => {
+                // 1. NATUURLIJKE PROJECTIES (Fata Morgana)
+                // Y golft op basis van tijd en X-positie
+                let mirageY = (node.yOffset || 0) + Math.sin(time * 2.0 + node.x * 0.015) * 15;
+                
+                // 2. DIEPTE & VOLUME (Atmosferisch perspectief)
+                let zDepth = perspective + node.z + Math.cos(time * 0.8 + node.x*0.01)*25; 
+                if(zDepth <= 0) return; // Te dichtbij / achter de 'lens'
+                
+                let scale = perspective / zDepth;
+                let px = cx + node.x * scale;
+                let py = cy - 20 + mirageY * scale; 
+                
+                // Transparantie berekend op diepte
+                let depthAlpha = Math.max(0.02, 1 - (node.z + 200)/600);
+
+                // 3. REFLECTIES (De Spiegel van het Oppervlak)
+                let horizonY = cy + 100; 
+                let distanceToHorizon = horizonY - py;
+                let reflectionY = horizonY + distanceToHorizon; 
+                
+                // Teken reflectie
+                ctx.beginPath();
+                ctx.arc(px, reflectionY, node.size * scale * 0.7, 0, Math.PI*2);
+                ctx.fillStyle = node.color;
+                ctx.globalAlpha = depthAlpha * 0.25 * (0.7 + Math.sin(time*4 + node.x*0.1)*0.3); // Kabbelend water effect
+                ctx.fill();
+
+                // 4. RELATIEVE WAARNEMING (Primaire Nodes)
+                ctx.beginPath();
+                ctx.arc(px, py, node.size * scale, 0, Math.PI*2);
+                ctx.fillStyle = node.color;
+                
+                if(node.type === 'primary') {
+                    // Pulserend, relatief contrast
+                    ctx.globalAlpha = Math.min(1, depthAlpha * 1.5) * (0.8 + Math.sin(time*3)*0.2);
+                    ctx.shadowBlur = 20 * scale;
+                    ctx.shadowColor = node.color;
+                } else {
+                    ctx.globalAlpha = depthAlpha;
+                    ctx.shadowBlur = 0;
+                }
+                ctx.fill();
+
+                // Tekst & Vectorlijnen
+                if(node.type === 'primary') {
+                    ctx.fillStyle = "rgba(200,230,255," + (depthAlpha + 0.2) + ")";
+                    ctx.font = Math.max(9, 13 * scale) + "px 'Courier New'";
+                    ctx.fillText(node.name, px + (15*scale), py - (10*scale));
+                    
+                    // Verbindingslijn (De 291° vector / lichtbaan)
+                    if(node.name === "WTC1") {
+                        let osimo = nodes.find(n => n.name === "Osimo");
+                        let oZ = perspective + osimo.z + Math.cos(time * 0.8 + osimo.x*0.01)*25;
+                        let oScale = perspective / oZ;
+                        let oPx = cx + osimo.x * oScale;
+                        let oMirageY = (osimo.yOffset || 0) + Math.sin(time * 2.0 + osimo.x * 0.015) * 15;
+                        let oPy = cy - 20 + oMirageY * oScale;
+
+                        ctx.beginPath();
+                        ctx.moveTo(px, py);
+                        // Kromming alsof licht buigt in de atmosfeer (optische illusie)
+                        ctx.quadraticCurveTo(cx, cy - 200 * Math.sin(time*0.5), oPx, oPy);
+                        ctx.strokeStyle = "rgba(0, 150, 255, " + (0.2 + Math.sin(time*1.5)*0.1) + ")";
+                        ctx.lineWidth = 1.2;
+                        ctx.stroke();
+                    }
+                }
+            });
+
+            ctx.globalAlpha = 1.0;
+            ctx.shadowBlur = 0;
+            time += 0.015;
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
