@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - Voronoi & Planimeter Koppeling</title>
+    <style>
+        :root {
+            --bg-color: #050a14;
+            --panel-bg: rgba(10, 17, 31, 0.85);
+            --border-color: #1a2b4c;
+            --text-main: #c0d0e0;
+            --text-highlight: #66b3ff;
+            --orange: #ff9900;
+            --red: #ff3333;
+            --cyan: #00ffff;
+            --white: #ffffff;
+            --voronoi-color: #b366ff;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 20px;
+            position: absolute;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .left-panel {
+            top: 20px;
+            left: 20px;
+            width: 320px;
+        }
+
+        .right-panel {
+            top: 20px;
+            right: 20px;
+            width: 340px;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        h1 { font-size: 1.2rem; color: var(--text-highlight); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-top: 0; }
+        h2 { font-size: 1rem; color: var(--text-highlight); margin-top: 20px; margin-bottom: 10px; }
+        p { font-size: 0.85rem; margin: 5px 0; line-height: 1.4; }
+        
+        .highlight-orange { color: var(--orange); font-weight: bold; }
+        .highlight-cyan { color: var(--cyan); font-weight: bold; }
+        .highlight-voronoi { color: var(--voronoi-color); font-weight: bold; }
+
+        .dials-container {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .dial-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dial {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            border: 2px dashed var(--border-color);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            background: rgba(0,0,0,0.3);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .dial:active {
+            cursor: grabbing;
+        }
+
+        .dial-knob {
+            position: absolute;
+            top: 6px;
+            left: 28px;
+            width: 6px;
+            height: 6px;
+            background: var(--cyan);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--cyan);
+        }
+
+        .btn {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            padding: 8px 15px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            width: 100%;
+            margin-top: 15px;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover { background: rgba(0, 255, 255, 0.3); }
+
+        .btn-voronoi {
+            background: rgba(179, 102, 255, 0.1);
+            border: 1px solid var(--voronoi-color);
+            color: var(--voronoi-color);
+        }
+        
+        .btn-voronoi.active {
+            background: rgba(179, 102, 255, 0.4);
+            color: #fff;
+            box-shadow: 0 0 10px var(--voronoi-color);
+        }
+
+        .instruction { font-size: 0.75rem; font-style: italic; opacity: 0.8; margin-bottom: 15px; }
+
+    </style>
+    <!-- D3 Delaunay bibliotheek voor Voronoi berekeningen -->
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+</head>
+<body>
+
+    <div class="panel left-panel">
+        <h1>De Integrale Synthese</h1>
+        
+        <h2>1. Geodetische As</h2>
+        <p>Oorsprong: <span class="highlight-white">Londen</span></p>
+        <p>Grootcirkel Vector: <span class="highlight-white">291°</span></p>
+
+        <h2>2. Knooppunten Matrix</h2>
+        <p style="color: #ffffff;">● Londen (Nulpunt)</p>
+        <p style="color: #ff9900;">● St. Maartensdijk (Historisch)</p>
+        <p style="color: #ff3333;">● Sloterplas (Ankerpunt)</p>
+
+        <h2>3. Ruimtelijke Lagen</h2>
+        <button id="toggle-voronoi" class="btn btn-voronoi">VORONOI GRID: AAN</button>
+        <p style="font-size: 0.7rem; margin-top: 8px; color: var(--voronoi-color);">* Gekoppeld aan Planimeter punten</p>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mapCanvas"></canvas>
+    </div>
+
+    <div class="panel right-panel">
+        <h2>4. PLANIMETER & VORONOI</h2>
+        <p class="instruction">Klik op de kaart om de planimeter polygoon te tekenen. Het gekoppelde Voronoi-grid past zich direct aan op basis van deze meetpunten.</p>
+        
+        <div class="dials-container">
+            <div class="dial-wrapper">
+                <div class="dial" id="dial-azimut" data-rot="45">
+                    <div class="dial-knob" style="transform: rotate(45deg) translate(0, -22px);"></div>
+                </div>
+                <p style="font-size: 0.7rem; margin-top: 8px;">AZIMUT: <span id="val-azimut" class="highlight-cyan">45°</span></p>
+            </div>
+            <div class="dial-wrapper">
+                <div class="dial" id="dial-tilt" data-rot="120">
+                    <div class="dial-knob" style="transform: rotate(120deg) translate(0, -22px);"></div>
+                </div>
+                <p style="font-size: 0.7rem; margin-top: 8px;">KANTELING: <span id="val-tilt" class="highlight-cyan">120°</span></p>
+            </div>
+            <div class="dial-wrapper">
+                <div class="dial" id="dial-zoom" data-rot="300">
+                    <div class="dial-knob" style="transform: rotate(300deg) translate(0, -22px);"></div>
+                </div>
+                <p style="font-size: 0.7rem; margin-top: 8px;">ZOOM: <span id="val-zoom" class="highlight-cyan">1.0x</span></p>
+            </div>
+        </div>
+
+        <p>Geregistreerde Punten: <span id="point-count" class="highlight-white">0</span></p>
+        <p>Actieve Voronoi Cellen: <span id="cell-count" class="highlight-voronoi">0</span></p>
+        <p style="font-size: 1.1rem; margin-top: 15px;">Stramien Oppervlakte:</p>
+        <p style="font-size: 1.5rem;" class="highlight-cyan"><span id="area-calc">0.000</span> dA (km²)</p>
+        
+        <button id="clear-btn" class="btn">RESET PLANIMETER</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        // Status variabelen
+        let isVoronoiActive = true;
+        const nodes = [];
+        let polyPoints = [];
+        let voronoiPolygons = [];
+
+        // Gegevens voor de draaiwieltjes
+        const dialValues = { azimut: 45, tilt: 120, zoom: 1.0 };
+
+        function generateVoronoiCells() {
+            const points = [];
+            
+            // Voeg vaste ankerpunten toe
+            nodes.forEach(node => points.push([node.x, node.y]));
+            
+            // KOPPELING: Voeg alle planimeter-punten toe als dynamische Voronoi-sites
+            polyPoints.push(...polyPoints); // Versterk dichtheid rond getekende polygoon
+            polyPoints.forEach(pt => points.push([pt.x, pt.y]));
+
+            // Voeg extra omgevingspunten toe voor een mooi vullend veld
+            for(let i = 0; i < 30; i++) {
+                points.push([Math.random() * width, Math.random() * height]);
+            }
+
+            if (points.length >= 3) {
+                const delaunay = d3.Delaunay.from(points);
+                const voronoi = delaunay.voronoi([0, 0, width, height]);
+                
+                voronoiPolygons = [];
+                for(let i = 0; i < points.length; i++) {
+                    const polygon = voronoi.cellPolygon(i);
+                    if(polygon) voronoiPolygons.push(polygon);
+                }
+                document.getElementById('cell-count').innerText = voronoiPolygons.length;
+            }
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            nodes.length = 0; 
+            nodes.push({ x: width * 0.25, y: height * 0.60, size: 4, color: '#ffffff', label: 'Londen' });
+            nodes.push({ x: width * 0.45, y: height * 0.55, size: 6, color: '#ff9900', label: 'St. Maartensdijk' });
+            nodes.push({ x: width * 0.65, y: height * 0.45, size: 8, color: '#ff3333', label: 'Sloterplas' });
+
+            generateVoronoiCells();
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Voronoi Toggle Logica
+        const voronoiBtn = document.getElementById('toggle-voronoi');
+        voronoiBtn.addEventListener('click', () => {
+            isVoronoiActive = !isVoronoiActive;
+            if (isVoronoiActive) {
+                voronoiBtn.classList.add('active');
+                voronoiBtn.innerText = 'VORONOI GRID: AAN';
+            } else {
+                voronoiBtn.classList.remove('active');
+                voronoiBtn.innerText = 'VORONOI GRID: UIT';
+            }
+        });
+
+        // Planimeter interactie via muisklik op canvas
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            polyPoints.push({x, y});
+            updateArea();
+            generateVoronoiCells(); // Herbereken Voronoi direct op basis van nieuwe punt
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            polyPoints = [];
+            updateArea();
+            generateVoronoiCells();
+        });
+
+        // Shoelace formule voor oppervlakteberekening
+        function calculateArea(points) {
+            if (points.length < 3) return 0;
+            let area = 0;
+            let j = points.length - 1;
+            for (let i = 0; i < points.length; i++) {
+                area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+                j = i;
+            }
+            return Math.abs(area / 2) * 0.001; 
+        }
+
+        function updateArea() {
+            document.getElementById('point-count').innerText = polyPoints.length;
+            const area = calculateArea(polyPoints);
+            document.getElementById('area-calc').innerText = area.toFixed(3);
+        }
+
+        // Sleeplogica voor de draaiwieltjes
+        document.querySelectorAll('.dial').forEach(dial => {
+            let isDragging = false;
+            let startAngle = 0;
+            let currentRot = parseFloat(dial.getAttribute('data-rot')) || 0;
+            const id = dial.id.replace('dial-', '');
+
+            dial.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = dial.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                startAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI) - currentRot;
+                e.stopPropagation();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const rect = dial.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                let angle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI) - startAngle;
+                
+                currentRot = angle;
+                dial.setAttribute('data-rot', currentRot);
+                
+                const knob = dial.querySelector('.dial-knob');
+                knob.style.transform = `rotate(${currentRot}deg) translate(0, -22px)`;
+
+                // Update waarden
+                if (id === 'azimut') {
+                    dialValues.azimut = Math.round((currentRot % 360 + 360) % 360);
+                    document.getElementById('val-azimut.innerText' || 'val-azimut').innerText = dialValues.azimut + '°';
+                } else if (id === 'tilt') {
+                    dialValues.tilt = Math.round((currentRot % 360 + 360) % 360);
+                    document.getElementById('val-tilt').innerText = dialValues.tilt + '°';
+                } else if (id === 'zoom') {
+                    dialValues.zoom = Math.max(0.1, (1 + currentRot / 180)).toFixed(1);
+                    document.getElementById('val-zoom').innerText = dialValues.zoom + 'x';
+                }
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+        });
+
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(26, 43, 76, 0.2)';
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+            
+            for(let x = 0; x < width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+            }
+            for(let y = 0; y < height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+            }
+        }
+
+        function drawVoronoi() {
+            if (!isVoronoiActive || voronoiPolygons.length === 0) return;
+
+            ctx.lineWidth = 1;
+            voronoiPolygons.forEach((polygon, idx) => {
+                ctx.beginPath();
+                ctx.moveTo(polygon[0][0], polygon[0][1]);
+                for (let i = 1; i < polygon.length; i++) {
+                    ctx.lineTo(polygon[i][0], polygon[i][1]);
+                }
+                ctx.closePath();
+                
+                // Cellen die dicht bij de planimeter polygoon liggen krijgen een opvallendere tint
+                ctx.strokeStyle = 'rgba(179, 102, 255, 0.35)';
+                ctx.fillStyle = 'rgba(179, 102, 255, 0.03)';
+                
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+
+        function animate() {
+            ctx.fillStyle = 'var(--bg-color)';
+            ctx.fillRect(0, 0, width, height);
+
+            drawGrid();
+            drawVoronoi();
+
+            // Hoofdvector tekenen
+            if (nodes.length === 3) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(0, 85, 255, 0.3)';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.moveTo(nodes[0].x, nodes[0].y);
+                ctx.lineTo(nodes[1].x, nodes[1].y);
+                ctx.lineTo(nodes[2].x, nodes[2].y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Vaste nodes tekenen
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = node.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px Courier New';
+                ctx.fillText(node.label, node.x + 15, node.y + 4);
+            });
+
+            // Planimeter Polygoon tekenen
+            if (polyPoints.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(polyPoints[0].x, polyPoints[0].y);
+                
+                for (let i = 1; i < polyPoints.length; i++) {
+                    ctx.lineTo(polyPoints[i].x, polyPoints[i].y);
+                }
+                
+                if (polyPoints.length > 2) {
+                    ctx.lineTo(polyPoints[0].x, polyPoints[0].y);
+                }
+                
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.15)';
+                ctx.fill();
+                
+                ctx.strokeStyle = 'var(--cyan)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                polyPoints.forEach((pt, index) => {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = 'var(--cyan)';
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '10px Courier New';
+                    ctx.fillText('P' + index, pt.x + 8, pt.y - 8);
+                });
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
