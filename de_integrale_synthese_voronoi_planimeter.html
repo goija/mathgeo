@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - Cyberpunk Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #030610;
+            --panel-bg: rgba(7, 12, 22, 0.85);
+            --border-color: #1a2b4c;
+            --text-main: #94a3b8;
+            --text-highlight: #00e5ff;
+            --orange: #ff9d00;
+            --red: #ff2a55;
+            --cyan: #00e5ff;
+            --white: #ffffff;
+            --voronoi-color: #d946ef;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            user-select: none; /* Voorkom tekstselectie tijdens draaien wieltjes */
+        }
+
+        /* Glassmorphism Panelen */
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            position: absolute;
+            z-index: 10;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 0 30px rgba(0,0,0,0.9), inset 0 0 15px rgba(0, 229, 255, 0.05);
+        }
+
+        .left-panel { top: 20px; left: 20px; width: 340px; }
+        .right-panel { top: 20px; right: 20px; width: 360px; }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        h1 { font-size: 1.3rem; color: var(--cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 229, 255, 0.4); }
+        h2 { font-size: 0.95rem; color: var(--cyan); margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        p { font-size: 0.85rem; margin: 6px 0; line-height: 1.4; }
+        
+        .highlight-orange { color: var(--orange); font-weight: bold; text-shadow: 0 0 5px rgba(255, 157, 0, 0.5); }
+        .highlight-cyan { color: var(--cyan); font-weight: bold; text-shadow: 0 0 5px rgba(0, 229, 255, 0.5); }
+        .highlight-white { color: var(--white); font-weight: bold; text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }
+
+        .btn {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            padding: 10px 15px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 15px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn:hover { background: rgba(0, 229, 255, 0.3); box-shadow: 0 0 15px rgba(0, 229, 255, 0.3); }
+
+        .btn-voronoi { background: rgba(217, 70, 239, 0.1); border-color: var(--voronoi-color); color: var(--voronoi-color); }
+        .btn-voronoi.active { background: rgba(217, 70, 239, 0.4); color: #fff; box-shadow: 0 0 15px var(--voronoi-color); }
+
+        .instruction { font-size: 0.75rem; font-style: italic; opacity: 0.7; margin-bottom: 20px; }
+
+        .dials-wrapper {
+            display: flex;
+            justify-content: space-between;
+            margin: 25px 0;
+        }
+
+        .dial-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dial {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #0f172a 40%, #1e293b 90%, var(--cyan) 100%);
+            border: 2px solid #334155;
+            position: relative;
+            cursor: grab;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.8), inset 0 0 10px rgba(0, 229, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s;
+        }
+
+        .dial:active { cursor: grabbing; border-color: var(--cyan); }
+
+        /* De inkeping/markering op het wieltje */
+        .dial-marker {
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 14px;
+            background-color: var(--red);
+            border-radius: 3px;
+            box-shadow: 0 0 8px var(--red);
+        }
+
+        /* Binnenste ring voor detail */
+        .dial-inner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px dashed rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+
+        .dial-label { font-size: 0.7rem; margin-top: 10px; color: var(--text-main); font-weight: bold; letter-spacing: 1px; }
+        .dial-value { font-size: 0.85rem; color: var(--cyan); margin-top: 2px; }
+
+    </style>
+    <!-- D3 Delaunay library -->
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+</head>
+<body>
+
+    <div class="panel left-panel">
+        <h1>De Integrale Synthese</h1>
+        
+        <h2>1. Geodetische As</h2>
+        <p>Oorsprong: <span class="highlight-white">Londen</span></p>
+        <p>Grootcirkel Vector: <span class="highlight-white">291°</span></p>
+
+        <h2>2. Knooppunten Matrix</h2>
+        <p style="color: #ffffff; text-shadow: 0 0 5px #fff;">● Londen (Nulpunt)</p>
+        <p style="color: #ff9d00; text-shadow: 0 0 5px #ff9d00;">● St. Maartensdijk (Historisch)</p>
+        <p style="color: #ff2a55; text-shadow: 0 0 5px #ff2a55;">● Sloterplas (Ankerpunt)</p>
+
+        <h2>3. Ruimtelijke Lagen</h2>
+        <button id="toggle-voronoi" class="btn btn-voronoi">VORONOI GRID: UIT</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mapCanvas"></canvas>
+    </div>
+
+    <div class="panel right-panel">
+        <h2>4. PLANIMETER (A. OTT NR. 573)</h2>
+        <p class="instruction">Teken een polygoon op het grid. De Shoelace-integraal berekent het oppervlak. Gebruik de instrument-wielen om parameters af te stemmen.</p>
+        
+        <!-- Draaiwieltjes Sectie -->
+        <div class="dials-wrapper">
+            <div class="dial-container">
+                <div class="dial" id="dial-azimuth" data-angle="45">
+                    <div class="dial-inner"></div>
+                    <div class="dial-marker"></div>
+                </div>
+                <p class="dial-label">AZIMUT</p>
+                <p class="dial-value" id="val-azimuth">45°</p>
+            </div>
+            
+            <div class="dial-container">
+                <div class="dial" id="dial-tilt" data-angle="120">
+                    <div class="dial-inner"></div>
+                    <div class="dial-marker"></div>
+                </div>
+                <p class="dial-label">KANTELING</p>
+                <p class="dial-value" id="val-tilt">120°</p>
+            </div>
+            
+            <div class="dial-container">
+                <div class="dial" id="dial-zoom" data-angle="36">
+                    <div class="dial-inner"></div>
+                    <div class="dial-marker"></div>
+                </div>
+                <p class="dial-label">ZOOM</p>
+                <p class="dial-value" id="val-zoom">1.0x</p>
+            </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 4px; border: 1px solid var(--border-color); margin-top: 10px;">
+            <p>Geregistreerde Punten: <span id="point-count" class="highlight-white">0</span></p>
+            <p style="font-size: 1rem; margin-top: 10px; color: var(--text-main);">Stramien Oppervlakte:</p>
+            <p style="font-size: 1.8rem; margin: 5px 0;" class="highlight-cyan"><span id="area-calc">0.000</span> <span style="font-size: 1rem;">dA (km²)</span></p>
+        </div>
+        
+        <button id="clear-btn" class="btn">RESET MODULE</button>
+    </div>
+
+    <script>
+        // -- DRAAIWIELTJES LOGICA --
+        function setupDial(dialId, valueId, formatter) {
+            const dial = document.getElementById(dialId);
+            const valDisplay = document.getElementById(valueId);
+            let isDragging = false;
+            let currentAngle = parseFloat(dial.dataset.angle) || 0;
+
+            // Initial visual state
+            dial.style.transform = `rotate(${currentAngle}deg)`;
+
+            const updateRotation = (e) => {
+                const rect = dial.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                // Ondersteuning voor muis en touch
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                // Bereken hoek. -90 graden offset omdat de marker visueel op 12 uur ('top') staat (wat -90deg wiskundig is)
+                let angle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI) + 90;
+                if (angle < 0) angle += 360;
+                
+                currentAngle = angle;
+                dial.style.transform = `rotate(${currentAngle}deg)`;
+                
+                // Update text readout
+                valDisplay.innerText = formatter(currentAngle);
+            };
+
+            const onDown = (e) => { 
+                isDragging = true; 
+                document.body.style.cursor = 'grabbing'; // Globale cursor aanpassen tijdens drag
+                updateRotation(e); 
+            };
+            const onMove = (e) => { if(isDragging) updateRotation(e); };
+            const onUp = () => { 
+                isDragging = false; 
+                document.body.style.cursor = 'default';
+            };
+
+            // Events binden
+            dial.addEventListener('mousedown', onDown);
+            window.addEventListener('mousemove', onMove); // window zodat je buiten de knop kunt slepen
+            window.addEventListener('mouseup', onUp);
+            
+            // Touch ondersteuning
+            dial.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(e); }, {passive: false});
+            window.addEventListener('touchmove', onMove, {passive: false});
+            window.addEventListener('touchend', onUp);
+        }
+
+        // Formatteerders voor de text readouts
+        const formatDegree = (a) => Math.round(a) + '°';
+        const formatZoom = (a) => (Math.max(0.1, a / 36)).toFixed(1) + 'x'; // Map 360deg naar 10x zoom
+
+        // Initialiseer de wieltjes
+        setupDial('dial-azimuth', 'val-azimuth', formatDegree);
+        setupDial('dial-tilt', 'val-tilt', formatDegree);
+        setupDial('dial-zoom', 'val-zoom', formatZoom);
+
+
+        // -- CANVAS LOGICA (Voronoi & Planimeter) --
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        let isVoronoiActive = false;
+        const nodes = [];
+        let polyPoints = [];
+        let voronoiPolygons = [];
+
+        function generateVoronoiCells() {
+            const points = [];
+            nodes.forEach(node => points.push([node.x, node.y]));
+            
+            // Ambient grid points
+            for(let i = 0; i < 60; i++) {
+                points.push([Math.random() * width, Math.random() * height]);
+            }
+
+            const delaunay = d3.Delaunay.from(points);
+            const voronoi = delaunay.voronoi([0, 0, width, height]);
+            
+            voronoiPolygons = [];
+            for(let i = 0; i < points.length; i++) {
+                const polygon = voronoi.cellPolygon(i);
+                if(polygon) voronoiPolygons.push(polygon);
+            }
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            nodes.length = 0; 
+            nodes.push({ x: width * 0.25, y: height * 0.60, size: 5, color: '#ffffff', label: 'Londen' });
+            nodes.push({ x: width * 0.50, y: height * 0.55, size: 7, color: '#ff9d00', label: 'St. Maartensdijk' });
+            nodes.push({ x: width * 0.75, y: height * 0.45, size: 9, color: '#ff2a55', label: 'Sloterplas' });
+
+            generateVoronoiCells();
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Voronoi Toggle
+        const voronoiBtn = document.getElementById('toggle-voronoi');
+        voronoiBtn.addEventListener('click', () => {
+            isVoronoiActive = !isVoronoiActive;
+            if (isVoronoiActive) {
+                voronoiBtn.classList.add('active');
+                voronoiBtn.innerText = 'VORONOI GRID: AAN';
+            } else {
+                voronoiBtn.classList.remove('active');
+                voronoiBtn.innerText = 'VORONOI GRID: UIT';
+            }
+        });
+
+        // Planimeter Polygoon Tekenen
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            polyPoints.push({x, y});
+            updateArea();
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            polyPoints = [];
+            updateArea();
+        });
+
+        // Shoelace Formule
+        function calculateArea(points) {
+            if (points.length < 3) return 0;
+            let area = 0;
+            let j = points.length - 1;
+            for (let i = 0; i < points.length; i++) {
+                area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+                j = i;
+            }
+            return Math.abs(area / 2) * 0.001; 
+        }
+
+        function updateArea() {
+            document.getElementById('point-count').innerText = polyPoints.length;
+            const area = calculateArea(polyPoints);
+            
+            // Simuleer een teller-animatie voor een coole mechanische feel
+            const display = document.getElementById('area-calc');
+            display.innerText = area.toFixed(3);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(26, 43, 76, 0.3)';
+            ctx.lineWidth = 1;
+            const gridSize = 60;
+            for(let x = 0; x < width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+            }
+            for(let y = 0; y < height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+            }
+        }
+
+        function drawVoronoi() {
+            if (!isVoronoiActive || voronoiPolygons.length === 0) return;
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(217, 70, 239, 0.25)'; // Purple grid
+            
+            voronoiPolygons.forEach(polygon => {
+                ctx.beginPath();
+                ctx.moveTo(polygon[0][0], polygon[0][1]);
+                for (let i = 1; i < polygon.length; i++) {
+                    ctx.lineTo(polygon[i][0], polygon[i][1]);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(217, 70, 239, 0.03)';
+                ctx.fill();
+            });
+        }
+
+        function animate() {
+            ctx.fillStyle = 'var(--bg-color)';
+            ctx.fillRect(0, 0, width, height);
+
+            drawGrid();
+            drawVoronoi();
+
+            // Vector Lijn (Londen -> Zeeland -> Sloterplas)
+            if (nodes.length === 3) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+                ctx.setLineDash([5, 8]);
+                ctx.lineWidth = 2;
+                ctx.moveTo(nodes[0].x, nodes[0].y);
+                ctx.lineTo(nodes[1].x, nodes[1].y);
+                ctx.lineTo(nodes[2].x, nodes[2].y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Vaste Nodes
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = node.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Courier New';
+                ctx.fillText(node.label, node.x + 15, node.y + 4);
+            });
+
+            // Planimeter Polygoon
+            if (polyPoints.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(polyPoints[0].x, polyPoints[0].y);
+                for (let i = 1; i < polyPoints.length; i++) {
+                    ctx.lineTo(polyPoints[i].x, polyPoints[i].y);
+                }
+                if (polyPoints.length > 2) ctx.lineTo(polyPoints[0].x, polyPoints[0].y);
+                
+                ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+                ctx.fill();
+                ctx.strokeStyle = 'var(--cyan)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                polyPoints.forEach((pt, index) => {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = 'var(--white)';
+                    ctx.fill();
+                    ctx.fillStyle = 'var(--cyan)';
+                    ctx.font = '10px Courier New';
+                    ctx.fillText('P' + index, pt.x + 8, pt.y - 8);
+                });
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

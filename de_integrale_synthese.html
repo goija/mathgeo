@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De Integrale Synthese - Geodetisch Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #030711;
+            --panel-bg: rgba(10, 15, 30, 0.7);
+            --panel-border: #1a2c4e;
+            --cyan: #00e5ff;
+            --orange: #ff9d00;
+            --red: #ff3366;
+            --green: #00ff66;
+            --purple: #d946ef;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: #8b9bb4;
+            font-family: 'JetBrains Mono', monospace;
+            overflow-x: hidden;
+            background-image: 
+                linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+
+        /* Panels and glowing borders */
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(10px);
+            box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.02);
+        }
+
+        /* Neon Text Utilities */
+        .neon-cyan { color: var(--cyan); text-shadow: 0 0 8px rgba(0, 229, 255, 0.5); }
+        .neon-orange { color: var(--orange); text-shadow: 0 0 10px rgba(255, 157, 0, 0.6); font-weight: bold;}
+        .neon-red { color: var(--red); text-shadow: 0 0 12px rgba(255, 51, 102, 0.7); font-weight: bold;}
+        
+        .section-title {
+            color: var(--cyan);
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+        }
+
+        /* Legend Dots */
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .dot-white { background: #fff; box-shadow: 0 0 8px #fff; }
+        .dot-blue { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+        .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+        .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
+        .dot-purple { background: var(--purple); box-shadow: 0 0 8px var(--purple); }
+
+        #canvas-container {
+            position: relative;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col lg:flex-row overflow-hidden text-xs md:text-sm">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="glass-panel lg:w-1/4 w-full h-1/3 lg:h-full p-6 flex flex-col overflow-y-auto z-10 border-r lg:border-b-0 border-b border-[#1a2c4e]">
+        <h1 class="text-xl neon-cyan mb-8 uppercase tracking-widest">De Integrale Synthese</h1>
+
+        <div class="mb-6">
+            <h2 class="section-title">1. Trans-Atlantische Vector</h2>
+            <ul class="space-y-2 opacity-80">
+                <li><span class="text-gray-500">Grootcirkel:</span> 291°</li>
+                <li><span class="text-gray-500">Noordelijke afwijking:</span> 20.91° <br><span class="text-[10px] text-gray-600">(Modulo 21)</span></li>
+            </ul>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="section-title">2. Geodetische Ankerpunten</h2>
+            <ul class="space-y-2">
+                <li class="opacity-80"><span class="text-gray-500">Scherpenisse:</span> 290.91°</li>
+                <li class="neon-orange flex items-center">
+                    <span class="w-1.5 h-1.5 bg-orange-500 rounded-full mr-2 shadow-[0_0_5px_#ff9d00]"></span>
+                    St. Maartensdijk: 290.89°
+                </li>
+                <li class="opacity-80"><span class="text-gray-500">Veere:</span> 290.64°</li>
+            </ul>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="section-title">3. Zeeuwse Driehoeksmeting</h2>
+            <ul class="space-y-2 opacity-80">
+                <li><span class="text-gray-500">Basislijn:</span> 28.3 km</li>
+                <li><span class="text-gray-500">Cyclus:</span> 28-Daagse Maancyclus</li>
+            </ul>
+        </div>
+
+        <div class="mb-2 flex-grow">
+            <h2 class="section-title">4. Mediterrane Atmosferische Optica</h2>
+            <ul class="space-y-3">
+                <li class="flex items-center neon-red">
+                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full mr-2 shadow-[0_0_5px_#ff3366]"></span>
+                    Ankerpunt: Osimo (IT)
+                </li>
+                <li class="opacity-80"><span class="text-gray-500">Oppervlakte:</span> 3.633 km²</li>
+                <li class="opacity-80"><span class="text-gray-500">Mercurius Vector:</span> 186.15°</li>
+                <li class="opacity-80 leading-relaxed border-l-2 border-[#1a2c4e] pl-3 mt-2">
+                    <span class="text-gray-500 block mb-1">Optische Code:</span> 
+                    <span class="text-cyan-200">Fata Morgana & Reflectie Inversie</span>
+                </li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- CENTER CANVAS AREA -->
+    <main id="canvas-container" class="lg:w-2/4 w-full h-1/3 lg:h-full relative z-0 flex-grow cursor-crosshair">
+        <!-- Overlay coordinates for flavor -->
+        <div class="absolute top-4 left-4 text-[10px] text-[#164e63] pointer-events-none">
+            SYS.RENDER: ACTIVE <br>
+            PROJECTION: MERCATOR_MODIFIED
+        </div>
+        <canvas id="networkCanvas"></canvas>
+    </main>
+
+    <!-- RIGHT SIDEBAR -->
+    <aside class="glass-panel lg:w-1/4 w-full h-1/3 lg:h-full p-6 flex flex-col overflow-y-auto z-10 border-l lg:border-t-0 border-t border-[#1a2c4e]">
+        
+        <div class="mb-10">
+            <h2 class="section-title">Matrix Knooppunten</h2>
+            <ul class="space-y-4">
+                <li class="flex items-center text-gray-300 hover:text-white transition-colors"><span class="dot dot-white"></span> WTC1 (NYC Nulpunt)</li>
+                <li class="flex items-center text-gray-300 hover:text-white transition-colors"><span class="dot dot-blue"></span> Trans-Atlantische As</li>
+                <li class="flex items-center neon-orange"><span class="dot dot-orange"></span> St. Maartensdijk (Historisch)</li>
+                <li class="flex items-center text-gray-300 hover:text-white transition-colors"><span class="dot dot-green"></span> Zeeuwse Ankers</li>
+                <li class="flex items-center neon-red"><span class="dot dot-red"></span> Osimo (Mediterrane Anker)</li>
+                <li class="flex items-center text-gray-300 hover:text-white transition-colors"><span class="dot dot-purple"></span> Mediterrane Cluster (75 Nodes)</li>
+            </ul>
+        </div>
+
+        <div>
+            <h2 class="section-title">Atmosferische Parameters</h2>
+            <div class="bg-[#050a15] border border-[#164e63] p-4 rounded text-xs space-y-3">
+                <div class="flex justify-between items-center border-b border-[#0f1d35] pb-2">
+                    <span class="text-gray-500">Zichtlijn Buiging:</span>
+                    <span class="text-green-400">Actief</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-[#0f1d35] pb-2">
+                    <span class="text-gray-500">Spiegeling (Z-as):</span>
+                    <span class="text-cyan-300 animate-pulse">Gesynchroniseerd</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-500">Diepte Focus:</span>
+                    <span class="text-gray-300">Atmosferisch Perspectief</span>
+                </div>
+            </div>
+            
+            <!-- Dynamic wave visualizer -->
+            <div class="mt-6 h-16 w-full border-t border-b border-[#0f1d35] relative overflow-hidden flex items-end pb-2 opacity-50" id="wave-container">
+                <!-- Bars will be generated by JS -->
+            </div>
+            <p class="text-[9px] text-gray-600 mt-2 text-center">Spectrale resonantie meting</p>
+        </div>
+
+    </aside>
+
+    <script>
+        const canvas = document.getElementById('networkCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        // Resize handler
+        function resize() {
+            const container = document.getElementById('canvas-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Base coordinate percentages (px, py) to keep layout responsive
+        const mainNodes = {
+            wtc: { px: 0.15, py: 0.35, color: '#ffffff', radius: 4, glow: 15, label: 'WTC1', phaseX: Math.random()*Math.PI, phaseY: Math.random()*Math.PI },
+            stMaart: { px: 0.45, py: 0.45, color: '#ff9d00', radius: 7, glow: 25, label: 'St. Maartensdijk', phaseX: Math.random()*Math.PI, phaseY: Math.random()*Math.PI },
+            zeeland1: { px: 0.42, py: 0.48, color: '#00ff66', radius: 2.5, glow: 10, label: '', phaseX: Math.random()*Math.PI, phaseY: Math.random()*Math.PI },
+            zeeland2: { px: 0.47, py: 0.42, color: '#00ff66', radius: 2.5, glow: 10, label: '', phaseX: Math.random()*Math.PI, phaseY: Math.random()*Math.PI },
+            osimo: { px: 0.75, py: 0.3, color: '#ff3366', radius: 9, glow: 30, label: 'Osimo', phaseX: Math.random()*Math.PI, phaseY: Math.random()*Math.PI }
+        };
+
+        // Generate the Mediterrane Cluster (75 purple nodes)
+        const clusterNodes = [];
+        for(let i=0; i<75; i++) {
+            // Distribute around Osimo using polar coordinates
+            const angle = Math.random() * Math.PI * 2;
+            // Focus more near the center, trail off outward
+            const distance = Math.pow(Math.random(), 1.5) * 0.15; 
+            
+            clusterNodes.push({
+                px: mainNodes.osimo.px + Math.cos(angle) * distance * (height/width), // adjust aspect ratio
+                py: mainNodes.osimo.py + Math.sin(angle) * distance,
+                color: '#d946ef',
+                radius: Math.random() * 1.5 + 0.5,
+                glow: 5,
+                phaseX: Math.random() * Math.PI * 2,
+                phaseY: Math.random() * Math.PI * 2,
+                speed: Math.random() * 0.02 + 0.01
+            });
+        }
+
+        let time = 0;
+
+        function drawConnections(nodes, isReflection) {
+            ctx.beginPath();
+            
+            // WTC to St. Maartensdijk (Trans-Atlantische As)
+            let startX = nodes.wtc.x;
+            let startY = nodes.wtc.y;
+            let endX = nodes.stMaart.x;
+            let endY = nodes.stMaart.y;
+            
+            ctx.moveTo(startX, startY);
+            // Quadratic curve to make it look like a globe projection arc
+            let cpX = (startX + endX) / 2;
+            let cpY = Math.min(startY, endY) - (width * 0.05); // bow upwards (or downwards if reflection)
+            
+            if(isReflection) {
+                // If it's the reflection, the curve control point needs to bow inversely relative to axis
+                cpY = Math.max(startY, endY) + (width * 0.05);
+            }
+
+            ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+
+            // St. Maartensdijk to Osimo
+            startX = nodes.stMaart.x;
+            startY = nodes.stMaart.y;
+            endX = nodes.osimo.x;
+            endY = nodes.osimo.y;
+
+            ctx.moveTo(startX, startY);
+            cpX = (startX + endX) / 2;
+            cpY = Math.max(startY, endY) + (width * 0.05); // bow downwards
+            
+            if(isReflection) {
+                cpY = Math.min(startY, endY) - (width * 0.05);
+            }
+            ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+
+            ctx.strokeStyle = isReflection ? 'rgba(0, 229, 255, 0.1)' : 'rgba(0, 229, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]); // dashed line for geodetic vector
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawNode(node, isReflection) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = node.color;
+            
+            // Glow effect
+            ctx.shadowBlur = isReflection ? node.glow / 2 : node.glow;
+            ctx.shadowColor = node.color;
+            
+            if (isReflection) {
+                ctx.globalAlpha = 0.2; // Fata Morgana effect
+            } else {
+                ctx.globalAlpha = 1;
+            }
+
+            ctx.fill();
+            
+            // Reset shadow for text
+            ctx.shadowBlur = 0;
+
+            // Labels for main nodes
+            if (node.label && !isReflection) {
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.font = '12px "JetBrains Mono", monospace';
+                ctx.fillText(node.label, node.x + 12, node.y + 4);
+            }
+        }
+
+        function animate() {
+            time += 0.01;
+            
+            // Clear canvas with trail effect for smoother motion
+            ctx.fillStyle = 'rgba(3, 7, 17, 0.3)'; // Match background base
+            ctx.fillRect(0, 0, width, height);
+
+            // Calculate current physical positions based on percentages and time (floating)
+            let currentNodes = {};
+            
+            // Helper to calculate position with floating animation
+            const calcPos = (node, amplitude = 10, timeMultiplier = 1) => {
+                return {
+                    x: (node.px * width) + Math.sin(time * timeMultiplier + node.phaseX) * amplitude,
+                    y: (node.py * height) + Math.cos(time * timeMultiplier + node.phaseY) * amplitude,
+                    radius: node.radius,
+                    color: node.color,
+                    glow: node.glow,
+                    label: node.label
+                };
+            };
+
+            // Calculate main nodes
+            for (const key in mainNodes) {
+                // Slower animation for main anchors
+                currentNodes[key] = calcPos(mainNodes[key], 5, 0.5); 
+            }
+
+            // Calculate cluster nodes
+            let currentCluster = clusterNodes.map(node => calcPos(node, 8, node.speed * 50));
+
+            // 1. Draw Reflection (Z-as Spiegeling) FIRST so it stays in background
+            const reflectionAxis = height * 0.7; 
+            
+            let reflectedNodes = {};
+            for(const key in currentNodes) {
+                let n = currentNodes[key];
+                reflectedNodes[key] = {
+                    ...n,
+                    y: reflectionAxis + (reflectionAxis - n.y)
+                };
+            }
+            
+            let reflectedCluster = currentCluster.map(n => ({
+                ...n,
+                y: reflectionAxis + (reflectionAxis - n.y)
+            }));
+
+            drawConnections(reflectedNodes, true);
+            for (const key in reflectedNodes) drawNode(reflectedNodes[key], true);
+            reflectedCluster.forEach(n => drawNode(n, true));
+
+
+            // 2. Draw Primary Network
+            drawConnections(currentNodes, false);
+            for (const key in currentNodes) drawNode(currentNodes[key], false);
+            currentCluster.forEach(n => drawNode(n, false));
+            
+            // Draw reflection axis line (subtle)
+            ctx.globalAlpha = 0.05;
+            ctx.strokeStyle = '#00e5ff';
+            ctx.beginPath();
+            ctx.moveTo(0, reflectionAxis);
+            ctx.lineTo(width, reflectionAxis);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            requestAnimationFrame(animate);
+        }
+
+        function setupWaveVisualizer() {
+            const container = document.getElementById('wave-container');
+            const barsCount = 20;
+            
+            for(let i=0; i<barsCount; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'w-full mx-px bg-cyan-500 rounded-t-sm transition-all duration-100 ease-in-out';
+                bar.style.height = '10%';
+                container.appendChild(bar);
+            }
+
+            setInterval(() => {
+                const bars = container.children;
+                for(let i=0; i<bars.length; i++) {
+                    // Randomize height to simulate spectral data
+                    const h = Math.random() * 80 + 10;
+                    bars[i].style.height = h + '%';
+                    bars[i].style.opacity = Math.random() * 0.5 + 0.3;
+                }
+            }, 150); // Update frequency
+        }
+
+        // Start systems
+        setupWaveVisualizer();
+        animate();
+
+    </script>
+</body>
+</html>
