@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voronoi Picasso Sloterplas - Nocturnal Tessellation</title>
+    <!-- Tailwind CSS for modern responsive layout and utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- D3 Delaunay for robust Voronoi grid calculations -->
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+    <!-- Google Fonts for artistic typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .art-title {
+            font-family: 'Cinzel', serif;
+        }
+        /* Canvas grain / texture overlay */
+        .canvas-texture {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0);
+            background-size: 24px 24px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between canvas-texture select-none">
+
+    <header class="w-full p-4 flex justify-between items-center z-20 bg-black/60 backdrop-blur-md border-b border-indigo-900/40">
+        <div>
+            <h1 class="art-title text-xl md:text-2xl font-bold tracking-wider text-amber-400">SLOTERPLAS CUBIST VORONOI</h1>
+            <p class="text-xs text-indigo-300 font-light">Synthese van M.C. Escher, P. Picasso & Hemelmechanica (52.3685° N, 4.8294° E)</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="toggle-animate" class="px-4 py-2 bg-indigo-600/40 hover:bg-indigo-600/70 border border-indigo-400/50 rounded text-xs font-medium tracking-wider text-white transition shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                TRANSFORM: AAN
+            </button>
+            <button id="reset-canvas" class="px-4 py-2 bg-amber-600/40 hover:bg-amber-600/70 border border-amber-400/50 rounded text-xs font-medium tracking-wider text-amber-200 transition">
+                RESET VECTORS
+            </button>
+        </div>
+    </header>
+
+    <main class="relative flex-grow w-full h-full overflow-hidden cursor-crosshair">
+        <canvas id="picassoCanvas" class="absolute inset-0 w-full h-full block"></canvas>
+        
+        <!-- Artistic floating metadata badge -->
+        <div class="absolute bottom-6 left-6 pointer-events-none p-4 bg-black/70 backdrop-blur-md border border-indigo-500/30 rounded-lg shadow-2xl max-w-xs z-10">
+            <h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-1">Aeterna Noctis</h3>
+            <p class="text-[11px] text-gray-300 leading-relaxed">
+                Kubistische fragmentatie van de Oostoever, Lyra-constellaties en de waterspiegeling onder een Fata Morgana inversie.
+            </p>
+            <div class="mt-2 text-[10px] text-indigo-400 font-mono">
+                PUNTEN: <span id="node-count" class="text-white">0</span> | Cellen: <span id="cell-count" class="text-white">0</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('picassoCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            initComposition();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        let isAnimating = true;
+        let time = 0;
+        let userNodes = [];
+        let baseNodes = [];
+
+        // Picasso-esque paletten (diepe nachtblauwen, kobalt, okergeel, vlammend rood en smaragdgroen)
+        const cubistPalettes = [
+            'rgba(15, 23, 42, 0.85)',   // Kobalt Nacht
+            'rgba(30, 27, 75, 0.85)',   // Diep Indigo
+            'rgba(120, 53, 15, 0.8)',   // Oker / Aarde
+            'rgba(159, 18, 57, 0.75)',  // Kubistisch Rood
+            'rgba(6, 78, 59, 0.8)',     // Smaragd Sloterplas
+            'rgba(67, 56, 202, 0.75)'   // Elektrisch Violet
+        ];
+
+        function initComposition() {
+            baseNodes = [];
+            
+            // Vaste ankerpunten voor de Sloterplas geometrie en sterrenhemel
+            // De Sloterplas hoef-vorm
+            for(let i=0; i<18; i++) {
+                let angle = (i / 18) * Math.PI * 2;
+                let r = Math.min(width, height) * 0.22 + Math.sin(i * 3) * 40;
+                baseNodes.push({
+                    x: width * 0.5 + Math.cos(angle) * r * 1.3,
+                    y: height * 0.55 + Math.sin(angle) * r * 0.7,
+                    vx: (Math.random() - 0.5) * 0.6,
+                    vy: (Math.random() - 0.5) * 0.6,
+                    colorIdx: i % cubistPalettes.length,
+                    isLake: true
+                });
+            }
+
+            // Constellaties & Hemel (Lyra, Cygnus, Vega)
+            for(let i=0; i<25; i++) {
+                baseNodes.push({
+                    x: Math.random() * width,
+                    y: Math.random() * (height * 0.6),
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: (Math.random() - 0.5) * 0.3,
+                    colorIdx: Math.floor(Math.random() * cubistPalettes.length),
+                    isSky: true
+                });
+            }
+
+            // Kubistische fragmenten en Oostoever bebouwing
+            for(let i=0; i<30; i++) {
+                baseNodes.push({
+                    x: Math.random() * width,
+                    y: height * 0.5 + Math.random() * (height * 0.5),
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    colorIdx: Math.floor(Math.random() * cubistPalettes.length),
+                    isGround: true
+                });
+            }
+        }
+
+        resizeCanvas();
+
+        // Interactie: klik om extra kubistische ankerpunten toe te voegen
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            userNodes.push({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
+                colorIdx: Math.floor(Math.random() * cubistPalettes.length),
+                isUser: true
+            });
+            updateCounters();
+        });
+
+        document.getElementById('reset-canvas').addEventListener('click', () => {
+            userNodes = [];
+            initComposition();
+            updateCounters();
+        });
+
+        const toggleBtn = document.getElementById('toggle-animate');
+        toggleBtn.addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            toggleBtn.innerText = isAnimating ? "TRANSFORM: AAN" : "TRANSFORM: UIT";
+            toggleBtn.classList.toggle('bg-indigo-600/40');
+            toggleBtn.classList.toggle('bg-rose-600/40');
+        });
+
+        function updateCounters() {
+            const total = baseNodes.length + userNodes.length;
+            document.getElementById('node-count').innerText = total;
+        }
+
+        function render() {
+            time += 0.015;
+            ctx.clearRect(0, 0, width, height);
+
+            let allNodes = [...baseNodes, ...userNodes];
+
+            // Posities updaten indien animatie aan staat
+            if (isAnimating) {
+                allNodes.forEach(node => {
+                    node.x += node.vx;
+                    node.y += node.vy;
+
+                    // Stuiteren tegen schermranden
+                    if (node.x < 0 || node.x > width) node.vx *= -1;
+                    if (node.y < 0 || node.y > height) node.vy *= -1;
+                });
+            }
+
+            const points = allNodes.map(n => [n.x, n.y]);
+            
+            if (points.length >= 3) {
+                const delaunay = d3.Delaunay.from(points);
+                const voronoi = delaunay.voronoi([0, 0, width, height]);
+
+                document.getElementById('cell-count').innerText = points.length;
+
+                // Teken Voronoi Cellen met Picasso-achtige kleurschakeringen en penseelstreken
+                for (let i = 0; i < points.length; i++) {
+                    const polygon = voronoi.cellPolygon(i);
+                    if (polygon) {
+                        ctx.beginPath();
+                        ctx.moveTo(polygon[0][0], polygon[0][1]);
+                        for (let j = 1; j < polygon.length; j++) {
+                            ctx.lineTo(polygon[j][0], polygon[j][1]);
+                        }
+                        ctx.closePath();
+
+                        // Kubistische vulling op basis van node type en palet
+                        const node = allNodes[i];
+                        ctx.fillStyle = cubistPalettes[node.colorIdx];
+                        ctx.fill();
+
+                        // Zware, hoekige Picasso-lijnen
+                        ctx.strokeStyle = node.isLake ? 'rgba(245, 158, 11, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                        ctx.lineWidth = node.isLake ? 2 : 1.2;
+                        ctx.stroke();
+
+                        // Subtiele arcering (hatch lines) in kubistische stijl voor textuur
+                        if (i % 3 === 0) {
+                            ctx.save();
+                            ctx.clip();
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                            ctx.lineWidth = 1;
+                            let startX = polygon[0][0];
+                            let startY = polygon[0][1];
+                            for(let h = -width; h < width; h += 15) {
+                                ctx.beginPath();
+                                ctx.moveTo(startX + h, startY - height);
+                                ctx.lineTo(startX + h + height, startY + height);
+                                ctx.stroke();
+                            }
+                            ctx.restore();
+                        }
+                    }
+                }
+
+                // Teken sterren, constellatielijnen en de Sloterplas kern
+                allNodes.forEach((node, idx) => {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.isLake ? 4 : 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = node.isLake ? '#f59e0b' : '#ffffff';
+                    ctx.shadowBlur = node.isLake ? 15 : 8;
+                    ctx.shadowColor = node.isLake ? '#f59e0b' : '#60a5fa';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                // Dynamische kubistische connecties tussen naburige sterren/punten
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.25)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < points.length; i += 3) {
+                    let p1 = points[i];
+                    let p2 = points[(i + 5) % points.length];
+                    ctx.moveTo(p1[0], p1[1]);
+                    ctx.lineTo(p2[0], p2[1]);
+                }
+                ctx.stroke();
+            }
+
+            updateCounters();
+            requestAnimationFrame(render);
+        }
+
+        render();
+    </script>
+</body>
+</html>
