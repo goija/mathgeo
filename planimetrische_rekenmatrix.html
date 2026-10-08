@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planimetrische Rekenmatrix - Ott #573</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"Fira Code"', 'monospace'],
+                        display: ['"Orbitron"', 'sans-serif'],
+                    },
+                    colors: {
+                        geodark: '#0a0f16',
+                        geopanel: '#111827',
+                        geocyan: '#00f0ff',
+                        geogold: '#ffb347',
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 10px rgba(0, 240, 255, 0.2), inset 0 0 10px rgba(0, 240, 255, 0.1)',
+                        'neon-gold': '0 0 10px rgba(255, 179, 71, 0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for a technical feel */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0f16; }
+        ::-webkit-scrollbar-thumb { background: #00f0ff; border-radius: 4px; }
+        body { background-color: #0a0f16; color: #e2e8f0; }
+    </style>
+</head>
+<body class="font-mono min-h-screen flex flex-col p-4 md:p-8">
+
+    <header class="mb-8 border-b-2 border-geocyan pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 shadow-neon-cyan p-6 bg-geopanel rounded-lg">
+        <div>
+            <h1 class="font-display text-2xl md:text-4xl text-geocyan tracking-wider uppercase font-bold drop-shadow-md">
+                Planimetrische Rekenmatrix
+            </h1>
+            <p class="text-geogold mt-2 text-sm md:text-base">
+                Instrument: Ott Compensatie-Poolplanimeter (Nr. 573) | Dossier: #573-OTTIAN-GEO
+            </p>
+        </div>
+        <div class="text-xs text-right opacity-70">
+            <p>GEODETISCH CENTRUM</p>
+            <p id="live-time" class="text-geocyan"></p>
+        </div>
+    </header>
+
+    <main class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <section class="lg:col-span-4 flex flex-col gap-6">
+            
+            <div class="bg-geopanel p-6 rounded-lg border border-gray-800 shadow-neon-cyan">
+                <h2 class="text-geocyan text-lg border-b border-gray-700 pb-2 mb-4 font-semibold uppercase tracking-wide">
+                    ⚙️ Instrumentele Parameters
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Omlooparm (L) in mm</label>
+                        <input type="number" id="input-l" value="200.0" step="0.1" 
+                            class="w-full bg-geodark border border-gray-700 rounded p-2 text-geocyan focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Rolaflezing (N)</label>
+                        <input type="number" id="input-n" value="3584" step="1" 
+                            class="w-full bg-geodark border border-gray-700 rounded p-2 text-geocyan focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Nonius Constante (λ) in mm²</label>
+                        <input type="number" id="input-lambda" value="10" step="0.1" 
+                            class="w-full bg-geodark border border-gray-700 rounded p-2 text-geocyan focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors">
+                    </div>
+                    
+                    <div class="pt-2 border-t border-gray-800 mt-2">
+                        <label class="block text-xs text-geogold mb-1">Custom Schaal (1:X)</label>
+                        <div class="flex items-center">
+                            <span class="bg-gray-800 border border-gray-700 text-gray-400 px-3 py-2 rounded-l">1:</span>
+                            <input type="number" id="input-custom-scale" value="500" step="1" 
+                                class="w-full bg-geodark border border-l-0 border-gray-700 rounded-r p-2 text-geogold focus:border-geogold focus:outline-none focus:ring-1 focus:ring-geogold transition-colors">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-geopanel p-6 rounded-lg border border-geocyan/50 shadow-neon-cyan relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-16 h-16 bg-geocyan/10 rounded-bl-full -mr-8 -mt-8"></div>
+                <h2 class="text-gray-300 text-sm font-semibold uppercase tracking-wide mb-1">
+                    Gemeten Papieroppervlak
+                </h2>
+                <div class="text-3xl font-display text-white my-2" id="output-paper-cm">
+                    358,40 <span class="text-lg text-gray-400">cm²</span>
+                </div>
+                <div class="text-sm text-geocyan" id="output-paper-mm">
+                    (35.840,00 mm²)
+                </div>
+                <div class="mt-4 text-xs text-gray-500 border-t border-gray-800 pt-2">
+                    Formule: A = λ × N
+                </div>
+            </div>
+            
+        </section>
+
+        <section class="lg:col-span-8">
+            <div class="bg-geopanel p-6 rounded-lg border border-gray-800 shadow-neon-cyan h-full">
+                <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                    <h2 class="text-geocyan text-lg font-semibold uppercase tracking-wide">
+                        📐 Kwadratische Schaalmatrix (M²)
+                    </h2>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-xs text-gray-400 border-b border-gray-800 bg-geodark/50">
+                                <th class="py-3 px-4 font-normal">Kaartschaal</th>
+                                <th class="py-3 px-4 font-normal">Context</th>
+                                <th class="py-3 px-4 font-normal text-right">Schaalfactor (F²)</th>
+                                <th class="py-3 px-4 font-normal text-right text-geocyan">Werkelijk Oppervlak</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matrix-body" class="text-sm">
+                            <!-- Rows will be injected here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        
+    </main>
+
+    <footer class="mt-8 pt-4 border-t border-gray-800 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 gap-2">
+        <div>
+            <span class="text-geocyan">Integratiewet (Stelling van Green):</span> ∮ x dy - y dx
+        </div>
+        <div class="text-geogold font-bold tracking-wider">
+            Ceci n'est pas une carte.
+        </div>
+        <div>
+            Dossier: #573-OTTIAN-GEO
+        </div>
+    </footer>
+
+    <script>
+        // DOM Elements
+        const inputL = document.getElementById('input-l');
+        const inputN = document.getElementById('input-n');
+        const inputLambda = document.getElementById('input-lambda');
+        const inputCustomScale = document.getElementById('input-custom-scale');
+        
+        const outPaperCm = document.getElementById('output-paper-cm');
+        const outPaperMm = document.getElementById('output-paper-mm');
+        const matrixBody = document.getElementById('matrix-body');
+        
+        // Base Scales Definition
+        const baseScales = [
+            { scale: 50, context: "Bouwtekening" },
+            { scale: 1000, context: "Kadaster" },
+            { scale: 10000, context: "Stadsontwikkeling" },
+            { scale: 25000, context: "Topografische Kaart (Tafelbergheide)" },
+            { scale: 50000, context: "Regionale Atlas Gooi & Vechtstreek" },
+            { scale: 22000000, context: "Macro-geografische kartografie" }
+        ];
+
+        // Format Numbers (Dutch Locale)
+        const formatNum = (num, minDec = 2, maxDec = 2) => {
+            return new Intl.NumberFormat('nl-NL', { 
+                minimumFractionDigits: minDec, 
+                maximumFractionDigits: maxDec 
+            }).format(num);
+        };
+
+        // Format Area smartly (m², ha, km²)
+        const formatArea = (sqMeters) => {
+            if (sqMeters < 10000) {
+                return `<span class="text-white">${formatNum(sqMeters)}</span> <span class="text-gray-500">m²</span>`;
+            } else if (sqMeters < 1000000) {
+                let ha = sqMeters / 10000;
+                return `<span class="text-white">${formatNum(sqMeters)}</span> <span class="text-gray-500">m²</span> <br> <span class="text-geogold text-xs">(${formatNum(ha)} ha)</span>`;
+            } else {
+                let sqKm = sqMeters / 1000000;
+                return `<span class="text-white">${formatNum(sqKm)}</span> <span class="text-gray-500">km²</span>`;
+            }
+        };
+
+        // Core Calculation Function
+        const calculateMatrix = () => {
+            // Get Values
+            const N = parseFloat(inputN.value) || 0;
+            const lambda = parseFloat(inputLambda.value) || 0;
+            const customScaleVal = parseFloat(inputCustomScale.value);
+            
+            // Calculate Paper Area
+            const areaMm2 = lambda * N;
+            const areaCm2 = areaMm2 / 100;
+            const areaM2 = areaMm2 / 1000000; // Conversion to m² for scaling
+            
+            // Update UI Paper Area
+            outPaperCm.innerHTML = `${formatNum(areaCm2)} <span class="text-lg text-gray-400">cm²</span>`;
+            outPaperMm.innerHTML = `(${formatNum(areaMm2)} mm²)`;
+
+            // Prepare Scales Array (Inject custom scale)
+            let currentScales = [...baseScales];
+            if (!isNaN(customScaleVal) && customScaleVal > 0) {
+                // Check if it already exists to avoid duplicates
+                const exists = currentScales.find(s => s.scale === customScaleVal);
+                if (!exists) {
+                    currentScales.push({ scale: customScaleVal, context: "Custom Invoer", isCustom: true });
+                    // Sort numerically by scale
+                    currentScales.sort((a, b) => a.scale - b.scale);
+                } else {
+                    exists.isCustom = true; // Highlight if it overlaps with base scale
+                }
+            }
+
+            // Generate Table Rows
+            matrixBody.innerHTML = '';
+            
+            currentScales.forEach(item => {
+                const scaleFactorSquared = Math.pow(item.scale, 2);
+                const realAreaM2 = areaM2 * scaleFactorSquared;
+                
+                const tr = document.createElement('tr');
+                tr.className = `border-b border-gray-800/50 hover:bg-geodark transition-colors ${item.isCustom ? 'bg-geocyan/5' : ''}`;
+                
+                tr.innerHTML = `
+                    <td class="py-3 px-4 ${item.isCustom ? 'text-geogold font-bold' : 'text-gray-300'}">1:${formatNum(item.scale, 0, 0)}</td>
+                    <td class="py-3 px-4 text-gray-500 text-xs">${item.context}</td>
+                    <td class="py-3 px-4 text-right font-mono text-gray-400 text-xs">${formatNum(scaleFactorSquared, 0, 0)}</td>
+                    <td class="py-3 px-4 text-right font-mono leading-tight">${formatArea(realAreaM2)}</td>
+                `;
+                matrixBody.appendChild(tr);
+            });
+        };
+
+        inputL.addEventListener('input', calculateMatrix);
+        inputN.addEventListener('input', calculateMatrix);
+        inputLambda.addEventListener('input', calculateMatrix);
+        inputCustomScale.addEventListener('input', calculateMatrix);
+
+        // Live Clock for Header
+        const updateClock = () => {
+            const now = new Date();
+            document.getElementById('live-time').innerText = now.toLocaleTimeString('nl-NL') + ' | ' + now.toLocaleDateString('nl-NL');
+        };
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Initial Calculation
+        calculateMatrix();
+        
+    </script>
+</body>
+</html>
