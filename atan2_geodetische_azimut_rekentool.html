@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>atan2 Geodetische Azimut Rekentool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"Fira Code"', 'monospace'],
+                        display: ['"Orbitron"', 'sans-serif'],
+                    },
+                    colors: {
+                        geoblack: '#0b0c10',
+                        geopanel: '#1f2833',
+                        geocyan: '#66fcf1',
+                        geocya2: '#45a29e',
+                        geogold: '#f2a900',
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 10px rgba(102, 252, 241, 0.2), inset 0 0 10px rgba(102, 252, 241, 0.1)',
+                        'neon-gold': '0 0 10px rgba(242, 169, 0, 0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0b0c10; color: #c5c6c7; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0c10; }
+        ::-webkit-scrollbar-thumb { background: #66fcf1; border-radius: 4px; }
+        canvas { filter: drop-shadow(0 0 8px rgba(102, 252, 241, 0.4)); }
+    </style>
+</head>
+<body class="font-mono min-h-screen flex flex-col p-4 md:p-6">
+
+    <header class="mb-6 border-b-2 border-geocyan pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 shadow-neon-cyan p-6 bg-geopanel rounded-lg">
+        <div>
+            <h1 class="font-display text-2xl md:text-3xl text-geocyan tracking-wider uppercase font-bold drop-shadow-md flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-geogold"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                atan2 Geodetische Azimut Rekentool
+            </h1>
+            <p class="text-geocya2 mt-2 text-sm md:text-base">
+                Vergelijking tussen geodetisch azimut atan2(ΔX, ΔY) en wiskundige hoek atan2(ΔY, ΔX).
+            </p>
+        </div>
+        <div class="text-xs text-right opacity-80 text-geogold">
+            <p>REFERENTIESYSTEEM: LOKAAL</p>
+            <p>PROJECTIE: CARTESISCH</p>
+        </div>
+    </header>
+
+    <main class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <section class="lg:col-span-4 flex flex-col gap-6">
+            
+            <div class="bg-geopanel p-6 rounded-lg border border-gray-700 shadow-neon-cyan">
+                <h2 class="text-geocyan text-lg border-b border-gray-700 pb-2 mb-4 font-semibold uppercase tracking-wide">
+                    📍 Coördinaat Invoer
+                </h2>
+                
+                <div class="space-y-4">
+                    <!-- Punt 1 -->
+                    <div class="p-4 bg-geoblack/50 border border-gray-800 rounded">
+                        <div class="text-sm text-geogold mb-2 uppercase font-bold">Punt 1 (Oorsprong)</div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">X1</label>
+                                <input type="number" id="x1" value="0" class="w-full bg-geopanel border border-gray-700 rounded p-2 text-white focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Y1</label>
+                                <input type="number" id="y1" value="0" class="w-full bg-geopanel border border-gray-700 rounded p-2 text-white focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Punt 2 -->
+                    <div class="p-4 bg-geoblack/50 border border-gray-800 rounded">
+                        <div class="text-sm text-geocyan mb-2 uppercase font-bold">Punt 2 (Doel)</div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">X2</label>
+                                <input type="number" id="x2" value="100" class="w-full bg-geopanel border border-gray-700 rounded p-2 text-white focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Y2</label>
+                                <input type="number" id="y2" value="100" class="w-full bg-geopanel border border-gray-700 rounded p-2 text-white focus:border-geocyan focus:outline-none focus:ring-1 focus:ring-geocyan transition-colors text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-geopanel p-6 rounded-lg border border-gray-700 shadow-neon-cyan flex-grow">
+                <h2 class="text-geocyan text-lg border-b border-gray-700 pb-2 mb-4 font-semibold uppercase tracking-wide">
+                    📊 Berekende Data
+                </h2>
+                
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between items-center bg-geoblack/50 p-2 rounded">
+                        <span class="text-gray-400">ΔX (X2 - X1):</span>
+                        <span id="out-dx" class="font-bold text-white">100</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-geoblack/50 p-2 rounded">
+                        <span class="text-gray-400">ΔY (Y2 - Y1):</span>
+                        <span id="out-dy" class="font-bold text-white">100</span>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-gray-700 flex flex-col gap-2">
+                        <div class="text-xs text-geogold uppercase">Geodetisch Azimut (Noord = 0°)</div>
+                        <div class="flex justify-between items-center">
+                            <code class="text-xs text-geocya2">atan2(ΔX, ΔY)</code>
+                            <span id="out-azimuth" class="text-xl font-display text-geocyan font-bold">45.00°</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 pt-4 border-t border-gray-700 flex flex-col gap-2">
+                        <div class="text-xs text-gray-400 uppercase">Wiskundige Hoek (X-as = 0°)</div>
+                        <div class="flex justify-between items-center">
+                            <code class="text-xs text-gray-500">atan2(ΔY, ΔX)</code>
+                            <span id="out-math-angle" class="text-lg font-display text-gray-300">45.00°</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-gray-700 bg-geoblack/50 p-3 rounded border border-geocya2/20">
+                        <div class="text-xs text-gray-400 uppercase mb-1">Actief Kwadrant</div>
+                        <div id="out-quadrant" class="text-sm text-geocya2 font-bold">
+                            I (+X, +Y) [Noordoost]
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+
+        <section class="lg:col-span-8 flex flex-col">
+            <div class="bg-geopanel p-4 md:p-6 rounded-lg border border-gray-700 shadow-neon-cyan flex-grow flex flex-col items-center justify-center relative min-h-[400px]">
+                <h2 class="absolute top-4 left-6 text-geocyan text-sm font-semibold uppercase tracking-wide opacity-50 z-10">
+                    📡 Geodetisch Radarscherm
+                </h2>
+                
+                <div class="w-full max-w-[500px] aspect-square relative mt-6">
+                    <canvas id="radar" width="500" height="500" class="w-full h-full rounded-full border-2 border-geocyan/20 bg-geoblack"></canvas>
+                </div>
+                
+                <div class="absolute bottom-4 left-6 text-xs text-gray-500">
+                    * Zwarte achtergrond. Vector toont richting P1 → P2 ten opzichte van Geodetisch Noord.
+                </div>
+            </div>
+        </section>
+        
+    </main>
+
+    <script>
+        // DOM Elements
+        const inputs = {
+            x1: document.getElementById('x1'),
+            y1: document.getElementById('y1'),
+            x2: document.getElementById('x2'),
+            y2: document.getElementById('y2'),
+        };
+        
+        const outputs = {
+            dx: document.getElementById('out-dx'),
+            dy: document.getElementById('out-dy'),
+            azimuth: document.getElementById('out-azimuth'),
+            mathAngle: document.getElementById('out-math-angle'),
+            quadrant: document.getElementById('out-quadrant'),
+        };
+
+        const canvas = document.getElementById('radar');
+        const ctx = canvas.getContext('2d');
+
+        // Main Calculation and Update loop
+        function update() {
+            // Get values
+            const x1 = parseFloat(inputs.x1.value) || 0;
+            const y1 = parseFloat(inputs.y1.value) || 0;
+            const x2 = parseFloat(inputs.x2.value) || 0;
+            const y2 = parseFloat(inputs.y2.value) || 0;
+
+            // Calculate Deltas
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+
+            // Update UI Deltas
+            outputs.dx.innerText = dx.toFixed(2);
+            outputs.dy.innerText = dy.toFixed(2);
+
+            // Calculate Geodetic Azimuth: atan2(dx, dy)
+            let azimuthRad = Math.atan2(dx, dy);
+            let azimuthDeg = azimuthRad * (180 / Math.PI);
+            // Normalize to 0-360
+            let azimuthNorm = (azimuthDeg + 360) % 360;
+            
+            // Calculate Math Angle: atan2(dy, dx)
+            let mathRad = Math.atan2(dy, dx);
+            let mathDeg = mathRad * (180 / Math.PI);
+
+            // Update UI Angles
+            outputs.azimuth.innerText = `${azimuthNorm.toFixed(2)}°`;
+            outputs.mathAngle.innerText = `${mathDeg.toFixed(2)}°`;
+
+            // Determine Quadrant (Based on dx and dy signs)
+            let quadText = "";
+            if (dx >= 0 && dy >= 0) quadText = "I (+X, +Y) [Noordoost]";
+            else if (dx < 0 && dy >= 0) quadText = "II (-X, +Y) [Noordwest]";
+            else if (dx < 0 && dy < 0) quadText = "III (-X, -Y) [Zuidwest]";
+            else if (dx >= 0 && dy < 0) quadText = "IV (+X, -Y) [Zuidoost]";
+            
+            if (dx === 0 && dy === 0) quadText = "Punt 1 en Punt 2 zijn identiek (Origin)";
+            
+            outputs.quadrant.innerText = quadText;
+
+            // Redraw Radar Canvas
+            drawRadar(dx, dy, azimuthRad, azimuthNorm);
+        }
+
+        function drawRadar(dx, dy, azimuthRad, azimuthNorm) {
+            const width = canvas.width;
+            const height = canvas.height;
+            const cx = width / 2;
+            const cy = height / 2;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw radar grid (circles)
+            ctx.strokeStyle = 'rgba(102, 252, 241, 0.1)'; // geocyan very transparent
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 4; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, (width / 2) * (i * 0.2), 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            // Draw Axes (Crosshair)
+            ctx.strokeStyle = 'rgba(102, 252, 241, 0.3)';
+            ctx.beginPath();
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, height); // Y Axis
+            ctx.moveTo(0, cy); ctx.lineTo(width, cy); // X Axis
+            ctx.stroke();
+
+            // Labels N, O, Z, W
+            ctx.fillStyle = '#66fcf1';
+            ctx.font = '16px "Orbitron", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N', cx, 20);
+            ctx.fillText('Z', cx, height - 20);
+            ctx.fillText('O', width - 20, cy);
+            ctx.fillText('W', 20, cy);
+
+            // Calculate Scale so P2 fits on screen
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            let scale = 1;
+            const maxRadius = (width / 2) * 0.8; // 80% of radius to leave margin
+            
+            if (distance > 0) {
+                scale = maxRadius / distance;
+            }
+
+            // P1 is at center
+            // In geodetic math: +Y is North (Up), +X is East (Right)
+            // In canvas: +Y is Down. So we must flip the dy when drawing
+            const p2x = cx + dx * scale;
+            const p2y = cy - dy * scale; // Minus because canvas Y goes down
+
+            // Draw Vector Line (P1 to P2)
+            if (distance > 0) {
+                ctx.strokeStyle = '#f2a900'; // geogold
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(p2x, p2y);
+                ctx.stroke();
+
+                // Draw arrow head
+                const arrowLength = 10;
+                // Angle for canvas drawing (using math angle, but inverted Y)
+                const canvasDrawAngle = Math.atan2(-dy, dx);
+                
+                ctx.beginPath();
+                ctx.moveTo(p2x, p2y);
+                ctx.lineTo(p2x - arrowLength * Math.cos(canvasDrawAngle - Math.PI / 6), p2y - arrowLength * Math.sin(canvasDrawAngle - Math.PI / 6));
+                ctx.moveTo(p2x, p2y);
+                ctx.lineTo(p2x - arrowLength * Math.cos(canvasDrawAngle + Math.PI / 6), p2y - arrowLength * Math.sin(canvasDrawAngle + Math.PI / 6));
+                ctx.stroke();
+            }
+
+            // Draw P1 and P2 points
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            if (distance > 0) {
+                ctx.fillStyle = '#f2a900';
+                ctx.beginPath();
+                ctx.arc(p2x, p2y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw Azimuth Arc
+                ctx.strokeStyle = '#66fcf1'; // Cyan for azimuth
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                // Canvas angle: 0 is Right, -PI/2 is Up (North)
+                const startAngle = -Math.PI / 2; 
+                // We add the geodetic azimuth (which is clockwise positive)
+                // Since canvas positive angle is clockwise, this maps perfectly!
+                const endAngle = startAngle + (azimuthNorm * Math.PI / 180);
+                
+                ctx.arc(cx, cy, 40, startAngle, endAngle, false); // false = clockwise
+                ctx.stroke();
+
+                // Draw Text next to arc
+                ctx.fillStyle = '#66fcf1';
+                ctx.font = '12px "Fira Code", monospace';
+                const textAngle = startAngle + (azimuthNorm * Math.PI / 180) / 2;
+                const tx = cx + 55 * Math.cos(textAngle);
+                const ty = cy + 55 * Math.sin(textAngle);
+                ctx.fillText(`${azimuthNorm.toFixed(0)}°`, tx, ty);
+            }
+        }
+
+        // Add event listeners to all inputs
+        Object.values(inputs).forEach(input => {
+            input.addEventListener('input', update);
+        });
+
+        // Run once on load
+        update();
+
+    </script>
+</body>
+</html>
