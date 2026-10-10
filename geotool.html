@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEO-TOOL-v27: Scroll Scale, Vrij Slepen & Auto-Meetmodus</title>
+    <title>GEO-TOOL-v28: Precision Tuning & Auto-Meetmodus</title>
     
     <!-- MapLibre GL JS CSS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -143,7 +143,7 @@
         <!-- HUD Telemetrie -->
         <div class="telemetry-hud">
             <div>
-                <strong>[SYS ID]</strong> GEO-TOOL-v27<br>
+                <strong>[SYS ID]</strong> GEO-TOOL-v28 (Precision Tuned)<br>
                 <strong>Engine:</strong> MapLibre (Max Pitch: 85°)<br>
                 <strong>Systeem Tijd:</strong> <span id="hud-time"></span>
             </div>
@@ -214,15 +214,18 @@
             <div class="geo-toolbox-content" id="geoToolboxContent">
                 <div class="geo-grid">
                     <label>Transparantie: <input type="range" id="ovOpacity" min="0" max="1" step="0.1" value="0.8" oninput="updateOverlayProperties()"></label>
-                    <label>Rotatie (graden): <input type="number" id="ovRotation" value="0" step="0.5" oninput="updateOverlayProperties()"></label>
-                    <label>Breedteschaal X (%): <input type="number" id="ovScaleX" value="100" step="1" oninput="updateOverlayProperties()"></label>
-                    <label>Hoogteschaal Y (%): <input type="number" id="ovScaleY" value="100" step="1" oninput="updateOverlayProperties()"></label>
-                    <label>Verschuif Oost/West (m): <input type="number" id="ovShiftX" value="0" step="5" oninput="updateOverlayProperties()"></label>
-                    <label>Verschuif Noord/Zuid (m): <input type="number" id="ovShiftY" value="0" step="5" oninput="updateOverlayProperties()"></label>
+                    <label>Rotatie (graden): <input type="number" id="ovRotation" value="0" step="0.1" oninput="updateOverlayProperties()"></label>
+                    <label>Breedteschaal X (%): <input type="number" id="ovScaleX" value="100" step="0.5" oninput="updateOverlayProperties()"></label>
+                    <label>Hoogteschaal Y (%): <input type="number" id="ovScaleY" value="100" step="0.5" oninput="updateOverlayProperties()"></label>
+                    <label>Verschuif Oost/West (m): <input type="number" id="ovShiftX" value="0" step="1" oninput="updateOverlayProperties()"></label>
+                    <label>Verschuif Noord/Zuid (m): <input type="number" id="ovShiftY" value="0" step="1" oninput="updateOverlayProperties()"></label>
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
                     <button class="btn btn-warning" id="dragOverlayBtn" style="flex:2;" onclick="toggleOverlayDragMode()">✋ Sleep Modus: SCROLL = SCHAAL / KLIK = SLEPEN</button>
                     <button class="btn btn-dark" style="flex:1;" onclick="resetOverlayCalibration()">🔄 Reset</button>
+                </div>
+                <div style="font-size: 0.8em; color: #555; margin-top: 5px; text-align: center;">
+                    <em>Tip: Houd SHIFT of ALT ingedrukt tijdens het scrollen voor grovere (5%) of fijnere (0.1%) schaling.</em>
                 </div>
             </div>
         </div>
@@ -230,26 +233,26 @@
         <div class="map-container">
             <div id="map"></div>
             
-            <!-- Navigatie Planometer -->
+            <!-- Navigatie Planometer - FINETUNED SENSITIVITY -->
             <div class="nav-planometer">
                 <span class="nav-label">Verschuiven</span>
-                <div class="nav-row"><button class="nav-btn" onclick="mapControl('pan', 0, -100)">⬆️</button></div>
+                <div class="nav-row"><button class="nav-btn" onclick="mapControl('pan', 0, -50)">⬆️</button></div>
                 <div class="nav-row">
-                    <button class="nav-btn" onclick="mapControl('pan', -100, 0)">⬅️</button>
-                    <button class="nav-btn" onclick="mapControl('pan', 0, 100)">⬇️</button>
-                    <button class="nav-btn" onclick="mapControl('pan', 100, 0)">➡️</button>
+                    <button class="nav-btn" onclick="mapControl('pan', -50, 0)">⬅️</button>
+                    <button class="nav-btn" onclick="mapControl('pan', 0, 50)">⬇️</button>
+                    <button class="nav-btn" onclick="mapControl('pan', 50, 0)">➡️</button>
                 </div>
                 <span class="nav-label" style="margin-top:5px;">Zoom & Rotatie</span>
                 <div class="nav-row">
-                    <button class="nav-btn" onclick="mapControl('zoom', 1)">➕</button>
-                    <button class="nav-btn" onclick="mapControl('zoom', -1)">➖</button>
-                    <button class="nav-btn" onclick="mapControl('rotate', -15)">↺</button>
-                    <button class="nav-btn" onclick="mapControl('rotate', 15)">↻</button>
+                    <button class="nav-btn" onclick="mapControl('zoom', 0.5)">➕</button>
+                    <button class="nav-btn" onclick="mapControl('zoom', -0.5)">➖</button>
+                    <button class="nav-btn" onclick="mapControl('rotate', -5)">↺</button>
+                    <button class="nav-btn" onclick="mapControl('rotate', 5)">↻</button>
                 </div>
                 <span class="nav-label" style="margin-top:5px;">Kijkhoek (3D)</span>
                 <div class="nav-row">
-                    <button class="nav-btn" onclick="mapControl('pitch', 10)">📐⬆️</button>
-                    <button class="nav-btn" onclick="mapControl('pitch', -10)">📐⬇️</button>
+                    <button class="nav-btn" onclick="mapControl('pitch', 5)">📐⬆️</button>
+                    <button class="nav-btn" onclick="mapControl('pitch', -5)">📐⬇️</button>
                 </div>
             </div>
 
@@ -286,8 +289,9 @@
         <!-- Systeem Logboek -->
         <h3>Logboek Telemetrie</h3>
         <div class="logbook" id="sysLogbook">
-            <div class="log-entry">> GEO-TOOL-v27 geïnitialiseerd...</div>
-            <div class="log-entry">> Meetmodus AAN: Klik om te starten.</div>
+            <div class="log-entry">> GEO-TOOL-v28 geïnitialiseerd...</div>
+            <div class="log-entry">> Gevoeligheid instrumenten verfijnd.</div>
+            <div class="log-entry">> Meetmodus STANDAARD AAN: Klik om te starten.</div>
         </div>
         <button class="btn btn-info" onclick="downloadLogbook()" style="width: 100%; margin-top: 5px;">💾 Sla Logboek Op (.TXT)</button>
     </div>
@@ -333,7 +337,7 @@
         }
 
         function downloadLogbook() {
-            let logText = "GEO-TOOL-v27 SESSIE LOGBOEK\n==============================================\n\n";
+            let logText = "GEO-TOOL-v28 SESSIE LOGBOEK\n==============================================\n\n";
             document.querySelectorAll('.log-entry').forEach(entry => { logText += entry.innerText + "\n"; });
             const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
@@ -409,8 +413,14 @@
             map.addLayer({ 'id': 'planimeter-line', 'type': 'line', 'source': 'planimeter-src', 'filter': ['!=', '$type', 'Point'], 'paint': { 'line-color': '#0056b3', 'line-width': 2 }});
             map.addLayer({ 'id': 'planimeter-points', 'type': 'circle', 'source': 'planimeter-src', 'filter': ['==', '$type', 'Point'], 'paint': { 'circle-radius': 7, 'circle-color': '#ffc107', 'circle-stroke-width': 2, 'circle-stroke-color': '#333' }});
             
-            // Initial cursor update based on default mode
             if (isMeasurementMode && !overlayDragMode) map.getCanvas().style.cursor = 'crosshair';
+        });
+
+        map.on('mouseenter', 'planimeter-points', () => { 
+            if(!overlayDragMode && !isMeasurementMode) map.getCanvas().style.cursor = 'pointer'; 
+        });
+        map.on('mouseleave', 'planimeter-points', () => { 
+            if(!overlayDragMode && !isMeasurementMode) map.getCanvas().style.cursor = ''; 
         });
 
         function toggleGridLayer(gridId) {
@@ -426,8 +436,10 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (data.type === 'FeatureCollection') { map.getSource('custom-grid-src').setData(data); addLog("Custom GeoJSON grid succesvol geladen."); } 
-                    else { addLog("FOUT: Bestand is geen geldige GeoJSON FeatureCollection."); }
+                    if (data.type === 'FeatureCollection') {
+                        map.getSource('custom-grid-src').setData(data);
+                        addLog("Custom GeoJSON grid succesvol geladen.");
+                    } else { addLog("FOUT: Bestand is geen geldige GeoJSON FeatureCollection."); }
                 } catch(err) { addLog("FOUT: Grid JSON corrupt."); }
                 event.target.value = '';
             }; reader.readAsText(file);
@@ -478,7 +490,7 @@
 
         // --- 4. PLANIMETER WIELTJES (MET MEETMODUS TOGGLE STANDAARD AAN) ---
         let pointsRD = []; 
-        let isMeasurementMode = true; // STANDAARD AAN IN v27
+        let isMeasurementMode = true; // STANDAARD AAN IN v28
 
         function toggleMeasureMode() {
             isMeasurementMode = !isMeasurementMode;
@@ -489,14 +501,12 @@
                 if(!overlayDragMode) map.getCanvas().style.cursor = 'crosshair';
                 document.getElementById('hud-measure-mode').innerText = "AAN";
                 document.getElementById('hud-measure-mode').style.color = "#28a745";
-                addLog("Meetmodus geactiveerd. Klikken plaatst punten.");
             } else {
                 btn.classList.replace('btn-success', 'btn-warning');
                 btn.innerText = '📍 Meetmodus UIT';
                 if(!overlayDragMode) map.getCanvas().style.cursor = '';
                 document.getElementById('hud-measure-mode').innerText = "UIT";
                 document.getElementById('hud-measure-mode').style.color = "#dc3545";
-                addLog("Meetmodus gedeactiveerd.");
             }
         }
 
@@ -507,7 +517,6 @@
             pointsRD.push({ x: x, y: y }); 
             updateUI();
             document.querySelectorAll('.maplibregl-popup').forEach(el => el.remove());
-
             fetchPointDataAndLog(lngLat, x, y, method);
         }
 
@@ -541,7 +550,7 @@
         map.on('click', function(e) { 
             if(overlayDragMode) return; 
             if(!isMeasurementMode) return; 
-            placePoint(e.lngLat, "Links-Klik (Meetmodus)"); 
+            placePoint(e.lngLat, "Links-Klik"); 
         });
 
         // --- 5. RECHTER-KLIK MENU ---
@@ -573,7 +582,7 @@
 
         window.removePointByCoords = function(x, y) {
             const idx = pointsRD.findIndex(p => Math.abs(p.x - x) < 2 && Math.abs(p.y - y) < 2);
-            if (idx !== -1) { pointsRD.splice(idx, 1); updateUI(); addLog(`Wieltje verwijderd.`); }
+            if (idx !== -1) { pointsRD.splice(idx, 1); updateUI(); }
             document.querySelectorAll('.maplibregl-popup').forEach(el => el.remove());
         };
 
@@ -720,19 +729,22 @@
             }
         }
 
-        // --- NIEUW: Muis Scroll voor Overlay Schalen ---
+        // --- NIEUW: Muis Scroll voor Overlay Schalen met Finetuning ---
         map.getCanvasContainer().addEventListener('wheel', (e) => {
             if (overlayDragMode && isOverlayVisible && overlayUrl) {
-                e.preventDefault(); // Voorkom pagina of kaart scrollen
+                e.preventDefault(); 
                 
-                // Bepaal schaalverandering: omhoog = groter, omlaag = kleiner (2% per tik)
-                const scaleAmount = e.deltaY < 0 ? 3 : -3; 
+                let step = 1; // Standaard 1% per tik
+                if (e.shiftKey) step = 5; // Grof (5%) met Shift
+                if (e.altKey) step = 0.1; // Fijn (0.1%) met Alt
+
+                const scaleAmount = e.deltaY < 0 ? step : -step; 
                 
                 let currentScaleX = parseFloat(document.getElementById('ovScaleX').value);
                 let currentScaleY = parseFloat(document.getElementById('ovScaleY').value);
                 
-                document.getElementById('ovScaleX').value = Math.max(5, currentScaleX + scaleAmount);
-                document.getElementById('ovScaleY').value = Math.max(5, currentScaleY + scaleAmount);
+                document.getElementById('ovScaleX').value = Math.max(0.1, currentScaleX + scaleAmount).toFixed(1);
+                document.getElementById('ovScaleY').value = Math.max(0.1, currentScaleY + scaleAmount).toFixed(1);
                 
                 updateOverlayProperties();
             }
@@ -779,7 +791,7 @@
                 document.getElementById('toggleOverlayBtn').style.opacity = '1';
                 document.getElementById('clearImgBtn').style.display = 'inline-flex';
                 
-                isOverlayVisible = true; resetOverlayCalibration(); event.target.value = ''; addLog("Afbeelding in kaart geladen.");
+                isOverlayVisible = true; resetOverlayCalibration(); event.target.value = '';
             }; reader.readAsDataURL(file);
         }
 
