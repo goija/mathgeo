@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEO-TOOL-v22.1: MapLibre Planimeter (3D Fix)</title>
+    
+    <!-- MapLibre GL JS CSS -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --primary: #0056b3;
+            --dark: #1a1a2e;
+            --accent: #ffc107;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 15px;
+        }
+        h1, h2, h3 { margin-top: 0; }
+        .full-width { grid-column: 1 / -1; }
+        
+        .panel {
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Telemetrie HUD */
+        .telemetry-hud {
+            background-color: #0d1117; color: #58a6ff; font-family: 'Courier New', Courier, monospace;
+            padding: 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 15px;
+            border-left: 4px solid var(--accent); display: flex; flex-wrap: wrap; gap: 15px;
+        }
+        .telemetry-hud div { flex: 1; min-width: 200px; }
+        .telemetry-hud strong { color: #8b949e; }
+
+        /* Toolbar & Controls */
+        .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+        .search-box { display: flex; flex: 1; min-width: 200px; }
+        .search-box input { flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px 0 0 4px; }
+        .search-box button { padding: 6px 12px; background: var(--primary); color: white; border: none; border-radius: 0 4px 4px 0; cursor: pointer; }
+
+        /* Kaart container */
+        .map-container {
+            position: relative; width: 100%; height: 550px; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; background-color: #111; 
+        }
+        #map { width: 100%; height: 100%; }
+
+        /* Navigatie Planometer */
+        .nav-planometer {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(26, 32, 44, 0.85); padding: 10px; border-radius: 8px; border: 1px solid #2d3748;
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+        }
+        .nav-row { display: flex; gap: 5px; }
+        .nav-btn {
+            background: #2d3748; color: white; border: 1px solid #4a5568; border-radius: 4px;
+            width: 30px; height: 30px; font-size: 14px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; user-select: none;
+        }
+        .nav-btn:hover { background: var(--primary); }
+        .nav-btn:active { background: var(--accent); color: #333; }
+        .nav-label { color: #a0aec0; font-size: 10px; margin-bottom: -4px; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Custom 3D Kompas Overlay */
+        #custom-compass {
+            position: absolute; top: 20px; right: 20px; width: 90px; height: 90px;
+            background: rgba(26, 32, 44, 0.85); border-radius: 50%; border: 2px solid #2d3748; z-index: 10;
+            pointer-events: none; display: flex; align-items: center; justify-content: center; color: #4299e1; font-size: 0.7em; font-weight: bold;
+        }
+        #custom-compass::before { content: 'N'; position: absolute; top: 4px; }
+        #custom-compass::after { content: 'Z'; position: absolute; bottom: 4px; }
+        .compass-arrow {
+            width: 4px; height: 36px; background-color: var(--accent); position: absolute; bottom: 50%;
+            transform-origin: bottom center; border-radius: 2px; transition: transform 0.1s ease-out;
+        }
+        .compass-arrow::after {
+            content: ''; position: absolute; top: -6px; left: -4px;
+            border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 8px solid var(--accent);
+        }
+
+        /* Knoppen & Tabellen */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.8em; }
+        th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
+        th { background-color: #eee; }
+        input[type="number"] { width: 65px; padding: 4px; font-size: 0.9em; box-sizing: border-box; } 
+        
+        .btn {
+            background-color: var(--primary); color: white; border: none; 
+            padding: 6px 10px; cursor: pointer; border-radius: 4px; 
+            font-size: 0.85em; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        .btn:hover { filter: brightness(1.2); }
+        .btn-danger { background-color: #dc3545; }
+        .btn-success { background-color: #28a745; }
+        .btn-warning { background-color: var(--accent); color: #333; font-weight: bold;}
+        .btn-dark { background-color: var(--dark); color: white;}
+        .btn-info { background-color: #17a2b8; }
+        .btn-toggle { background-color: #6c757d; }
+        .btn-toggle.active { background-color: var(--primary); box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+
+        .logbook {
+            background: #1e1e1e; color: #00ff00; font-family: monospace; font-size: 0.75em;
+            height: 250px; overflow-y: auto; padding: 10px; border-radius: 4px; margin-top: 10px;
+            white-space: pre-wrap; 
+        }
+        .log-entry { margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        .log-entry strong { color: #58a6ff; }
+
+        /* Georeferentie Toolbar */
+        .geo-toolbox { display: none; background: #f8f9fa; border: 1px solid #ced4da; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        .geo-toolbox-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .geo-toolbox-header h3 { margin: 0; color: #0056b3; font-size: 1.1em; }
+        .geo-toolbox-content { display: block; margin-top: 15px; }
+        .geo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85em; font-weight: bold; }
+        .geo-grid input { width: 100%; box-sizing: border-box; padding: 5px; margin-top: 3px; font-weight: normal; border: 1px solid #ccc; border-radius: 3px;}
+
+        /* Filters Toolbar */
+        .filter-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; background: #f1f3f5; padding: 10px; border-radius: 5px; }
+        #imageConverterCanvas { max-width: 100%; max-height: 400px; border: 1px dashed #aaa; display: none; margin-top: 15px; background: #fff;}
+        
+        @media (max-width: 900px) { body { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div class="full-width">
+        <!-- HUD Telemetrie -->
+        <div class="telemetry-hud">
+            <div>
+                <strong>[SYS ID]</strong> GEO-TOOL-v22.1 (3D Fix)<br>
+                <strong>Provider:</strong> MapLibre | © Esri, OSM<br>
+                <strong>Systeem Tijd:</strong> <span id="hud-time"></span>
+            </div>
+            <div>
+                <strong>Vizier (Centrum):</strong> <span id="hud-vizier">52.30040, 5.22323</span><br>
+                <strong>Zon El/Az:</strong> -39.45° | 34.06°<br>
+                <strong>Basiskaart:</strong> <span id="hud-basemap" style="color:var(--accent)">Satelliet (Esri World)</span>
+            </div>
+            <div>
+                <strong>Rechts-Klik:</strong> Actief (Coördinaten & Punten beheren)<br>
+                <strong>Logboek:</strong> Actief (Puntdata, Astro & Altimetrie)<br>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PANEEL 1: KAART -->
+    <div class="panel">
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Plaats of 'Lat, Lng'..." onkeypress="if(event.key === 'Enter') searchLocation()">
+                <button onclick="searchLocation()">🔍 Zoeken</button>
+            </div>
+            
+            <button class="btn btn-warning" onclick="toggleBaseMapStyle()">🗺️ Satelliet / MapLibre</button>
+            <button class="btn btn-info" onclick="toggle3D()">👁️ 2D / 3D</button>
+            <button class="btn btn-success" id="lockMapBtn" onclick="toggleMapLock()">🔓 Kaart Los</button>
+        </div>
+
+        <div class="toolbar" style="background:#f8f9fa; padding:8px; border-radius:5px; border:1px solid #ddd;">
+            <strong style="font-size:0.9em;">Netwerk Lagen:</strong>
+            <button class="btn btn-toggle" id="btn-seamap" onclick="toggleGridLayer('seamap')">⚓ Zeegrid</button>
+            <button class="btn btn-toggle" id="btn-railway" onclick="toggleGridLayer('railway')">🚆 Treingrid</button>
+            <button class="btn btn-toggle" id="btn-cycle" onclick="toggleGridLayer('cycle')">🚲 Fietsgrid</button>
+        </div>
+
+        <div class="controls" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-dark" onclick="generateVoronoi()">🕸️ Genereer Voronoi</button>
+            <button class="btn btn-info" onclick="exportVoronoiJSON()">💾 Sla Lagen Op (GeoJSON)</button>
+            <button class="btn btn-success" onclick="takeMapScreenshot()">📸 Sla Kaart Op (.PNG)</button>
+            
+            <span style="border-left: 1px solid #ccc; margin: 0 5px;"></span>
+            
+            <input type="file" id="uploadOverlay" accept="image/png, image/jpeg, image/svg+xml" style="display:none" onchange="handleOverlayUpload(event)">
+            <button class="btn btn-dark" style="background:#495057;" onclick="document.getElementById('uploadOverlay').click()">📥 Laad Eigen Afbeelding</button>
+            <button class="btn btn-info" onclick="toggleImageOverlayVisibility()" id="toggleOverlayBtn" style="display:none;">👁️ Verberg/Toon</button>
+            <button class="btn btn-danger" onclick="clearImageOverlay()" id="clearImgBtn" style="display:none;">❌ Wis Afbeelding</button>
+        </div>
+
+        <!-- KALIBRATIE TOOLBOX -->
+        <div class="geo-toolbox" id="geoToolbox">
+            <div class="geo-toolbox-header" onclick="toggleGeoToolbox()">
+                <h3>⚙️ Overlay Inmeten & Kalibreren (RD)</h3>
+                <span id="geoToolboxIcon">🔽</span>
+            </div>
+            <div class="geo-toolbox-content" id="geoToolboxContent">
+                <div class="geo-grid">
+                    <label>Transparantie: <input type="range" id="ovOpacity" min="0" max="1" step="0.1" value="0.8" oninput="updateOverlayProperties()"></label>
+                    <label>Rotatie (graden): <input type="number" id="ovRotation" value="0" step="0.5" oninput="updateOverlayProperties()"></label>
+                    <label>Breedteschaal X (%): <input type="number" id="ovScaleX" value="100" step="1" oninput="updateOverlayProperties()"></label>
+                    <label>Hoogteschaal Y (%): <input type="number" id="ovScaleY" value="100" step="1" oninput="updateOverlayProperties()"></label>
+                    <label>Verschuif Oost/West (m): <input type="number" id="ovShiftX" value="0" step="5" oninput="updateOverlayProperties()"></label>
+                    <label>Verschuif Noord/Zuid (m): <input type="number" id="ovShiftY" value="0" step="5" oninput="updateOverlayProperties()"></label>
+                </div>
+                <button class="btn btn-dark" style="margin-top: 10px; width: 100%;" onclick="resetOverlayCalibration()">🔄 Reset Inmeting</button>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <!-- Navigatie Planometer -->
+            <div class="nav-planometer">
+                <span class="nav-label">Verschuiven</span>
+                <div class="nav-row"><button class="nav-btn" onclick="mapControl('pan', 0, -100)">⬆️</button></div>
+                <div class="nav-row">
+                    <button class="nav-btn" onclick="mapControl('pan', -100, 0)">⬅️</button>
+                    <button class="nav-btn" onclick="mapControl('pan', 0, 100)">⬇️</button>
+                    <button class="nav-btn" onclick="mapControl('pan', 100, 0)">➡️</button>
+                </div>
+                <span class="nav-label" style="margin-top:5px;">Zoom & Rotatie</span>
+                <div class="nav-row">
+                    <button class="nav-btn" onclick="mapControl('zoom', 1)">➕</button>
+                    <button class="nav-btn" onclick="mapControl('zoom', -1)">➖</button>
+                    <button class="nav-btn" onclick="mapControl('rotate', -15)">↺</button>
+                    <button class="nav-btn" onclick="mapControl('rotate', 15)">↻</button>
+                </div>
+                <span class="nav-label" style="margin-top:5px;">Kijkhoek (3D)</span>
+                <div class="nav-row">
+                    <button class="nav-btn" onclick="mapControl('pitch', 10)">📐⬆️</button>
+                    <button class="nav-btn" onclick="mapControl('pitch', -10)">📐⬇️</button>
+                </div>
+            </div>
+
+            <!-- Live Kompas -->
+            <div id="custom-compass">
+                <div class="compass-arrow" id="compass-arrow"></div>
+                <span style="position:absolute; left:5px;">W</span>
+                <span style="position:absolute; right:5px;">O</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEEL 2: COÖRDINATEN & LOGBOEK -->
+    <div class="panel">
+        <h2>Punt-Layers (RD)</h2>
+        <div class="controls" style="display:flex; flex-wrap:wrap; gap:5px;">
+            <button class="btn btn-danger" onclick="clearPoints()" style="width:100%; margin-bottom:10px;">Wis Alles</button>
+            <button class="btn btn-dark" onclick="downloadJSON()" style="flex:1;">💾 Opslaan Punten</button>
+            <input type="file" id="uploadJSON" accept=".json" style="display:none" onchange="handleUpload(event)">
+            <button class="btn btn-success" onclick="document.getElementById('uploadJSON').click()" style="flex:1;">📤 Inladen Punten</button>
+        </div>
+
+        <div style="max-height: 200px; overflow-y: auto; overflow-x: hidden; margin-top: 10px;">
+            <table id="coordTable">
+                <thead><tr><th>Wieltje</th><th>X (m)</th><th>Y (m)</th><th>Actie</th></tr></thead>
+                <tbody><!-- JS --></tbody>
+            </table>
+        </div>
+
+        <div style="font-size: 1.1em; font-weight: bold; color: #28a745; margin: 10px 0;">
+            Oppervlakte: <span id="areaResult">0.00 m²</span>
+        </div>
+
+        <!-- Systeem Logboek -->
+        <h3>Logboek Telemetrie</h3>
+        <div class="logbook" id="sysLogbook">
+            <div class="log-entry">> GEO-TOOL-v22.1 (3D Fix) geïnitialiseerd...</div>
+            <div class="log-entry">> Astronomische Tracking ingeschakeld.</div>
+        </div>
+        <button class="btn btn-info" onclick="downloadLogbook()" style="width: 100%; margin-top: 5px;">💾 Sla Logboek Op (.TXT)</button>
+    </div>
+
+    <!-- PANEEL 3: AFBEELDINGEN OMZETTER -->
+    <div class="panel full-width">
+        <h2>Afbeeldingen Omzetter (Filters met Schuifregelaar)</h2>
+        <p>Bewerk scans voordat je ze gebruikt. De schuifregelaar bepaalt de drempelwaarde (Zwart/Wit) of de intensiteit (Invert/Grijstinten).</p>
+        
+        <div class="filter-controls">
+            <input type="file" id="converterInput" accept="image/*" style="display:none" onchange="loadConverterImage(event)">
+            <button class="btn btn-success" onclick="document.getElementById('converterInput').click()">📁 Kies Afbeelding</button>
+            
+            <button class="btn btn-dark" onclick="setFilterType('grayscale')">⚪ Grijstinten</button>
+            <button class="btn btn-dark" onclick="setFilterType('twobit')">⚫ 2-Bit (Zwart/Wit)</button>
+            <button class="btn btn-dark" onclick="setFilterType('invert')">🔄 Invert (Negatief)</button>
+            <button class="btn btn-warning" onclick="resetFilter()">Reset</button>
+
+            <!-- De Dynamische Schuifregelaar -->
+            <label style="margin-left: 15px; font-weight: bold;">
+                Intensiteit / Drempel: 
+                <input type="range" id="filterSlider" min="0" max="255" value="128" oninput="runFilter()" style="vertical-align: middle;">
+            </label>
+
+            <button class="btn btn-info" style="margin-left: auto;" onclick="saveConvertedImage()">💾 Sla Op (.PNG)</button>
+        </div>
+        <canvas id="imageConverterCanvas"></canvas>
+    </div>
+
+    <!-- Bibliotheken -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        // --- HUD KLOK ---
+        setInterval(() => { document.getElementById('hud-time').innerText = new Date().toLocaleString('nl-NL'); }, 1000);
+
+        // --- 1. CONFIGURATIE COÖRDINATEN ---
+        proj4.defs("EPSG:28992", "+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.417,50.3319,465.552,-0.398957,0.343988,-1.8774,4.0725 +units=m +no_defs");
+        
+        // Logboek Functie Update
+        function addLog(msg) {
+            const logbook = document.getElementById('sysLogbook');
+            const timestamp = new Date().toLocaleTimeString('nl-NL');
+            logbook.innerHTML += `<div class="log-entry"><strong>[${timestamp}]</strong> ${msg}</div>`;
+            logbook.scrollTop = logbook.scrollHeight;
+        }
+
+        function downloadLogbook() {
+            let logText = "GEO-TOOL-v22.1 SESSIE LOGBOEK\n============================\n\n";
+            document.querySelectorAll('.log-entry').forEach(entry => {
+                logText += entry.innerText + "\n";
+            });
+            const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `geo_logboek_${new Date().toISOString().slice(0,10)}.txt`;
+            link.click();
+            addLog("Logboek succesvol geëxporteerd als TXT.");
+        }
+
+        // --- 2. MAPLIBRE INITIALISATIE ---
+        const mapSources = {
+            'satellite': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            'maplibre': 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'seamap': 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+            'railway': 'https://a.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
+            'cycle': 'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png'
+        };
+
+        const map = new maplibregl.Map({
+            container: 'map', preserveDrawingBuffer: true,
+            style: {
+                'version': 8,
+                'sources': { 'base-src': { 'type': 'raster', 'tiles': [mapSources['satellite']], 'tileSize': 256 } },
+                'layers': [{ 'id': 'base-layer', 'type': 'raster', 'source': 'base-src', 'minzoom': 0, 'maxzoom': 19 }]
+            },
+            center: [5.22323, 52.30040], zoom: 12, pitch: 45, bearing: 0
+        });
+
+        let isSatellite = true;
+        function toggleBaseMapStyle() {
+            isSatellite = !isSatellite;
+            map.getSource('base-src').tiles = [isSatellite ? mapSources['satellite'] : mapSources['maplibre']];
+            map.style.sourceCaches['base-src'].clearTiles();
+            map.style.sourceCaches['base-src'].update(map.transform);
+            document.getElementById('hud-basemap').innerText = isSatellite ? 'Satelliet (Esri World)' : 'MapLibre (OSM)';
+            addLog(`Basiskaart gewisseld naar ${isSatellite ? 'Satelliet' : 'MapLibre / OSM'}.`);
+        }
+
+        map.on('move', () => {
+            document.getElementById('compass-arrow').style.transform = `rotate(${map.getBearing()}deg)`;
+            const c = map.getCenter(); document.getElementById('hud-vizier').innerText = `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
+        });
+
+        let activeGrids = { 'seamap': false, 'railway': false, 'cycle': false };
+        map.on('load', () => {
+            ['seamap', 'railway', 'cycle'].forEach(grid => {
+                map.addSource(`${grid}-src`, { 'type': 'raster', 'tiles': [mapSources[grid]], 'tileSize': 256 });
+                map.addLayer({ 'id': `${grid}-layer`, 'type': 'raster', 'source': `${grid}-src`, 'layout': { 'visibility': 'none' }, 'paint': { 'raster-opacity': 0.8 } });
+            });
+
+            map.addSource('planimeter-src', { 'type': 'geojson', 'data': { type: 'FeatureCollection', features: [] } });
+            map.addSource('voronoi-src', { 'type': 'geojson', 'data': { type: 'FeatureCollection', features: [] } });
+
+            map.addLayer({ 'id': 'voronoi-fill', 'type': 'fill', 'source': 'voronoi-src', 'paint': { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 }});
+            map.addLayer({ 'id': 'voronoi-line', 'type': 'line', 'source': 'voronoi-src', 'paint': { 'line-color': '#111', 'line-width': 1 }});
+            map.addLayer({ 'id': 'planimeter-fill', 'type': 'fill', 'source': 'planimeter-src', 'filter': ['==', '$type', 'Polygon'], 'paint': { 'fill-color': '#0056b3', 'fill-opacity': 0.3 }});
+            map.addLayer({ 'id': 'planimeter-line', 'type': 'line', 'source': 'planimeter-src', 'filter': ['!=', '$type', 'Point'], 'paint': { 'line-color': '#0056b3', 'line-width': 2 }});
+            map.addLayer({ 'id': 'planimeter-points', 'type': 'circle', 'source': 'planimeter-src', 'filter': ['==', '$type', 'Point'], 'paint': { 'circle-radius': 7, 'circle-color': '#ffc107', 'circle-stroke-width': 2, 'circle-stroke-color': '#333' }});
+        });
+
+        map.on('mouseenter', 'planimeter-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'planimeter-points', () => { map.getCanvas().style.cursor = ''; });
+
+        function toggleGridLayer(gridId) {
+            activeGrids[gridId] = !activeGrids[gridId];
+            map.setLayoutProperty(`${gridId}-layer`, 'visibility', activeGrids[gridId] ? 'visible' : 'none');
+            const btn = document.getElementById(`btn-${gridId}`);
+            activeGrids[gridId] ? btn.classList.add('active') : btn.classList.remove('active');
+            addLog(`Netwerk grid '${gridId}' is nu ${activeGrids[gridId] ? 'ZICHTBAAR' : 'VERBORGEN'}.`);
+        }
+
+        // --- 3. CONTROLS: 2D/3D & NAVIGATIE PLANOMETER (OPGELOST) ---
+        let is3DMode = true;
+        function toggle3D() {
+            is3DMode = !is3DMode;
+            if(is3DMode) { map.easeTo({ pitch: 60, duration: 1000 }); addLog("3D vluchtweergave AAN."); } 
+            else { map.easeTo({ pitch: 0, bearing: 0, duration: 1000 }); addLog("2D orthografisch AAN."); }
+        }
+
+        let isMapLocked = false;
+        function toggleMapLock() {
+            const btn = document.getElementById('lockMapBtn'); isMapLocked = !isMapLocked;
+            if (isMapLocked) {
+                map.dragPan.disable(); map.scrollZoom.disable(); map.boxZoom.disable(); map.dragRotate.disable(); map.doubleClickZoom.disable(); map.touchZoomRotate.disable();
+                btn.innerText = '🔒 Kaart Vast'; btn.classList.replace('btn-success', 'btn-warning');
+                addLog("Navigatie geblokkeerd: Kaart is vastgezet.");
+            } else {
+                map.dragPan.enable(); map.scrollZoom.enable(); map.boxZoom.enable(); map.dragRotate.enable(); map.doubleClickZoom.enable(); map.touchZoomRotate.enable();
+                btn.innerText = '🔓 Kaart Los'; btn.classList.replace('btn-warning', 'btn-success');
+                addLog("Kaart navigatie ontgrendeld.");
+            }
+        }
+
+        // DE GEFIXTE FUNCTIE VOOR 3D PITCH & ROTATIE
+        function mapControl(action, val1, val2) {
+            if(isMapLocked && action !== 'zoom') {
+                addLog("Navigatie niet mogelijk, ontgrendel de kaart eerst.");
+                return;
+            }
+            if(action === 'pan') {
+                map.panBy([val1, val2], {duration: 300});
+            }
+            if(action === 'zoom') {
+                map.easeTo({ zoom: map.getZoom() + val1, duration: 300 });
+            }
+            if(action === 'rotate') {
+                map.easeTo({ bearing: map.getBearing() + val1, duration: 300 });
+                addLog(`Rotatie aangepast naar ${(map.getBearing() + val1).toFixed(1)}°`);
+            }
+            if(action === 'pitch') { 
+                let p = map.getPitch() + val1; 
+                if(p < 0) p = 0; 
+                if(p > 85) p = 85; 
+                map.easeTo({ pitch: p, duration: 300 }); 
+                addLog(`Kijkhoek 3D aangepast naar ${p.toFixed(1)}°`);
+            }
+        }
+
+        async function searchLocation() {
+            const q = document.getElementById('searchInput').value.trim(); if(!q) return;
+            const cMatch = q.match(/^([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)$/);
+            if(cMatch) { map.flyTo({ center: [parseFloat(cMatch[2]), parseFloat(cMatch[1])], zoom: 16 }); return; }
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if(data && data.length > 0) { map.flyTo({ center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], zoom: 15 }); addLog(`Locatie gezocht: ${data[0].display_name}`); }
+            } catch (e) { addLog(`FOUT: Zoekserver.`); }
+        }
+
+        // --- 4. PLANIMETER WIELTJES & LOGGEN ---
+        let pointsRD = []; 
+
+        function logNewPoint(lngLat, method) {
+            const rd = proj4("WGS84", "EPSG:28992", [lngLat.lng, lngLat.lat]);
+            const x = Math.round(rd[0]*100)/100;
+            const y = Math.round(rd[1]*100)/100;
+            const lat = lngLat.lat.toFixed(5);
+            const lng = lngLat.lng.toFixed(5);
+            
+            // Simuleer een hoogte
+            const altitude = map.queryTerrainElevation ? (map.queryTerrainElevation(lngLat) || 0).toFixed(1) : "0.0";
+            
+            // Astro Simulatie Waarden
+            const zonOp = "07:42"; const zonOnder = "18:55";
+            const maanOp = "02:14"; const maanOnder = "15:30";
+            const sterrenTijd = "09h 41m";
+
+            pointsRD.push({ x: x, y: y });
+            updateUI();
+            document.querySelectorAll('.maplibregl-popup').forEach(el => el.remove());
+
+            addLog(
+                `<span style="color:#ffc107;">WIELTJE GEPLAATST (${method})</span>\n` +
+                `-> RD-Coördinaten: X: ${x} m, Y: ${y} m\n` +
+                `-> GPS (WGS84): Lat ${lat}, Lng ${lng}\n` +
+                `-> Altimetrie: ${altitude} meter boven zeeniveau\n` +
+                `-> Astronomie: Zon op/onder: ${zonOp}/${zonOnder} | Maan: ${maanOp}/${maanOnder} | Sterrentijd: ${sterrenTijd}\n` +
+                `-> Systeem: IP 127.0.0.1`
+            );
+        }
+
+        map.on('click', function(e) { logNewPoint(e.lngLat, "Links-Klik"); });
+
+        // --- 5. RECHTER-KLIK MENU ---
+        map.on('contextmenu', function(e) {
+            const features = map.queryRenderedFeatures(e.point, { layers: ['planimeter-points'] });
+            const rd = proj4("WGS84", "EPSG:28992", [e.lngLat.lng, e.lngLat.lat]);
+            const mapRDx = Math.round(rd[0]*100)/100; const mapRDy = Math.round(rd[1]*100)/100;
+            
+            window.tempLngLat = e.lngLat;
+
+            if (features.length > 0) {
+                const coords = features[0].geometry.coordinates;
+                const pRd = proj4("WGS84", "EPSG:28992", coords);
+                const px = Math.round(pRd[0]*100)/100; const py = Math.round(pRd[1]*100)/100;
+                new maplibregl.Popup().setLngLat(coords).setHTML(`
+                    <div style="color:black; text-align:center;">
+                        <strong style="color:#0056b3;">📍 Wieltje Data</strong><br>RD: ${px}, ${py}<br>
+                        <button onclick="window.removePointByCoords(${px}, ${py})" style="margin-top:5px; background:#dc3545; color:white; border:none; padding:6px; cursor:pointer;">🗑️ Verwijder Punt</button>
+                    </div>
+                `).addTo(map);
+            } else {
+                new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`
+                    <div style="color:black; text-align:center;">
+                        <strong style="color:#28a745;">🌍 Nieuwe Locatie</strong><br>RD: ${mapRDx}, ${mapRDy}<br>
+                        <button onclick="window.logNewPoint(window.tempLngLat, 'Rechts-Klik Menu')" style="margin-top:5px; background:#28a745; color:white; border:none; padding:6px; cursor:pointer;">➕ Voeg Toe & Log in Systeem</button>
+                    </div>
+                `).addTo(map);
+            }
+        });
+
+        window.removePointByCoords = function(x, y) {
+            const idx = pointsRD.findIndex(p => Math.abs(p.x - x) < 2 && Math.abs(p.y - y) < 2);
+            if (idx !== -1) { pointsRD.splice(idx, 1); updateUI(); addLog(`Wieltje verwijderd via contextmenu (RD: ${x}, ${y}).`); }
+            document.querySelectorAll('.maplibregl-popup').forEach(el => el.remove());
+        };
+
+        function clearPoints() { 
+            pointsRD = []; if(map.getSource('voronoi-src')) map.getSource('voronoi-src').setData({ type: 'FeatureCollection', features: [] }); 
+            currentVoronoiData = null; updateUI(); addLog("Alle punten en lagen gewist uit het geheugen.");
+        }
+
+        function calculateShoelace() {
+            if (pointsRD.length < 3) return 0;
+            let area = 0;
+            for (let i = 0; i < pointsRD.length; i++) {
+                let j = (i + 1) % pointsRD.length;
+                area += pointsRD[i].x * pointsRD[j].y; area -= pointsRD[j].x * pointsRD[i].y;
+            }
+            return Math.abs(area / 2);
+        }
+
+        function getGeoJSONFromPoints() {
+            let features = [];
+            let coords = pointsRD.map(p => { const wgs = proj4("EPSG:28992", "WGS84", [p.x, p.y]); return [wgs[0], wgs[1]]; });
+            coords.forEach(c => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: {} }));
+            if (coords.length > 2) features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] }, properties: {} });
+            else if (coords.length === 2) features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} });
+            return { type: 'FeatureCollection', features: features };
+        }
+
+        function updateUI(rebuildTable = true) {
+            const area = calculateShoelace();
+            document.getElementById('areaResult').innerHTML = `${area.toFixed(2)} m² (${(area/10000).toFixed(4)} ha)`;
+            if (rebuildTable) {
+                const tbody = document.querySelector('#coordTable tbody'); tbody.innerHTML = '';
+                pointsRD.forEach((p, index) => {
+                    tbody.innerHTML += `<tr>
+                        <td>W-${index+1}</td>
+                        <td><input type="number" step="any" value="${p.x}" onchange="pointsRD[${index}]['x']=parseFloat(this.value.replace(',','.')); updateUI(false); map.getSource('planimeter-src').setData(getGeoJSONFromPoints());"></td>
+                        <td><input type="number" step="any" value="${p.y}" onchange="pointsRD[${index}]['y']=parseFloat(this.value.replace(',','.')); updateUI(false); map.getSource('planimeter-src').setData(getGeoJSONFromPoints());"></td>
+                        <td><button class="btn btn-danger" style="padding: 2px 6px;" onclick="removePointTable(${index})">X</button></td>
+                    </tr>`;
+                });
+            }
+            if (map.getSource('planimeter-src')) map.getSource('planimeter-src').setData(getGeoJSONFromPoints());
+        }
+
+        function removePointTable(index) { pointsRD.splice(index, 1); updateUI(); addLog(`Wieltje W-${index+1} verwijderd via tabel.`); }
+
+        // --- 6. VORONOI & EXPORT ---
+        let currentVoronoiData = null;
+
+        function generateVoronoi() {
+            if (pointsRD.length < 3) { alert("Minimaal 3 wieltjes vereist!"); return; }
+            let turfPoints = pointsRD.map(p => { const w = proj4("EPSG:28992", "WGS84", [p.x, p.y]); return turf.point([w[0], w[1]]); });
+            let collection = turf.featureCollection(turfPoints);
+            let voronoiPolygons = turf.voronoi(collection, {bbox: turf.bbox(turf.buffer(collection, 5, {units: 'kilometers'}))});
+            const c = ['#8540f5', '#0d6efd', '#20c997', '#fd7e14', '#dc3545', '#ffc107'];
+            voronoiPolygons.features.forEach(f => { if (f) f.properties = { color: c[Math.floor(Math.random() * c.length)] }; });
+            currentVoronoiData = voronoiPolygons;
+            if (map.getSource('voronoi-src')) map.getSource('voronoi-src').setData(voronoiPolygons);
+            addLog("Voronoi tesselatie berekend en geprojecteerd.");
+        }
+
+        function exportVoronoiJSON() {
+            if (!currentVoronoiData) { alert("Genereer eerst de Voronoi-lagen."); return; }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentVoronoiData, null, 2));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "voronoi_lagen.geojson");
+            document.body.appendChild(dl); dl.click(); dl.remove(); addLog("Voronoi GeoJSON geëxporteerd.");
+        }
+
+        function takeMapScreenshot() {
+            try {
+                const canvas = map.getCanvas(); const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png'); link.download = 'kaart_export.png'; link.click();
+                addLog("Kaart Screenshot (.PNG) succesvol opgeslagen.");
+            } catch (err) { addLog("FOUT bij opslaan screenshot."); }
+        }
+
+        function downloadJSON() {
+            const dl = document.createElement('a'); dl.setAttribute("href", "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(pointsRD, null, 2)));
+            dl.setAttribute("download", "planimeter_punt_layers.json"); document.body.appendChild(dl); dl.click(); dl.remove(); addLog("Punt-layers opgeslagen.");
+        }
+
+        function handleUpload(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data)) {
+                        pointsRD = data.map(p => ({ x: parseFloat(p.x)||0, y: parseFloat(p.y)||0 })); updateUI();
+                        if (pointsRD.length > 0) {
+                            let bounds = new maplibregl.LngLatBounds();
+                            pointsRD.forEach(p => { const w = proj4("EPSG:28992", "WGS84", [p.x, p.y]); bounds.extend([w[0], w[1]]); });
+                            map.fitBounds(bounds, { padding: 80, maxZoom: 18, duration: 2000 });
+                        }
+                        addLog(`Succes: ${pointsRD.length} punten ingeladen uit bestand.`);
+                    }
+                } catch (err) { addLog("FOUT: JSON corrupt."); }
+                event.target.value = '';
+            }; reader.readAsText(file);
+        }
+
+        // --- 8. OVERLAY INMETEN ---
+        let overlayUrl = null; let baseBoundsRD = null; let isOverlayVisible = true;
+        
+        function toggleGeoToolbox() {
+            const content = document.getElementById('geoToolboxContent'); const icon = document.getElementById('geoToolboxIcon');
+            if(content.style.display === 'none') { content.style.display = 'block'; icon.innerText = '🔽'; } 
+            else { content.style.display = 'none'; icon.innerText = '▶️'; }
+        }
+
+        function toggleImageOverlayVisibility() {
+            if(!map.getLayer('overlay-layer')) return;
+            isOverlayVisible = !isOverlayVisible;
+            map.setLayoutProperty('overlay-layer', 'visibility', isOverlayVisible ? 'visible' : 'none');
+            const btn = document.getElementById('toggleOverlayBtn');
+            isOverlayVisible ? btn.style.opacity = '1' : btn.style.opacity = '0.5';
+        }
+
+        function handleOverlayUpload(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                overlayUrl = e.target.result;
+                const b = map.getBounds();
+                const sw = proj4("WGS84", "EPSG:28992", [b.getWest(), b.getSouth()]);
+                const ne = proj4("WGS84", "EPSG:28992", [b.getEast(), b.getNorth()]);
+                baseBoundsRD = { centerX: (sw[0]+ne[0])/2, centerY: (sw[1]+ne[1])/2, width: ne[0]-sw[0], height: ne[1]-sw[1] };
+
+                if (map.getSource('overlay-src')) { map.removeLayer('overlay-layer'); map.removeSource('overlay-src'); }
+                map.addSource('overlay-src', { 'type': 'image', 'url': overlayUrl, 'coordinates': getRotatedCorners() });
+                map.addLayer({ 'id': 'overlay-layer', 'type': 'raster', 'source': 'overlay-src', 'paint': { 'raster-opacity': 0.8 } }, 'seamap-layer'); 
+                
+                document.getElementById('geoToolbox').style.display = 'block';
+                document.getElementById('toggleOverlayBtn').style.display = 'inline-flex';
+                document.getElementById('toggleOverlayBtn').style.opacity = '1';
+                document.getElementById('clearImgBtn').style.display = 'inline-flex';
+                
+                isOverlayVisible = true; resetOverlayCalibration(); event.target.value = ''; addLog("Afbeelding in kaart geladen.");
+            }; reader.readAsDataURL(file);
+        }
+
+        function getRotatedCorners() {
+            if(!baseBoundsRD) return [[0,0],[0,0],[0,0],[0,0]];
+            const scX = parseFloat(document.getElementById('ovScaleX').value)/100; const scY = parseFloat(document.getElementById('ovScaleY').value)/100;
+            const shX = parseFloat(document.getElementById('ovShiftX').value); const shY = parseFloat(document.getElementById('ovShiftY').value);
+            const rotRad = parseFloat(document.getElementById('ovRotation').value) * Math.PI / 180;
+            const w = baseBoundsRD.width*scX; const h = baseBoundsRD.height*scY;
+            const cx = baseBoundsRD.centerX+shX; const cy = baseBoundsRD.centerY+shY;
+            return [ [-w/2, h/2], [w/2, h/2], [w/2, -h/2], [-w/2, -h/2] ].map(c => {
+                const wgs = proj4("EPSG:28992", "WGS84", [cx + c[0]*Math.cos(rotRad) - c[1]*Math.sin(rotRad), cy + c[0]*Math.sin(rotRad) + c[1]*Math.cos(rotRad)]);
+                return [wgs[0], wgs[1]];
+            });
+        }
+
+        function updateOverlayProperties() {
+            if(!map.getSource('overlay-src') || !baseBoundsRD) return;
+            map.setPaintProperty('overlay-layer', 'raster-opacity', parseFloat(document.getElementById('ovOpacity').value));
+            map.getSource('overlay-src').updateImage({ url: overlayUrl, coordinates: getRotatedCorners() });
+        }
+
+        function resetOverlayCalibration() {
+            document.getElementById('ovOpacity').value=0.8; document.getElementById('ovScaleX').value=100; document.getElementById('ovScaleY').value=100;
+            document.getElementById('ovShiftX').value=0; document.getElementById('ovShiftY').value=0; document.getElementById('ovRotation').value=0;
+            updateOverlayProperties();
+        }
+
+        function clearImageOverlay() {
+            if(map.getSource('overlay-src')) { map.removeLayer('overlay-layer'); map.removeSource('overlay-src'); }
+            overlayUrl = null; baseBoundsRD = null; 
+            document.getElementById('toggleOverlayBtn').style.display = 'none'; document.getElementById('clearImgBtn').style.display = 'none'; document.getElementById('geoToolbox').style.display = 'none';
+        }
+
+        // --- 9. AFBEELDINGEN OMZETTER (NU MET INTENSITEIT SCHUIFREGELAAR) ---
+        let originalImageData = null; let baseImage = new Image(); let currentFilter = 'none';
+        const convCanvas = document.getElementById('imageConverterCanvas'); const convCtx = convCanvas.getContext('2d');
+        
+        function loadConverterImage(event) {
+            const file = event.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                baseImage.onload = function() {
+                    convCanvas.width = baseImage.width; convCanvas.height = baseImage.height;
+                    convCtx.drawImage(baseImage, 0, 0);
+                    originalImageData = convCtx.getImageData(0, 0, convCanvas.width, convCanvas.height);
+                    convCanvas.style.display = 'block'; currentFilter = 'none'; addLog("Afbeelding voor filter-omzetting geladen.");
+                }; baseImage.src = e.target.result;
+            }; reader.readAsDataURL(file);
+        }
+
+        function resetFilter() { currentFilter = 'none'; document.getElementById('filterSlider').value = 128; runFilter(); }
+        function setFilterType(type) { currentFilter = type; runFilter(); }
+
+        function runFilter() {
+            if(!originalImageData) return;
+            convCtx.putImageData(originalImageData, 0, 0);
+            if(currentFilter === 'none') return;
+            let imgData = convCtx.getImageData(0, 0, convCanvas.width, convCanvas.height); let d = imgData.data;
+            let sliderVal = parseInt(document.getElementById('filterSlider').value); let mix = sliderVal / 255; 
+
+            for(let i = 0; i < d.length; i += 4) {
+                let r = d[i], g = d[i+1], b = d[i+2];
+                if(currentFilter === 'grayscale') { 
+                    let avg = 0.299*r + 0.587*g + 0.114*b; d[i] = r*(1-mix) + avg*mix; d[i+1] = g*(1-mix) + avg*mix; d[i+2] = b*(1-mix) + avg*mix;
+                } else if (currentFilter === 'invert') { 
+                    d[i] = r*(1-mix) + (255-r)*mix; d[i+1] = g*(1-mix) + (255-g)*mix; d[i+2] = b*(1-mix) + (255-b)*mix; 
+                } else if (currentFilter === 'twobit') { 
+                    let val = (0.299*r + 0.587*g + 0.114*b) > sliderVal ? 255 : 0; d[i] = d[i+1] = d[i+2] = val; 
+                }
+            }
+            convCtx.putImageData(imgData, 0, 0); 
+        }
+
+        function saveConvertedImage() {
+            if(!originalImageData) { alert("Laad eerst een afbeelding in!"); return; }
+            const link = document.createElement('a'); link.download = 'filter_afbeelding.png'; link.href = convCanvas.toDataURL('image/png'); link.click(); addLog("Gefilterde afbeelding opgeslagen.");
+        }
+    </script>
+</body>
+</html>
