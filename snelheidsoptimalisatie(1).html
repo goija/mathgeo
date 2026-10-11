@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="nl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uitgebreide Geodetische Simulatie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden; /* Prevent body scroll, handle inside panels */
+        }
+
+        /* Custom Scrollbar for panels */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            outline: none;
+        }
+
+        .data-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        input, select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f8fafc;
+            border-radius: 0.375rem;
+            padding: 0.375rem 0.75rem;
+            width: 100%;
+            font-size: 0.875rem;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px #3b82f6;
+        }
+        
+        label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #94a3b8;
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row">
+
+    <!-- Sidebar / Controls -->
+    <aside class="w-full md:w-96 h-1/3 md:h-full flex flex-col border-b md:border-b-0 md:border-r border-slate-700 bg-slate-900 z-10 shadow-2xl relative">
+        <div class="p-5 border-b border-slate-800 flex-shrink-0">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <span>📐</span> Geodetische Simulatie
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Refractie, Hemelvectoren & Schaduwgeometrie</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-6">
+            
+            <!-- Positie Invoer -->
+            <div class="space-y-3">
+                <h2 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">1. Geodetische Positie (WGS84/ETRS89)</h2>
+                
+                <div>
+                    <label>Zoek locatie (Real-time)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="place-search" placeholder="Bijv. Rotterdam Rijnhaven">
+                        <button id="btn-search" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm transition-colors cursor-pointer">Zoek</button>
+                    </div>
+                    <p id="search-status" class="text-[10px] text-emerald-400 mt-1 h-3"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label>Breedtegraad (φ °N)</label>
+                        <input type="text" id="lat" value="51.905">
+                    </div>
+                    <div>
+                        <label>Lengtegraad (λ °O)</label>
+                        <input type="text" id="lon" value="4.493">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                        <label>Datum</label>
+                        <input type="date" id="date-val" value="2026-08-12">
+                    </div>
+                    <div>
+                        <label>Tijd (Lokaal)</label>
+                        <input type="time" id="time-val" value="19:00">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Object & Doel -->
+            <div class="space-y-3">
+                <h2 class="text-sm font-semibold text-blue-400 uppercase tracking-wider">2. Terrein & Hemellichaam</h2>
+                <div>
+                    <label>Objecthoogte (H<sub>obj</sub> in m)</label>
+                    <input type="text" id="height" value="39.2">
+                    <p class="text-[10px] text-slate-500 mt-1">Niet NAP, maar hoogte boven de voet van het terrein.</p>
+                </div>
+                <div>
+                    <label>Astronomisch Doelobject</label>
+                    <select id="target">
+                        <option value="sun">Zon</option>
+                        <option value="moon">Maan (Vereenvoudigd)</option>
+                        <option value="m44">Sterrenhoop M44 (Praesepe)</option>
+                        <option value="custom">Aangepaste RA/Dec invoeren...</option>
+                    </select>
+                </div>
+                
+                <!-- Nieuwe velden voor aangepaste objecten -->
+                <div id="custom-coords" class="hidden grid grid-cols-2 gap-3 mt-2 p-3 bg-slate-800/50 rounded border border-slate-700">
+                    <div>
+                        <label title="Rechte Klimming in uren (0-24)">RA (Uren)</label>
+                        <input type="text" id="custom-ra" value="8.673">
+                    </div>
+                    <div>
+                        <label title="Declinatie in graden (-90 tot 90)">Dec (°)</label>
+                        <input type="text" id="custom-dec" value="19.70">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultaten -->
+            <div class="space-y-3 pt-2">
+                <h2 class="text-sm font-semibold text-emerald-400 uppercase tracking-wider">3. Rekenresultaten</h2>
+                
+                <div class="data-card p-3 rounded-lg space-y-2">
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Azimut (A)</span>
+                        <span id="res-az" class="font-mono text-white">0.000°</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Elevatie (α geo)</span>
+                        <span id="res-el" class="font-mono text-white">0.000°</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400 cursor-help" title="Saemundsson formule">Refractie (Δα)</span>
+                        <span id="res-ref" class="font-mono text-white">0.000°</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Elevatie (Apparent)</span>
+                        <span id="res-el-app" class="font-mono text-emerald-300">0.000°</span>
+                    </div>
+                </div>
+
+                <div class="data-card p-3 rounded-lg space-y-2">
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Schaduwlengte (L)</span>
+                        <span id="res-l" class="font-mono text-white">0.00 m</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Vector ΔE</span>
+                        <span id="res-de" class="font-mono text-white">0.00 m</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-400">Vector ΔN</span>
+                        <span id="res-dn" class="font-mono text-white">0.00 m</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-900/30 border border-blue-800/50 p-3 rounded text-xs text-blue-200">
+                <strong>Disclaimer:</strong> Conform het methodisch technisch rapport fungeert deze module primair als rekenkader voor vlakke geometrie. Eclipsberekeningen en maanparallax zijn gesimplificeerd.
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main View -->
+    <main class="flex-1 h-2/3 md:h-full relative bg-slate-800">
+        <div id="canvas-container"></div>
+        
+        <!-- View Overlays -->
+        <div class="absolute top-4 left-4 pointer-events-none">
+            <div class="bg-slate-900/80 backdrop-blur border border-slate-700 p-2 rounded text-xs font-mono text-slate-300 shadow-lg">
+                Model: Vlak terrein (z=0)<br>
+                Zichtlijn: <span id="overlay-status" class="text-emerald-400">Vrij zichtbaar</span>
+            </div>
+        </div>
+
+        <div class="absolute bottom-4 right-4 pointer-events-none opacity-50">
+            <div class="w-16 h-16 rounded-full border-2 border-slate-600 relative">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 text-[10px] text-slate-400 font-bold bg-slate-950 px-1">N</div>
+                <div class="absolute right-0 top-1/2 -translate-y-1/2 -mr-1 text-[10px] text-slate-400 font-bold bg-slate-950 py-1">O</div>
+                <div class="absolute bottom-0 left-1/2 -translate-x-1/2 -mb-1 text-[10px] text-slate-400 font-bold bg-slate-950 px-1">Z</div>
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 -ml-1 text-[10px] text-slate-400 font-bold bg-slate-950 py-1">W</div>
+                <div id="compass-needle" class="absolute inset-0 transition-transform duration-300 ease-out">
+                    <div class="w-0.5 h-1/2 bg-yellow-500 absolute top-0 left-1/2 -translate-x-1/2 rounded-t origin-bottom"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * Astronomical & Geodetic Logic
+         * Basissimulatie voor LST, Azimut, Elevatie en Saemundsson Refractie
+         */
+
+        const DEG2RAD = Math.PI / 180.0;
+        const RAD2DEG = 180.0 / Math.PI;
+
+        // Berekent de Juliaanse Datum (JD)
+        function getJulianDate(date) {
+            return (date.getTime() / 86400000.0) + 2440587.5;
+        }
+
+        // Berekent Greenwich Mean Sidereal Time (GMST) in uren
+        function getGMST(jd) {
+            let t = (jd - 2451545.0) / 36525.0;
+            let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + t * t * 0.000387933 - t * t * t / 38710000.0;
+            gmst = (gmst % 360.0) / 15.0;
+            if (gmst < 0) gmst += 24.0;
+            return gmst;
+        }
+
+        // Benadering zonnepositie (Low precision)
+        function getSunPosition(jd) {
+            let n = jd - 2451545.0;
+            let L = (280.460 + 0.9856474 * n) % 360.0;
+            let g = (357.528 + 0.9856003 * n) % 360.0;
+            if (L < 0) L += 360;
+            if (g < 0) g += 360;
+
+            let lambda = L + 1.915 * Math.sin(g * DEG2RAD) + 0.020 * Math.sin(2 * g * DEG2RAD);
+            let epsilon = 23.439 - 0.0000004 * n;
+
+            let ra = Math.atan2(Math.cos(epsilon * DEG2RAD) * Math.sin(lambda * DEG2RAD), Math.cos(lambda * DEG2RAD)) * RAD2DEG;
+            if (ra < 0) ra += 360;
+            ra = ra / 15.0; // Hours
+            let dec = Math.asin(Math.sin(epsilon * DEG2RAD) * Math.sin(lambda * DEG2RAD)) * RAD2DEG;
+
+            return { ra: ra, dec: dec };
+        }
+
+        // Benadering maanpositie (Very Low Precision, zonder parallax fix in dit niveau)
+        function getMoonPosition(jd) {
+            let d = jd - 2451545.0;
+            let L = (218.316 + 13.176396 * d) % 360.0;
+            let M = (134.963 + 13.064993 * d) % 360.0;
+            let F = (93.272 + 13.229350 * d) % 360.0;
+
+            let lambda = L + 6.289 * Math.sin(M * DEG2RAD);
+            let beta = 5.128 * Math.sin(F * DEG2RAD);
+            let epsilon = 23.439 - 0.0000004 * d;
+
+            let ra = Math.atan2(
+                Math.sin(lambda * DEG2RAD) * Math.cos(epsilon * DEG2RAD) - Math.tan(beta * DEG2RAD) * Math.sin(epsilon * DEG2RAD),
+                Math.cos(lambda * DEG2RAD)
+            ) * RAD2DEG;
+            if (ra < 0) ra += 360;
+            ra = ra / 15.0;
+
+            let dec = Math.asin(
+                Math.sin(beta * DEG2RAD) * Math.cos(epsilon * DEG2RAD) + Math.cos(beta * DEG2RAD) * Math.sin(epsilon * DEG2RAD) * Math.sin(lambda * DEG2RAD)
+            ) * RAD2DEG;
+
+            return { ra: ra, dec: dec };
+        }
+
+        // Vaste coördinaten voor M44 (Praesepe) ~ J2000
+        function getM44Position() {
+            // RA: 08h 40.4m, Dec: +19° 59' -> Dec +19.98 for demonstration (+19.70 in the document example)
+            return { ra: 8.6733, dec: 19.70 }; 
+        }
+
+        // Equatoriaal naar Horizontaal (Azimut, Elevatie)
+        function getHorizontalCoords(ra, dec, lat, lon, gmst) {
+            let lst = gmst + (lon / 15.0);
+            let ha = (lst - ra) * 15.0; // in degrees
+            
+            let lat_r = lat * DEG2RAD;
+            let dec_r = dec * DEG2RAD;
+            let ha_r = ha * DEG2RAD;
+
+            // sin(α) = sin(φ)sin(δ) + cos(φ)cos(δ)cos(t)
+            let sin_alt = Math.sin(lat_r) * Math.sin(dec_r) + Math.cos(lat_r) * Math.cos(dec_r) * Math.cos(ha_r);
+            let alt = Math.asin(sin_alt) * RAD2DEG;
+
+            // cos(A) en sin(A)
+            let y = -Math.cos(dec_r) * Math.sin(ha_r);
+            let x = Math.cos(lat_r) * Math.sin(dec_r) - Math.sin(lat_r) * Math.cos(dec_r) * Math.cos(ha_r);
+            
+            let az = Math.atan2(y, x) * RAD2DEG;
+            if (az < 0) az += 360.0;
+
+            return { az: az, alt: alt };
+        }
+
+        // Refractie volgens Saemundsson
+        function getRefraction(alt) {
+            if (alt <= -0.5) return 0; // Geen refractie berekenen als hij echt te ver onder de horizon is
+            // R = 1.02 / tan(α + 10.3 / (α + 5.11)) -> Output in boogminuten
+            let term = alt + (10.3 / (alt + 5.11));
+            let r_arcmin = 1.02 / Math.tan(term * DEG2RAD);
+            return r_arcmin / 60.0; // Converteer naar graden
+        }
+
+        /**
+         * Three.js 3D Scene Initialization
+         */
+        const container = document.getElementById('canvas-container');
+        let scene, camera, renderer, light, targetObj, shadowPlane, tower, controls;
+        let is3DReady = false;
+
+        function init3D() {
+            const width = container.clientWidth || 800;
+            const height = container.clientHeight || 600;
+
+            scene = new THREE.Scene();
+            // Lichter maken van de 3D achtergrond voor veel betere zichtbaarheid
+            scene.background = new THREE.Color(0x1e293b); 
+            scene.fog = new THREE.Fog(0x1e293b, 50, 400);
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
+            camera.position.set(-60, 40, -80);
+            camera.lookAt(0, 0, 0);
+
+            // OPTIMALISATIE 1: Vraag om de krachtigste GPU in het systeem
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance" 
+            });
+            
+            // OPTIMALISATIE 2: Beperk de pixeldichtheid op 4K/Retina schermen om lag te voorkomen
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.setSize(width, height);
+            
+            container.appendChild(renderer.domElement);
+
+            // Schaduwen aanzetten! Dit ontbrak in de renderer configuratie.
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Grid & Ground - Flink lichter gemaakt voor hoog contrast met de schaduw
+            const gridHelper = new THREE.GridHelper(200, 50, 0x64748b, 0x334155);
+            scene.add(gridHelper);
+
+            const planeGeo = new THREE.PlaneGeometry(300, 300);
+            const planeMat = new THREE.MeshStandardMaterial({ 
+                color: 0x94a3b8, // Lichtgrijs (slate-400) zodat schaduwen duidelijk afsteken
+                roughness: 0.8
+            });
+            shadowPlane = new THREE.Mesh(planeGeo, planeMat);
+            shadowPlane.rotation.x = -Math.PI / 2;
+            shadowPlane.receiveShadow = true;
+            scene.add(shadowPlane);
+
+            // Representatie van het Object (toren/mast)
+            const objHeight = 39.2; // default
+            const towerGeo = new THREE.BoxGeometry(2, objHeight, 2);
+            // Verplaats geometrie ankerpunt naar beneden
+            towerGeo.translate(0, objHeight/2, 0); 
+            const towerMat = new THREE.MeshStandardMaterial({ color: 0x334155 }); // Donkerdere toren voor contrast
+            tower = new THREE.Mesh(towerGeo, towerMat);
+            tower.castShadow = true;
+            scene.add(tower);
+
+            // Ambient Light - Aangepast voor een helderder globaal beeld
+            scene.add(new THREE.AmbientLight(0x475569, 1.5));
+
+            // Directional Light (Hemellichaam)
+            light = new THREE.DirectionalLight(0xfffaed, 2);
+            light.castShadow = true;
+            
+            // OPTIMALISATIE 3: Schaduwresolutie verlaagd van 2048 naar 1024. 
+            // Dit levert een enorme snelheidswinst op (4x minder pixels om te berekenen voor de GPU)
+            light.shadow.mapSize.width = 1024;
+            light.shadow.mapSize.height = 1024;
+            
+            light.shadow.camera.near = 1;
+            light.shadow.camera.far = 400;
+            const d = 100;
+            light.shadow.camera.left = -d;
+            light.shadow.camera.right = d;
+            light.shadow.camera.top = d;
+            light.shadow.camera.bottom = -d;
+            
+            // Sphere as light source visual
+            const sphereGeo = new THREE.SphereGeometry(3, 16, 16);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+            targetObj = new THREE.Mesh(sphereGeo, sphereMat);
+            scene.add(targetObj);
+            scene.add(light);
+
+            // OrbitControls toevoegen voor beweegbaar 3D-raster (Muis: draaien, Scroll: zoomen, Shift+Muis: pannen)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2; // Beperk camera tot exact de horizon (grondniveau)
+            controls.minDistance = 20; // Niet te ver inzoomen
+            controls.maxDistance = 300; // Niet te ver uitzoomen
+            
+            window.addEventListener('resize', onWindowResize);
+            is3DReady = true;
+        }
+
+        function onWindowResize() {
+            if (!is3DReady) return;
+            const width = container.clientWidth || window.innerWidth;
+            const height = container.clientHeight || window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        /**
+         * Update Logic (UI and 3D Scene)
+         */
+        function updateSimulation() {
+            // Helper om veilig getallen te parsen, zelfs met Hollandse komma's
+            const getSafeFloat = (id, defaultVal) => {
+                let val = document.getElementById(id).value;
+                if (!val) return defaultVal;
+                let parsed = parseFloat(val.replace(',', '.'));
+                return isNaN(parsed) ? defaultVal : parsed;
+            };
+
+            // Get inputs safely
+            const lat = getSafeFloat('lat', 51.905);
+            const lon = getSafeFloat('lon', 4.493);
+            
+            const dateStr = document.getElementById('date-val').value;
+            const timeStr = document.getElementById('time-val').value;
+            
+            // Extra fallback voor tijd en datum parsing bugs in oudere browsers
+            let timeStrSafe = timeStr || "19:00";
+            if (timeStrSafe.length === 5) timeStrSafe += ":00"; 
+            let dateStrSafe = dateStr || "2026-08-12";
+            
+            const dateInput = new Date(`${dateStrSafe}T${timeStrSafe}`);
+            
+            if (isNaN(dateInput.getTime())) {
+                document.getElementById('res-az').innerText = "Ongeldige datum";
+                return;
+            }
+            
+            const hObj = getSafeFloat('height', 39.2);
+            const target = document.getElementById('target').value;
+            const customCoordsDiv = document.getElementById('custom-coords');
+
+            // Toon of verberg de custom invoervelden op basis van de selectie
+            if (target === 'custom') {
+                customCoordsDiv.classList.remove('hidden');
+            } else {
+                customCoordsDiv.classList.add('hidden');
+            }
+
+            // Math calculations
+            const jd = getJulianDate(dateInput);
+            const gmst = getGMST(jd);
+
+            let coords;
+            let targetColor, lightColor, lightIntens;
+            
+            if (target === 'sun') {
+                coords = getSunPosition(jd);
+                targetColor = 0xffdd44;
+                lightColor = 0xfffaed;
+                lightIntens = 2;
+            } else if (target === 'moon') {
+                coords = getMoonPosition(jd);
+                targetColor = 0xe2e8f0;
+                lightColor = 0x94a3b8;
+                lightIntens = 0.8;
+            } else if (target === 'm44') {
+                coords = getM44Position();
+                targetColor = 0x3b82f6;
+                lightColor = 0x1e3a8a;
+                lightIntens = 0.2;
+            } else {
+                let c_ra = getSafeFloat('custom-ra', 8.673);
+                let c_dec = getSafeFloat('custom-dec', 19.70);
+                coords = { ra: c_ra, dec: c_dec };
+                targetColor = 0xa855f7; // Paars als indicator voor een custom object
+                lightColor = 0xd8b4fe;
+                lightIntens = 0.6;
+            }
+
+            const horiz = getHorizontalCoords(coords.ra, coords.dec, lat, lon, gmst);
+            let az = horiz.az;
+            let alt_geo = horiz.alt;
+            let ref = getRefraction(alt_geo);
+            let alt_app = alt_geo + ref;
+
+            // Update UI Data
+            document.getElementById('res-az').innerText = az.toFixed(3) + "°";
+            document.getElementById('res-el').innerText = alt_geo.toFixed(3) + "°";
+            document.getElementById('res-ref').innerText = (ref * 60).toFixed(3) + "' (" + ref.toFixed(3) + "°)";
+            
+            const elAppSpan = document.getElementById('res-el-app');
+            elAppSpan.innerText = alt_app.toFixed(3) + "°";
+            
+            const statusSpan = document.getElementById('overlay-status');
+            if (alt_app > 0) {
+                elAppSpan.className = "font-mono text-emerald-400";
+                statusSpan.innerText = "Boven horizon";
+                statusSpan.className = "text-emerald-400 font-bold";
+            } else {
+                elAppSpan.className = "font-mono text-red-400";
+                statusSpan.innerText = "Onder horizon";
+                statusSpan.className = "text-red-400 font-bold";
+            }
+
+            // Shadow calculation (Vlak terrein model)
+            let L = 0, dE = 0, dN = 0;
+            if (alt_app > 0.01) { // Prevents divide by zero/infinite shadow
+                L = hObj / Math.tan(alt_app * DEG2RAD);
+                // ΔE = -L * sin(A), ΔN = -L * cos(A)
+                dE = -L * Math.sin(az * DEG2RAD);
+                dN = -L * Math.cos(az * DEG2RAD);
+                
+                document.getElementById('res-l').innerText = L.toFixed(2) + " m";
+                document.getElementById('res-de').innerText = dE.toFixed(2) + " m";
+                document.getElementById('res-dn').innerText = dN.toFixed(2) + " m";
+            } else {
+                document.getElementById('res-l').innerText = "Geen";
+                document.getElementById('res-de').innerText = "N.v.t.";
+                document.getElementById('res-dn').innerText = "N.v.t.";
+            }
+
+            // Update 3D Light & Object Position if WebGL loaded successfully
+            if (is3DReady) {
+                // Update Tower geometry if height changed
+                let scaleY = Math.max(hObj / 39.2, 0.01);
+                if (tower.scale.y !== scaleY) {
+                    tower.scale.y = scaleY; // Relative to base 39.2 size
+                }
+                
+                targetObj.material.color.setHex(targetColor);
+                light.color.setHex(lightColor);
+                light.intensity = lightIntens;
+
+                // Mapping ENU to 3D space: East = +X, North = -Z, Up = +Y
+                const distance = 150;
+                const alt_rad = alt_app * DEG2RAD;
+                const az_rad = az * DEG2RAD;
+
+                // Spherical coordinates
+                const lx = distance * Math.cos(alt_rad) * Math.sin(az_rad);
+                const ly = distance * Math.sin(alt_rad);
+                const lz = -distance * Math.cos(alt_rad) * Math.cos(az_rad);
+
+                if (alt_app > -5) {
+                    light.position.set(lx, Math.max(ly, -10), lz);
+                    targetObj.position.set(lx, ly, lz);
+                    targetObj.visible = true;
+                    light.castShadow = (ly > 0);
+                } else {
+                    // Dim and hide if far below horizon
+                    light.position.set(0, -distance, 0);
+                    targetObj.visible = false;
+                    light.castShadow = false;
+                }
+            }
+
+            // Update Compass
+            document.getElementById('compass-needle').style.transform = `rotate(${az}deg)`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (controls) controls.update(); // Noodzakelijk voor damping/soepele beweging
+            renderer.render(scene, camera);
+        }
+
+        // Initialize
+        function startApp() {
+            // VERPLAATST: Attach Event Listeners HIER binnenin, zodat we 100% zeker weten dat de HTML velden al bestaan
+            const inputs = ['lat', 'lon', 'date-val', 'time-val', 'height', 'target', 'custom-ra', 'custom-dec'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', updateSimulation);
+                    el.addEventListener('change', updateSimulation);
+                }
+            });
+
+            // Geocoding functionaliteit (Plaatsen zoeken in realtime via OpenStreetMap)
+            const searchBtn = document.getElementById('btn-search');
+            const searchInput = document.getElementById('place-search');
+            const searchStatus = document.getElementById('search-status');
+
+            const performSearch = async (e) => {
+                if (e) e.preventDefault();
+                const query = searchInput.value.trim();
+                if(!query) return;
+                
+                searchStatus.innerText = "Zoeken...";
+                searchStatus.className = "text-[10px] text-blue-400 mt-1 h-3";
+                
+                try {
+                    // Gebruik de robuustere Open-Meteo geocoding API in plaats van Nominatim (die weigert vaak browser-verzoeken)
+                    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=nl&format=json`);
+                    const data = await res.json();
+                    
+                    if(data && data.results && data.results.length > 0) {
+                        const result = data.results[0];
+                        // Update velden met gevonden coördinaten
+                        document.getElementById('lat').value = result.latitude.toFixed(4);
+                        document.getElementById('lon').value = result.longitude.toFixed(4);
+                        
+                        let displayName = result.name;
+                        if (result.country) displayName += `, ${result.country}`;
+                        
+                        searchStatus.innerText = `✓ Gevonden: ${displayName}`;
+                        searchStatus.className = "text-[10px] text-emerald-400 mt-1 h-3";
+                        
+                        // Forceer een wiskundige update
+                        updateSimulation();
+                    } else {
+                        searchStatus.innerText = "Locatie niet gevonden.";
+                        searchStatus.className = "text-[10px] text-red-400 mt-1 h-3";
+                    }
+                } catch(err) {
+                    console.error(err);
+                    searchStatus.innerText = "Fout bij verbinding met zoekserver.";
+                    searchStatus.className = "text-[10px] text-red-400 mt-1 h-3";
+                }
+            };
+
+            if (searchBtn && searchInput) {
+                searchBtn.addEventListener('click', performSearch);
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') performSearch(e);
+                });
+            }
+
+            // Attempt to initialize 3D scene (might fail in environments without WebGL)
+            try {
+                if (typeof THREE !== 'undefined') {
+                    init3D();
+                } else {
+                    throw new Error("Three.js is niet geladen.");
+                }
+            } catch(e) {
+                console.error("WebGL 3D setup failed:", e);
+                is3DReady = false;
+                document.getElementById('canvas-container').innerHTML = `
+                    <div class="h-full w-full flex flex-col items-center justify-center p-8 text-center text-red-400 bg-slate-900/50">
+                        <span class="text-3xl mb-3">⚠️</span>
+                        <p class="font-bold">De 3D-weergave kon niet worden geladen.</p>
+                        <p class="mt-2 text-sm text-slate-400">WebGL wordt mogelijk niet ondersteund of is tijdelijk geblokkeerd in deze weergave.</p>
+                        <p class="mt-4 px-4 py-2 border border-emerald-500/30 bg-emerald-900/20 text-emerald-400 rounded text-sm font-medium">
+                            Geen paniek: de wiskundige rekenmodule aan de linkerkant functioneert onafhankelijk en werkt gewoon normaal!
+                        </p>
+                    </div>`;
+            }
+            
+            updateSimulation();
+            
+            if (is3DReady) {
+                // Forceer direct een resize om layout bugs door CSS flexbox te verhelpen
+                setTimeout(onWindowResize, 100); 
+                animate();
+            }
+        }
+
+        // Run as soon as DOM is ready to avoid missing load events
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startApp);
+        } else {
+            startApp();
+        }
+
+    </script>
+</body>
+</html>
