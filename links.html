@@ -2,234 +2,179 @@
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MathGeo Seven | Volledige Systeemnavigatie</title>
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>Mathgeo-Seven | Bladwijzers & Navigatie</title>
     <style>
         :root {
-            --bg-color: #0f141a;
-            --panel-bg: #1a222c;
-            --text-main: #c9d1d9;
-            --text-muted: #8b949e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --border: #30363d;
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --link-color: #64ffda;
+            --link-hover: #00bfa5;
+            --card-bg: #1e1e1e;
+            --border-color: #333;
+            --section-bg: #1a1a1a;
         }
-
         body {
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-main);
-            margin: 0;
-            padding: 40px 20px;
+            color: var(--text-color);
             line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
         header {
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 20px;
-            margin-bottom: 40px;
+            text-align: center;
+            margin-bottom: 3rem;
         }
-
         h1 {
-            color: #ffffff;
-            margin: 0 0 10px 0;
-            font-size: 2.2em;
-            letter-spacing: 1px;
+            color: var(--link-color);
+            margin-bottom: 0.5rem;
         }
-
-        .base-url {
-            color: var(--text-muted);
-            font-size: 0.95em;
+        p.subtitle {
+            color: #888;
+            font-size: 1.1rem;
         }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-            gap: 25px;
+        .category-section {
+            background-color: var(--section-bg);
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
         }
-
-        .category-card {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        }
-
-        .category-card h2 {
+        .category-title {
+            color: #fff;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
             margin-top: 0;
-            color: #ffffff;
-            font-size: 1.2em;
-            border-bottom: 1px dashed var(--border);
-            padding-bottom: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        .link-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .link-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(100, 255, 218, 0.1);
+            border-color: var(--link-hover);
+        }
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+            font-weight: 500;
             display: flex;
             align-items: center;
-        }
-
-        .category-card h2::before {
-            content: "►";
-            color: var(--accent-green);
-            font-size: 0.8em;
-            margin-right: 10px;
-        }
-
-        ul {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        li {
-            margin-bottom: 12px;
             word-break: break-all;
         }
-
-        a {
-            color: var(--accent-blue);
-            text-decoration: none;
-            display: flex;
-            align-items: baseline;
-            transition: color 0.2s ease, transform 0.2s ease;
-        }
-
-        a::before {
-            content: "📄";
-            font-size: 0.8em;
-            margin-right: 8px;
-            filter: grayscale(100%) opacity(0.7);
-        }
-
-        a.folder::before {
-            content: "📁";
-        }
-        
-        a.script::before {
-            content: "⚙️";
-        }
-
         a:hover {
-            color: var(--accent-green);
-            transform: translateX(5px);
+            color: var(--link-hover);
         }
-
-        footer {
-            margin-top: 50px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.85em;
-            border-top: 1px solid var(--border);
-            padding-top: 20px;
+        .file-icon {
+            margin-right: 10px;
+            font-size: 1.2rem;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
     <header>
-        <h1>MathGeo Seven | Index</h1>
-        <div class="base-url">Live Deployment: <a href="https://mathgeo-seven.vercel.app/" target="_blank">https://mathgeo-seven.vercel.app/</a></div>
+        <h1>Mathgeo-Seven Dashboard</h1>
+        <p class="subtitle">Complete index van alle live applicaties op mathgeo-seven.vercel.app</p>
     </header>
 
-    <div class="grid">
-        
-        <!-- Categorie: 3D Matrices & Synthese -->
-        <div class="category-card">
-            <h2>3D Matrices & Dashboards</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/geodesic_matrix_dashboard.html" target="_blank">geodesic_matrix_dashboard.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_dashboard.html" target="_blank">integrale_3d_matrix_dashboard.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese.html" target="_blank">integrale_3d_matrix_synthese.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(1).html" target="_blank">integrale_3d_matrix_synthese(1).html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(2).html" target="_blank">integrale_3d_matrix_synthese(2).html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/mathgeo_seven_advanced_dashboard.html" target="_blank">mathgeo_seven_advanced_dashboard.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/geodetisch_magritte_dashboard.html" target="_blank">geodetisch_magritte_dashboard.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/geodetische_cartografische_matrix_dashboard.html" target="_blank">geodetische_cartografische_matrix_dashboard.html</a></li>
-            </ul>
+    <!-- Hoofdnavigatie & Dashboards -->
+    <section class="category-section">
+        <h2 class="category-title">Hoofdnavigatie & Algemeen</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/index.html"><span class="file-icon">🏠</span>index.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/links.html"><span class="file-icon">🔗</span>links.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/mathgeo_seven_advanced_dashboard.html"><span class="file-icon">📊</span>mathgeo_seven_advanced_dashboard.html</a></div>
+                     <div class="link-card"><a href="https://mathgeo-seven.vercel.app/onderzoek.html"><span class="file-icon">🔬</span>onderzoek.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/wetenschap.html"><span class="file-icon">🧪</span>wetenschap.html</a></div>
         </div>
+    </section>
 
-        <!-- Categorie: Astronomie, Zon & Telemetrie -->
-        <div class="category-card">
-            <h2>Astronomisch & Telemetrie</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/bol.html" target="_blank">bol.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/mzon.html" target="_blank">mzon.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/zonnebaar.html" target="_blank">zonnebaar.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/zonnewijzer.html" target="_blank">zonnewijzer.html</a></li>
-            </ul>
+    <!-- Synthese & Matrix Modellen -->
+    <section class="category-section">
+        <h2 class="category-title">Integrale Synthese & Matrix</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/de_integrale_synthese.html"><span class="file-icon">🧩</span>de_integrale_synthese.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/de_integrale_synthese_voronoi_grid.html"><span class="file-icon">🕸️</span>de_integrale_synthese_voronoi_grid.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/de_integrale_synthese_voronoi_planimeter.html"><span class="file-icon">📐</span>de_integrale_synthese_voronoi_planimeter.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_dashboard.html"><span class="file-icon">🧊</span>integrale_3d_matrix_dashboard.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese.html"><span class="file-icon">🧊</span>integrale_3d_matrix_synthese.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(1).html"><span class="file-icon">🧊</span>integrale_3d_matrix_synthese(1).html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/integrale_3d_matrix_synthese(2).html"><span class="file-icon">🧊</span>integrale_3d_matrix_synthese(2).html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/integrale_synthese_dashboard.html"><span class="file-icon">🖥️</span>integrale_synthese_dashboard.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/planimetrische_rekenmatrix.html"><span class="file-icon">🧮</span>planimetrische_rekenmatrix.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/synthes.html"><span class="file-icon">🧬</span>synthes.html</a></div>
         </div>
+    </section>
 
-        <!-- Categorie: Geo, Navigatie & OSINT -->
-        <div class="category-card">
-            <h2>Geo, OSINT & Navigatie</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/geocommand.html" target="_blank">geocommand.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/geocomandmobiel.html" target="_blank">geocomandmobiel.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/mapplotter.html" target="_blank">mapplotter.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/osint.html" target="_blank">osint.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/snijpunt.html" target="_blank">snijpunt.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/vortex_heatmap.html" target="_blank">vortex_heatmap.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/vortex_kalibrator.html" target="_blank">vortex_kalibrator.html</a></li>
-            </ul>
+    <!-- Geodesie & Cartografie -->
+    <section class="category-section">
+        <h2 class="category-title">Geodesie, Cartografie & Navigatie</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/atan2_geodetische_azimut_rekentool.html"><span class="file-icon">🧭</span>atan2_geodetische_azimut_rekentool.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geocommand.html"><span class="file-icon">📍</span>geocommand.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geocomandmobiel.html"><span class="file-icon">📱</span>geocomandmobiel.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geodesic_matrix_dashboard.html"><span class="file-icon">🌐</span>geodesic_matrix_dashboard.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geodetisch_magritte_dashboard.html"><span class="file-icon">🎨</span>geodetisch_magritte_dashboard.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geodetische_cartografische_matrix_dashboard.html"><span class="file-icon">🗺️</span>geodetische_cartografische_matrix_dashboard.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/geotool.html"><span class="file-icon">🛠️</span>geotool.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/mapplotter.html"><span class="file-icon">🗺️</span>mapplotter.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/snijpunt.html"><span class="file-icon">❌</span>snijpunt.html</a></div>
         </div>
+    </section>
 
-        <!-- Categorie: WebRTC, P2P & Client -->
-        <div class="category-card">
-            <h2>P2P, WebRTC & Client</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/clientside.html" target="_blank">clientside.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/spiegel.html" target="_blank">spiegel.html</a></li>
-            </ul>
+    <!-- Zon, Tijd & Schaduw -->
+    <section class="category-section">
+        <h2 class="category-title">Astronomische Tools (Zon, Tijd & Schaduw)</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/bol.html"><span class="file-icon">🌍</span>bol.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/klokstappen.html"><span class="file-icon">⏱️</span>klokstappen.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/mzon.html"><span class="file-icon">☀️</span>mzon.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/schaduw.html"><span class="file-icon">🌘</span>schaduw.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/schaduwwaaier.html"><span class="file-icon">🌒</span>schaduwwaaier.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/zonnebaar.html"><span class="file-icon">🌞</span>zonnebaar.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/zonnewijzer.html"><span class="file-icon">🕰️</span>zonnewijzer.html</a></div>
         </div>
+    </section>
 
-        <!-- Categorie: R Scripts & Markdown -->
-        <div class="category-card">
-            <h2>Data Analyse (R / MD)</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/geodetic_mayan_network_v2.R" class="script" target="_blank">geodetic_mayan_network_v2.R</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/vortex_omni_bridge_analyse.R" class="script" target="_blank">vortex_omni_bridge_analyse.R</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/alert-tuning-audit-checklist.md" class="script" target="_blank">alert-tuning-audit-checklist.md</a></li>
-            </ul>
+    <!-- Voronoi & Vortex -->
+    <section class="category-section">
+        <h2 class="category-title">Voronoi & Vortex Analyses</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/voronoi.html"><span class="file-icon">🕸️</span>voronoi.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/voronoi_picasso_sloterplas.html"><span class="file-icon">🖼️</span>voronoi_picasso_sloterplas.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/vortex_heatmap.html"><span class="file-icon">🔥</span>vortex_heatmap.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/vortex_kalibrator.html"><span class="file-icon">⚙️</span>vortex_kalibrator.html</a></div>
         </div>
+    </section>
 
-        <!-- Categorie: Mappen & Directories -->
-        <div class="category-card">
-            <h2>Directories</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/3d/" class="folder" target="_blank">/3d</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/rust/" class="folder" target="_blank">/rust</a></li>
-            </ul>
+    <!-- Overige Tools -->
+    <section class="category-section">
+        <h2 class="category-title">Overige Tools & Experimenten</h2>
+        <div class="link-grid">
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/18980.html"><span class="file-icon">🔢</span>18980.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/clientside.html"><span class="file-icon">💻</span>clientside.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/gemini-code-1790779583503.html"><span class="file-icon">🤖</span>gemini-code-1790779583503.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/gemini-code-1790838575691.html"><span class="file-icon">🤖</span>gemini-code-1790838575691.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/lowerman.html"><span class="file-icon">👤</span>lowerman.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/osint.html"><span class="file-icon">🔍</span>osint.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/pdf.html"><span class="file-icon">📄</span>pdf.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/spiegel.html"><span class="file-icon">🪞</span>spiegel.html</a></div>
+            <div class="link-card"><a href="https://mathgeo-seven.vercel.app/tuinieren.html"><span class="file-icon">🌱</span>tuinieren.html</a></div>
         </div>
-
-        <!-- Categorie: Overig / Componenten / Experimenteel -->
-        <div class="category-card">
-            <h2>Overig & Experimenteel</h2>
-            <ul>
-                <li><a href="https://mathgeo-seven.vercel.app/index.html" target="_blank">index.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/links.html" target="_blank">links.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/work.html" target="_blank">work.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/18980.html" target="_blank">18980.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/klokstappen.html" target="_blank">klokstappen.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/lowerman.html" target="_blank">lowerman.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/pdf.html" target="_blank">pdf.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/tuinieren.html" target="_blank">tuinieren.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/wetenschap.html" target="_blank">wetenschap.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/gemini-code-1790779583503.html" target="_blank">gemini-code-1790779583503.html</a></li>
-                <li><a href="https://mathgeo-seven.vercel.app/gemini-code-1790838575691.html" target="_blank">gemini-code-1790838575691.html</a></li>
-            </ul>
-        </div>
-
-    </div>
-
-    <footer>
-        Vercel Deployment URL: https://mathgeo-seven.vercel.app/ | Laatst bijgewerkt: Oktober 2026
-    </footer>
-</div>
+    </section>
 
 </body>
 </html>
