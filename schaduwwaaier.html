@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universele Geodesie, Schaduw & Tijdsmodule Suite</title>
+    <title>Universele NASA Geodesie, Schaduw & Tijdsmodule Suite</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -54,8 +54,8 @@
         .report-val.highlight { color: #10b981; font-weight: bold; }
         
         .time-module { background: #111827; border: 1px solid #374151; padding: 15px; border-radius: 6px; margin: 15px 0; }
-        .time-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; justify-content: space-between; }
-        .btn { background: #2a3449; color: #fff; border: 1px solid #4b5563; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: 0.2s; flex: 1;}
+        .time-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; justify-content: space-between; flex-wrap: wrap; }
+        .btn { background: #2a3449; color: #fff; border: 1px solid #4b5563; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: 0.2s; flex: 1; min-width: 90px;}
         .btn:hover { background: #374151; }
         .btn-play { background: #059669; border-color: #047857; }
         .btn-play:hover { background: #10b981; }
@@ -114,7 +114,7 @@
 <!-- RECHTER PANEEL: SCHADUWWAAIER & TIJDSMODULE -->
 <div class="floating-panel panel-right" id="panel-shadow">
     <div class="drag-handle" id="drag-shadow">
-        <h2><span>⏱️</span> Schaduw & Tijdsmodule Tool</h2>
+        <h2><span>⏱️</span> Schaduw & NASA Tijdsmodule</h2>
     </div>
     
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
@@ -141,11 +141,15 @@
             <button class="btn" id="btn-now">⏱ Nu (Live)</button>
             <input type="time" id="time-input" value="14:00">
         </div>
-        <input type="range" id="time-slider" min="0" max="1439" value="840" step="1">
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button class="btn" onclick="exportToJSON()">Exporteer JSON</button>
+            <button class="btn" onclick="exportToCSV()">Exporteer CSV</button>
+        </div>
+        <input type="range" id="time-slider" min="0" max="1439" value="840" step="1" style="margin-top: 10px;">
     </div>
 
     <div class="report-box">
-        <span class="report-label">Actuele Zonnestand & Schaduw</span>
+        <span class="report-label">NASA atan2 Zonnestand & Schaduw</span>
         Theor. Schaduwlengte: <span class="report-val highlight" id="info-len">-</span> m<br>
         Zon Azimut (Kompas): <span class="report-val" id="info-azi">-</span>°<br>
         Zon Elevatie (Hoogte): <span class="report-val" id="info-ele">-</span>°
@@ -171,7 +175,6 @@
 
 <!-- Externe Libraries -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
@@ -222,6 +225,64 @@
     let dailyChartInstance = null;
 
     // --- 2. WISKUNDIGE HULPFUNCTIES ---
+
+    function getNASA_SunPosition(date, lat, lon) {
+        const rad = Math.PI / 180.0;
+        const deg = 180.0 / Math.PI;
+
+        const inyear = date.getUTCFullYear();
+        const inmon = date.getUTCMonth() + 1;
+        const inday = date.getUTCDate();
+        const gmtime = date.getUTCHours() + date.getUTCMinutes() / 60.0 + date.getUTCSeconds() / 3600.0;
+
+        let nday = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if ((inyear % 100 !== 0 && inyear % 4 === 0) || (inyear % 100 === 0 && inyear % 400 === 0)) {
+            nday[1] = 29;
+        }
+
+        let julday = [0];
+        for(let i=0; i<12; i++) {
+            julday.push(julday[i] + nday[i]);
+        }
+
+        const dyear = inyear - 2000;
+        const dayofyr = julday[inmon - 1] + inday;
+        let xleap = (dyear <= 0) ? Math.trunc(dyear / 4) : Math.trunc(dyear / 4) + 1;
+
+        const n = -1.5 + dyear * 365.0 + xleap * 1.0 + dayofyr + gmtime / 24.0;
+        const fMod = (a, b) => ((a % b) + b) % b;
+
+        const L = fMod(280.460 + 0.9856474 * n, 360.0);
+        const g = fMod(357.528 + 0.9856003 * n, 360.0);
+        const lambda = fMod(L + 1.915 * Math.sin(g * rad) + 0.020 * Math.sin(2 * g * rad), 360.0);
+        const epsilon = 23.439 - 0.0000004 * n;
+        
+        let alpha = fMod(Math.atan2(Math.cos(epsilon * rad) * Math.sin(lambda * rad), Math.cos(lambda * rad)) * deg, 360.0);
+        const delta = Math.asin(Math.sin(epsilon * rad) * Math.sin(lambda * rad)) * deg;
+        const EoT = fMod((L - alpha) + 180.0, 360.0) - 180.0;
+
+        const sunlat = delta;
+        const sunlon = -15.0 * (gmtime - 12.0 + EoT * 4.0 / 60.0);
+
+        const PHIo = lat * rad;
+        const PHIs = sunlat * rad;
+        const LAMo = lon * rad;
+        const LAMs = sunlon * rad;
+
+        const Sx = Math.cos(PHIs) * Math.sin(LAMs - LAMo);
+        const Sy = Math.cos(PHIo) * Math.sin(PHIs) - Math.sin(PHIo) * Math.cos(PHIs) * Math.cos(LAMs - LAMo);
+        const Sz = Math.sin(PHIo) * Math.sin(PHIs) + Math.cos(PHIo) * Math.cos(PHIs) * Math.cos(LAMs - LAMo);
+
+        const solarz = Math.acos(Sz) * deg;
+        let azi = Math.atan2(Sx, Sy) * deg; 
+        if (azi < 0) azi += 360.0;
+
+        return {
+            altitude: (90.0 - solarz) * rad,
+            azimuth: azi * rad
+        };
+    }
+
     function getDestinationPoint(lat, lon, azimut, distanceMeters) {
         const R = 6371e3, brng = azimut * Math.PI / 180, phi1 = lat * Math.PI / 180, lambda1 = lon * Math.PI / 180;
         const phi2 = Math.asin(Math.sin(phi1) * Math.cos(distanceMeters/R) + Math.cos(phi1) * Math.sin(distanceMeters/R) * Math.cos(brng));
@@ -256,9 +317,7 @@
         return h0 + ((1.02 / Math.tan(val_rad)) / 60);
     }
 
-    // --- 3. INTERACTIEVE INVOER (Forward & Reverse Geocoding) ---
-    
-    // Reverse Geocoding (Kaart -> Tekst)
+    // --- 3. INTERACTIEVE INVOER ---
     async function updateAddressAPI(lat, lon, updateText = true) {
         if(!updateText) return;
         const inputField = document.getElementById('locatienaam');
@@ -277,7 +336,6 @@
         }
     }
 
-    // Forward Geocoding (Tekst -> Kaart) via Enter Toets
     document.getElementById('locatienaam').addEventListener('keypress', async function(e) {
         if (e.key === 'Enter') {
             const query = this.value;
@@ -292,7 +350,7 @@
                     this.value = data[0].display_name.split(',')[0].toUpperCase();
                     mainMarker.setLatLng([lat, lon]);
                     map.panTo([lat, lon]);
-                    syncAllSystems(lat, lon, false); // false = overschrijf de zojuist gevonden naam niet
+                    syncAllSystems(lat, lon, false); 
                 } else {
                     this.value = "NIET GEVONDEN";
                 }
@@ -302,7 +360,6 @@
         }
     });
 
-    // Handmatige Coördinaten Invoer (bij verlies focus of Enter)
     function handleManualCoords() {
         const lat = parseFloat(document.getElementById('latInput').value.replace(',', '.'));
         const lon = parseFloat(document.getElementById('lonInput').value.replace(',', '.'));
@@ -316,7 +373,6 @@
     document.getElementById('lonInput').addEventListener('change', handleManualCoords);
     document.getElementById('objHeight').addEventListener('change', () => syncAllSystems(currentLat, currentLon, false));
 
-
     // --- 4. SCHADUWWAAIER TEKENLOGICA ---
     function calculateShadowsForDate(dateStr, lat, lon) {
         layerGroupLines.clearLayers();
@@ -326,11 +382,11 @@
         const baseDate = new Date(dateStr);
         const envelopeCoords = [[lat, lon]];
 
-        for (let hour = 6; hour <= 21; hour++) { // Bredere range voor daglicht
+        for (let hour = 6; hour <= 21; hour++) { 
             baseDate.setHours(hour, 0, 0);
-            const sunPos = SunCalc.getPosition(baseDate, lat, lon);
+            const sunPos = getNASA_SunPosition(baseDate, lat, lon);
             let altitude = sunPos.altitude * 180 / Math.PI;
-            let azimuth = sunPos.azimuth * 180 / Math.PI + 180; 
+            let azimuth = sunPos.azimuth * 180 / Math.PI;
 
             if (altitude > 0) {
                 let shadowLen = Math.min(objH / Math.tan(sunPos.altitude), 8000); 
@@ -372,9 +428,9 @@
         const targetDate = new Date(dateStr);
         targetDate.setHours(hour, minute, 0);
 
-        const sunPos = SunCalc.getPosition(targetDate, currentLat, currentLon);
+        const sunPos = getNASA_SunPosition(targetDate, currentLat, currentLon);
         let h0 = sunPos.altitude * 180 / Math.PI; 
-        let azimuth = sunPos.azimuth * 180 / Math.PI + 180;
+        let azimuth = sunPos.azimuth * 180 / Math.PI;
         let h_app = getApparentElevation(h0); 
 
         if (dynamicActiveLine) { map.removeLayer(dynamicActiveLine); }
@@ -451,7 +507,7 @@
         syncAllSystems(currentLat, currentLon, false);
     });
 
-    // --- 6. DUBBELE GRAFIEK: DAGELIJKS ZONSTAND & SCHADUW ---
+    // --- 6. GRAFIEK SETUP ---
     function updateDailyChart() {
         const dateStr = document.getElementById('datePicker').value;
         const objH = parseFloat(document.getElementById('objHeight').value) || 10;
@@ -460,24 +516,23 @@
         const dataShadow = [];
         
         const baseDate = new Date(dateStr);
-        // Genereer datapunten voor de hele dag per 30 minuten
         for (let min = 0; min < 1440; min += 30) {
             let h = Math.floor(min / 60);
             let m = min % 60;
             labels.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
             
             baseDate.setHours(h, m, 0);
-            const sunPos = SunCalc.getPosition(baseDate, currentLat, currentLon);
+            const sunPos = getNASA_SunPosition(baseDate, currentLat, currentLon);
             let h0 = sunPos.altitude * 180 / Math.PI;
             let h_app = getApparentElevation(h0);
             
             dataElevation.push(h_app);
 
             if (h_app > 0) {
-                let shadowLen = Math.min(objH / Math.tan(h_app * Math.PI / 180), 800); // Cap in grafiek op 800m voor leesbaarheid
+                let shadowLen = Math.min(objH / Math.tan(h_app * Math.PI / 180), 800); 
                 dataShadow.push(shadowLen);
             } else {
-                dataShadow.push(null); // Geen schaduw 's nachts
+                dataShadow.push(null); 
             }
         }
 
@@ -559,6 +614,50 @@
     
     document.getElementById('toggle-envelope').addEventListener('change', e => e.target.checked ? map.addLayer(envelopePolygon) : map.removeLayer(envelopePolygon));
     document.getElementById('toggle-lines').addEventListener('change', e => e.target.checked ? map.addLayer(layerGroupLines) : map.removeLayer(layerGroupLines));
+
+    // --- 8. CORRECTE EXPORT FUNCTIES ---
+    function getSchaduwData() {
+        return {
+            timestamp: new Date().toISOString(),
+            adres: document.getElementById('locatienaam')?.value || '',
+            latitude: document.getElementById('latInput')?.value || '',
+            longitude: document.getElementById('lonInput')?.value || '',
+            rdCoordinaten: document.getElementById('repRd')?.innerText || '',
+            utmCoordinaten: document.getElementById('repUtm')?.innerText || '',
+            datum: document.getElementById('datePicker')?.value || '',
+            objectHoogte: document.getElementById('objHeight')?.value || '',
+            tijd: document.getElementById('time-input')?.value || '',
+            theorSchaduwLengteM: document.getElementById('info-len')?.innerText || '',
+            zonAzimutGronden: document.getElementById('info-azi')?.innerText || '',
+            zonElevatieGronden: document.getElementById('info-ele')?.innerText || ''
+        };
+    }
+
+    function exportToJSON() {
+        const data = getSchaduwData();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "schaduw_analyse_data.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function exportToCSV() {
+        const data = getSchaduwData();
+        const headers = Object.keys(data).join(',');
+        const values = Object.values(data).map(val => `"${val}"`).join(',');
+        const csvContent = "data:text/csv;charset=utf-8," + [headers, values].join('\n');
+        
+        const encodedUri = encodeURI(csvContent);
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", encodedUri);
+        downloadAnchor.setAttribute("download", "schaduw_analyse_data.csv");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
 
     // Start Applicatie
     updateAddressAPI(currentLat, currentLon, true);
