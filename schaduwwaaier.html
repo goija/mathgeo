@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universele Geodesie, Schaduw & Tijdsmodule Suite</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #060913; color: #eee; overflow: hidden; }
+        #map { width: 100vw; height: 100vh; z-index: 1; position: absolute; top: 0; left: 0; }
+        
+        /* Zwevende Panelen */
+        .floating-panel {
+            position: absolute; z-index: 1000;
+            background: rgba(15, 21, 35, 0.95); border: 1px solid #2a3449;
+            border-radius: 8px; padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px); max-height: 90vh; overflow-y: auto;
+        }
+
+        .panel-left { top: 20px; left: 20px; width: 340px; border-top: 3px solid #10b981; }
+        .panel-right { top: 20px; right: 20px; width: 360px; border-top: 3px solid #38bdf8; }
+        .panel-bottom { bottom: 20px; left: 20px; width: 660px; border-top: 3px solid #facc15; }
+
+        .drag-handle { 
+            margin: -20px -20px 15px -20px; padding: 20px 20px 10px 20px;
+            cursor: grab; border-bottom: 1px solid #2a3449; background: rgba(255, 255, 255, 0.02);
+        }
+        .drag-handle:active { cursor: grabbing; }
+        
+        h2 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+        .panel-left h2 { color: #10b981; }
+        .panel-right h2 { color: #38bdf8; }
+        .panel-bottom h2 { color: #facc15; }
+        
+        /* Layout elementen */
+        .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+        label { font-size: 0.8rem; color: #9ca3af; }
+        
+        /* Interactieve Inputs */
+        input[type="text"], input[type="number"], input[type="date"], input[type="time"] { 
+            background: #1a2235; border: 1px solid #4b5563; border-radius: 4px; padding: 8px; color: #fff; font-size: 0.9rem; transition: border 0.3s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus { border-color: #38bdf8; outline: none; background: #1e293b; }
+        input[type="time"] { width: 100px; text-align: center; }
+        input[type="checkbox"] { margin-right: 8px; accent-color: #38bdf8; cursor: pointer; }
+        
+        .report-box { background: #1a2235; border: 1px solid #2a3449; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 0.85rem; }
+        .report-label { font-size: 0.65rem; color: #9ca3af; text-transform: uppercase; display: block; margin-bottom: 2px; }
+        .report-val { color: #38bdf8; font-weight: 500; word-break: break-all; }
+        .report-val.highlight { color: #10b981; font-weight: bold; }
+        
+        .time-module { background: #111827; border: 1px solid #374151; padding: 15px; border-radius: 6px; margin: 15px 0; }
+        .time-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; justify-content: space-between; }
+        .btn { background: #2a3449; color: #fff; border: 1px solid #4b5563; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: 0.2s; flex: 1;}
+        .btn:hover { background: #374151; }
+        .btn-play { background: #059669; border-color: #047857; }
+        .btn-play:hover { background: #10b981; }
+        .btn-active { background: #eab308; border-color: #ca8a04; color: #000; }
+        
+        input[type="range"] { width: 100%; margin: 5px 0; accent-color: #38bdf8; cursor: pointer; }
+
+        .purkinje-box {
+            height: 40px; border-radius: 4px; margin-top: 10px; border: 1px solid #2a3449;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            transition: background-color 0.5s ease; background-color: #8b5a8c;
+        }
+
+        .triangle-marker {
+            width: 0; height: 0;
+            border-left: 8px solid transparent; border-right: 8px solid transparent;
+            border-bottom: 16px solid #ef4444; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.8));
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+
+<!-- LINKER PANEEL: GEODESIE & INTERACTIEVE INVOER -->
+<div class="floating-panel panel-left" id="panel-geodesy">
+    <div class="drag-handle" id="drag-geodesy">
+        <h2><span>🌍</span> Locatie & Geodesie Invoer</h2>
+    </div>
+    
+    <div class="form-group">
+        <label>Plaatsnaam of Adres (Typ en druk op Enter)</label>
+        <input type="text" id="locatienaam" placeholder="Bijv. Domtoren Utrecht..." title="Typ een locatie en druk op Enter">
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+            <label>Latitude (Breedte)</label>
+            <input type="text" id="latInput" placeholder="52.155174">
+        </div>
+        <div class="form-group">
+            <label>Longitude (Lengte)</label>
+            <input type="text" id="lonInput" placeholder="5.387206">
+        </div>
+    </div>
+    
+    <div class="report-box" style="margin-top: 10px;">
+        <span class="report-label">RD New (EPSG:28992)</span>
+        <span class="report-val" id="repRd">-</span>
+    </div>
+    <div class="report-box">
+        <span class="report-label">UTM Zone 31U</span>
+        <span class="report-val" id="repUtm">-</span>
+    </div>
+</div>
+
+<!-- RECHTER PANEEL: SCHADUWWAAIER & TIJDSMODULE -->
+<div class="floating-panel panel-right" id="panel-shadow">
+    <div class="drag-handle" id="drag-shadow">
+        <h2><span>⏱️</span> Schaduw & Tijdsmodule Tool</h2>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+        <div class="form-group">
+            <label>Selecteer Datum</label>
+            <input type="date" id="datePicker" value="2026-08-12">
+        </div>
+        <div class="form-group">
+            <label>Objecthoogte (m)</label>
+            <input type="number" id="objHeight" value="98.3" step="0.1" title="Pas de hoogte aan voor jouw gebouw/locatie">
+        </div>
+    </div>
+
+    <div style="margin-bottom: 15px; border-bottom: 1px solid #2a3449; padding-bottom: 15px;">
+        <label style="display:flex; cursor:pointer;"><input type="checkbox" id="toggle-envelope" checked> Toon Daglicht Enveloppe</label>
+        <label style="display:flex; cursor:pointer; margin-top:5px;"><input type="checkbox" id="toggle-lines" checked> Toon Uurlijkse Vectoren</label>
+    </div>
+
+    <!-- VOLLEDIGE TIJDSMODULE -->
+    <div class="time-module">
+        <label style="display:block; margin-bottom:10px; color:#38bdf8; font-weight:bold;">Tijd & Animatie Controle</label>
+        <div class="time-controls">
+            <button class="btn btn-play" id="btn-play">▶ Speel af</button>
+            <button class="btn" id="btn-now">⏱ Nu (Live)</button>
+            <input type="time" id="time-input" value="14:00">
+        </div>
+        <input type="range" id="time-slider" min="0" max="1439" value="840" step="1">
+    </div>
+
+    <div class="report-box">
+        <span class="report-label">Actuele Zonnestand & Schaduw</span>
+        Theor. Schaduwlengte: <span class="report-val highlight" id="info-len">-</span> m<br>
+        Zon Azimut (Kompas): <span class="report-val" id="info-azi">-</span>°<br>
+        Zon Elevatie (Hoogte): <span class="report-val" id="info-ele">-</span>°
+    </div>
+
+    <div class="report-box">
+        <span class="report-label">Visuele Waarneming (Oog)</span>
+        <div class="purkinje-box" id="purkinje-box">Fotopisch Zicht (Kleur)</div>
+    </div>
+</div>
+
+<!-- ONDER PANEEL: DAGELIJKSE GRAFIEK (ZONSTAND & SCHADUW) -->
+<div class="floating-panel panel-bottom" id="panel-chart">
+    <div class="drag-handle" id="drag-chart">
+        <h2><span>📊</span> Dagoverzicht: Zonnestand & Schaduwlengte per Dag</h2>
+    </div>
+    <div style="width: 100%; height: 220px;">
+        <canvas id="dailyChart"></canvas>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<!-- Externe Libraries -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // --- 0. UI SLEEP-LOGICA ---
+    function makeDraggable(panelId, handleId) {
+        const panel = document.getElementById(panelId);
+        const handle = document.getElementById(handleId);
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+        handle.onmousedown = function(e) {
+            e.preventDefault();
+            pos3 = e.clientX; pos4 = e.clientY;
+            const rect = panel.getBoundingClientRect();
+            panel.style.left = rect.left + 'px'; panel.style.top = rect.top + 'px';
+            panel.style.right = 'auto'; panel.style.bottom = 'auto';
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        };
+
+        function elementDrag(e) {
+            e.preventDefault();
+            pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+            pos3 = e.clientX; pos4 = e.clientY;
+            panel.style.top = (panel.offsetTop - pos2) + "px";
+            panel.style.left = (panel.offsetLeft - pos1) + "px";
+        }
+        function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
+    }
+
+    makeDraggable('panel-geodesy', 'drag-geodesy');
+    makeDraggable('panel-shadow', 'drag-shadow');
+    makeDraggable('panel-chart', 'drag-chart');
+
+    // --- 1. GLOBALE VARIABELEN & KAART SETUP ---
+    let currentLat = 52.155174; // Amersfoort Start
+    let currentLon = 5.387206;
+
+    const map = L.map('map', { zoomControl: false }).setView([currentLat, currentLon], 16); 
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 }).addTo(map);
+
+    const triangleIcon = L.divIcon({ className: 'custom-div-icon', html: '<div class="triangle-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 16] });
+    const mainMarker = L.marker([currentLat, currentLon], { icon: triangleIcon, draggable: true }).addTo(map);
+
+    const layerGroupLines = L.layerGroup().addTo(map);
+    let envelopePolygon = null;
+    let dynamicActiveLine = null;
+    let dailyChartInstance = null;
+
+    // --- 2. WISKUNDIGE HULPFUNCTIES ---
+    function getDestinationPoint(lat, lon, azimut, distanceMeters) {
+        const R = 6371e3, brng = azimut * Math.PI / 180, phi1 = lat * Math.PI / 180, lambda1 = lon * Math.PI / 180;
+        const phi2 = Math.asin(Math.sin(phi1) * Math.cos(distanceMeters/R) + Math.cos(phi1) * Math.sin(distanceMeters/R) * Math.cos(brng));
+        const lambda2 = lambda1 + Math.atan2(Math.sin(brng) * Math.sin(distanceMeters/R) * Math.cos(phi1), Math.cos(distanceMeters/R) - Math.sin(phi1) * Math.sin(phi2));
+        return [phi2 * 180 / Math.PI, lambda2 * 180 / Math.PI];
+    }
+
+    function wgs84ToRdNew(lat, lon) {
+        const dLat = (lat - 52.15517440) * 0.36, dLon = (lon - 5.38720621) * 0.36;
+        let dx = dLon * 3600.0, dy = dLat * 3600.0;
+        const p = [[0,1,190094.945],[1,0,11822.889],[0,2,-114.221],[2,0,-32.391],[1,1,-2.340],[0,3,-0.608],[2,1,-0.006],[1,2,0.031],[3,0,0.015]];
+        const q = [[1,0,309056.544],[0,1,-3638.893],[1,1,73.077],[2,0,-157.984],[0,2,59.781],[1,2,0.332],[2,1,-0.923],[0,3,-0.071],[3,0,-0.065]];
+        let x = 155000.000, y = 463000.000;
+        for (let c of p) x += c[2] * Math.pow(dx/10000.0, c[0]) * Math.pow(dy/10000.0, c[1]);
+        for (let c of q) y += c[2] * Math.pow(dx/10000.0, c[0]) * Math.pow(dy/10000.0, c[1]);
+        return { x: x, y: y };
+    }
+
+    function wgs84ToUtm31u(lat, lon) {
+        const k0 = 0.9996, a = 6378137.0, e2 = 0.00669438;
+        const phi = lat * Math.PI/180, lambda = lon * Math.PI/180, lambda0 = 3.0 * Math.PI/180;
+        const sinPhi = Math.sin(phi), cosPhi = Math.cos(phi), tanPhi = Math.tan(phi), N = a/Math.sqrt(1-e2*sinPhi*sinPhi), T = tanPhi*tanPhi, C = (e2/(1-e2))*cosPhi*cosPhi, A = cosPhi*(lambda-lambda0);
+        const M = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*phi - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*phi) + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*phi));
+        let easting = k0 * N * (A + (1-T+C)*Math.pow(A,3)/6 + (5-18*T+T*T+72*C-58*e2)*Math.pow(A,5)/120) + 500000.0;
+        let northing = k0 * (M + N*tanPhi*(Math.pow(A,2)/2 + (5-T+9*C+4*C*C)*Math.pow(A,4)/24));
+        return { easting: easting, northing: northing };
+    }
+
+    function getApparentElevation(h0) {
+        if (h0 < -2) return h0; 
+        let val_rad = (h0 + (10.3 / (h0 + 5.11))) * Math.PI / 180;
+        return h0 + ((1.02 / Math.tan(val_rad)) / 60);
+    }
+
+    // --- 3. INTERACTIEVE INVOER (Forward & Reverse Geocoding) ---
+    
+    // Reverse Geocoding (Kaart -> Tekst)
+    async function updateAddressAPI(lat, lon, updateText = true) {
+        if(!updateText) return;
+        const inputField = document.getElementById('locatienaam');
+        inputField.value = "Locatie ophalen...";
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await response.json();
+            if (data && data.address) {
+                const name = data.address.road || data.address.suburb || data.address.village || data.address.city || data.display_name.split(',')[0];
+                inputField.value = name.toUpperCase();
+            } else {
+                inputField.value = "ONBEKEND TERREIN";
+            }
+        } catch (error) {
+            inputField.value = "GEEN VERBINDING";
+        }
+    }
+
+    // Forward Geocoding (Tekst -> Kaart) via Enter Toets
+    document.getElementById('locatienaam').addEventListener('keypress', async function(e) {
+        if (e.key === 'Enter') {
+            const query = this.value;
+            if(!query) return;
+            this.value = "Zoeken...";
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    this.value = data[0].display_name.split(',')[0].toUpperCase();
+                    mainMarker.setLatLng([lat, lon]);
+                    map.panTo([lat, lon]);
+                    syncAllSystems(lat, lon, false); // false = overschrijf de zojuist gevonden naam niet
+                } else {
+                    this.value = "NIET GEVONDEN";
+                }
+            } catch (err) {
+                this.value = "ZOEKFOUT";
+            }
+        }
+    });
+
+    // Handmatige Coördinaten Invoer (bij verlies focus of Enter)
+    function handleManualCoords() {
+        const lat = parseFloat(document.getElementById('latInput').value.replace(',', '.'));
+        const lon = parseFloat(document.getElementById('lonInput').value.replace(',', '.'));
+        if (!isNaN(lat) && !isNaN(lon)) {
+            mainMarker.setLatLng([lat, lon]);
+            map.panTo([lat, lon]);
+            syncAllSystems(lat, lon, true);
+        }
+    }
+    document.getElementById('latInput').addEventListener('change', handleManualCoords);
+    document.getElementById('lonInput').addEventListener('change', handleManualCoords);
+    document.getElementById('objHeight').addEventListener('change', () => syncAllSystems(currentLat, currentLon, false));
+
+
+    // --- 4. SCHADUWWAAIER TEKENLOGICA ---
+    function calculateShadowsForDate(dateStr, lat, lon) {
+        layerGroupLines.clearLayers();
+        if (envelopePolygon) { map.removeLayer(envelopePolygon); }
+        
+        const objH = parseFloat(document.getElementById('objHeight').value) || 10;
+        const baseDate = new Date(dateStr);
+        const envelopeCoords = [[lat, lon]];
+
+        for (let hour = 6; hour <= 21; hour++) { // Bredere range voor daglicht
+            baseDate.setHours(hour, 0, 0);
+            const sunPos = SunCalc.getPosition(baseDate, lat, lon);
+            let altitude = sunPos.altitude * 180 / Math.PI;
+            let azimuth = sunPos.azimuth * 180 / Math.PI + 180; 
+
+            if (altitude > 0) {
+                let shadowLen = Math.min(objH / Math.tan(sunPos.altitude), 8000); 
+                let shadowAzimuth = (azimuth + 180) % 360; 
+                let endPoint = getDestinationPoint(lat, lon, shadowAzimuth, shadowLen);
+                envelopeCoords.push(endPoint);
+                L.polyline([[lat, lon], endPoint], { color: '#facc15', weight: 1, dashArray: '3, 4', opacity: 0.5 }).addTo(layerGroupLines);
+            }
+        }
+        
+        if (envelopeCoords.length > 1) {
+            envelopePolygon = L.polygon(envelopeCoords, { color: '#3cb44b', weight: 1.5, fillColor: '#3cb44b', fillOpacity: 0.25 });
+            if(document.getElementById('toggle-envelope').checked) envelopePolygon.addTo(map);
+        }
+        if(!document.getElementById('toggle-lines').checked) map.removeLayer(layerGroupLines);
+    }
+
+    // --- 5. TIJDSMODULE & LIVE SIMULATOR ---
+    const timeSlider = document.getElementById('time-slider');
+    const timeInput = document.getElementById('time-input');
+    const btnPlay = document.getElementById('btn-play');
+    const btnNow = document.getElementById('btn-now');
+    let playInterval; let isPlaying = false;
+
+    function formatTime(totalMinutes) {
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function updateActiveShadowLine() {
+        const totalMinutes = parseInt(timeSlider.value);
+        const hour = Math.floor(totalMinutes / 60);
+        const minute = totalMinutes % 60;
+        timeInput.value = formatTime(totalMinutes);
+
+        const dateStr = document.getElementById('datePicker').value;
+        const objH = parseFloat(document.getElementById('objHeight').value) || 10;
+        const targetDate = new Date(dateStr);
+        targetDate.setHours(hour, minute, 0);
+
+        const sunPos = SunCalc.getPosition(targetDate, currentLat, currentLon);
+        let h0 = sunPos.altitude * 180 / Math.PI; 
+        let azimuth = sunPos.azimuth * 180 / Math.PI + 180;
+        let h_app = getApparentElevation(h0); 
+
+        if (dynamicActiveLine) { map.removeLayer(dynamicActiveLine); }
+
+        if (h_app > 0) {
+            let shadowLen = Math.min(objH / Math.tan(h_app * Math.PI / 180), 10000);
+            let shadowAzimuth = (azimuth + 180) % 360;
+
+            document.getElementById('info-len').innerText = shadowLen.toFixed(1);
+            document.getElementById('info-azi').innerText = azimuth.toFixed(1);
+            document.getElementById('info-ele').innerText = h_app.toFixed(2);
+
+            let endPoint = getDestinationPoint(currentLat, currentLon, shadowAzimuth, shadowLen);
+            dynamicActiveLine = L.polyline([[currentLat, currentLon], endPoint], { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(map);
+        } else {
+            document.getElementById('info-len').innerText = "0 (Nacht)";
+            document.getElementById('info-azi').innerText = azimuth.toFixed(1);
+            document.getElementById('info-ele').innerText = h_app.toFixed(2);
+        }
+
+        // Purkinje Effect
+        const purkinjeBox = document.getElementById('purkinje-box');
+        if (h_app > 0) {
+            purkinjeBox.style.backgroundColor = '#8b5a8c'; 
+            purkinjeBox.style.color = '#fff';
+            purkinjeBox.innerText = 'Fotopisch Zicht (Kleur)';
+        } else if (h_app > -6) {
+            purkinjeBox.style.backgroundColor = '#5c4e61';
+            purkinjeBox.style.color = '#ddd';
+            purkinjeBox.innerText = 'Mesopisch (Burgerlijke Schemering)';
+        } else if (h_app > -12) {
+            purkinjeBox.style.backgroundColor = '#383b45';
+            purkinjeBox.style.color = '#aaa';
+            purkinjeBox.innerText = 'Purkinje Shift (Nautische Schemering)';
+        } else {
+            purkinjeBox.style.backgroundColor = '#1a1f2b';
+            purkinjeBox.style.color = '#555';
+            purkinjeBox.innerText = 'Scotopisch Zicht (Nacht)';
+        }
+    }
+
+    timeInput.addEventListener('change', function() {
+        const parts = this.value.split(':');
+        if(parts.length === 2) {
+            timeSlider.value = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            updateActiveShadowLine();
+        }
+    });
+
+    btnPlay.addEventListener('click', function() {
+        if (isPlaying) {
+            clearInterval(playInterval);
+            isPlaying = false;
+            this.innerText = "▶ Speel af";
+            this.classList.remove('btn-active');
+        } else {
+            isPlaying = true;
+            this.innerText = "⏸ Pauze";
+            this.classList.add('btn-active');
+            playInterval = setInterval(() => {
+                let currentVal = parseInt(timeSlider.value);
+                if (currentVal >= 1439) { currentVal = 0; } 
+                else { currentVal += 2; } 
+                timeSlider.value = currentVal;
+                updateActiveShadowLine();
+            }, 50);
+        }
+    });
+
+    btnNow.addEventListener('click', function() {
+        const now = new Date();
+        document.getElementById('datePicker').value = now.toISOString().split('T')[0];
+        timeSlider.value = now.getHours() * 60 + now.getMinutes();
+        syncAllSystems(currentLat, currentLon, false);
+    });
+
+    // --- 6. DUBBELE GRAFIEK: DAGELIJKS ZONSTAND & SCHADUW ---
+    function updateDailyChart() {
+        const dateStr = document.getElementById('datePicker').value;
+        const objH = parseFloat(document.getElementById('objHeight').value) || 10;
+        const labels = [];
+        const dataElevation = [];
+        const dataShadow = [];
+        
+        const baseDate = new Date(dateStr);
+        // Genereer datapunten voor de hele dag per 30 minuten
+        for (let min = 0; min < 1440; min += 30) {
+            let h = Math.floor(min / 60);
+            let m = min % 60;
+            labels.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+            
+            baseDate.setHours(h, m, 0);
+            const sunPos = SunCalc.getPosition(baseDate, currentLat, currentLon);
+            let h0 = sunPos.altitude * 180 / Math.PI;
+            let h_app = getApparentElevation(h0);
+            
+            dataElevation.push(h_app);
+
+            if (h_app > 0) {
+                let shadowLen = Math.min(objH / Math.tan(h_app * Math.PI / 180), 800); // Cap in grafiek op 800m voor leesbaarheid
+                dataShadow.push(shadowLen);
+            } else {
+                dataShadow.push(null); // Geen schaduw 's nachts
+            }
+        }
+
+        const ctx = document.getElementById('dailyChart').getContext('2d');
+        if (dailyChartInstance) {
+            dailyChartInstance.data.datasets[0].data = dataElevation;
+            dailyChartInstance.data.datasets[1].data = dataShadow;
+            dailyChartInstance.update();
+        } else {
+            dailyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { 
+                            label: 'Zonne-elevatie (°)', data: dataElevation, borderColor: '#facc15', 
+                            borderWidth: 2, fill: false, pointRadius: 0, yAxisID: 'y'
+                        },
+                        { 
+                            label: 'Schaduwlengte (m)', data: dataShadow, borderColor: '#38bdf8', 
+                            borderWidth: 2, fill: true, backgroundColor: 'rgba(56, 189, 248, 0.1)', pointRadius: 0, yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { color: '#2a3449' }, ticks: { color: '#9ca3af', maxTicksLimit: 12 } },
+                        y: { 
+                            type: 'linear', display: true, position: 'left',
+                            title: { display: true, text: 'Elevatie (°)', color: '#facc15' },
+                            grid: { color: '#2a3449' }, ticks: { color: '#facc15' } 
+                        },
+                        y1: { 
+                            type: 'linear', display: true, position: 'right',
+                            title: { display: true, text: 'Schaduwlengte (m)', color: '#38bdf8' },
+                            grid: { drawOnChartArea: false }, ticks: { color: '#38bdf8' },
+                            min: 0
+                        }
+                    },
+                    plugins: { legend: { labels: { color: '#eee' } } }
+                }
+            });
+        }
+    }
+
+    // --- 7. ALGEHELE SYNCHRONISATIE ---
+    function syncAllSystems(lat, lon, updateName = true) {
+        currentLat = lat; currentLon = lon;
+        
+        document.getElementById('latInput').value = lat.toFixed(6);
+        document.getElementById('lonInput').value = lon.toFixed(6);
+        
+        const rd = wgs84ToRdNew(lat, lon);
+        const utm = wgs84ToUtm31u(lat, lon);
+        document.getElementById('repRd').textContent = `X = ${rd.x.toFixed(1)} m, Y = ${rd.y.toFixed(1)} m`;
+        document.getElementById('repUtm').textContent = `E = ${utm.easting.toFixed(1)} m, N = ${utm.northing.toFixed(1)} m`;
+
+        updateAddressAPI(lat, lon, updateName);
+        calculateShadowsForDate(document.getElementById('datePicker').value, lat, lon);
+        updateActiveShadowLine();
+        updateDailyChart();
+    }
+
+    mainMarker.on('dragend', function(e) {
+        const coords = e.target.getLatLng();
+        syncAllSystems(coords.lat, coords.lng, true);
+        map.panTo(coords);
+    });
+
+    map.on('click', function(e) {
+        mainMarker.setLatLng(e.latlng);
+        syncAllSystems(e.latlng.lat, e.latlng.lng, true);
+    });
+
+    document.getElementById('datePicker').addEventListener('change', () => syncAllSystems(currentLat, currentLon, false));
+    timeSlider.addEventListener('input', updateActiveShadowLine);
+    
+    document.getElementById('toggle-envelope').addEventListener('change', e => e.target.checked ? map.addLayer(envelopePolygon) : map.removeLayer(envelopePolygon));
+    document.getElementById('toggle-lines').addEventListener('change', e => e.target.checked ? map.addLayer(layerGroupLines) : map.removeLayer(layerGroupLines));
+
+    // Start Applicatie
+    updateAddressAPI(currentLat, currentLon, true);
+    syncAllSystems(currentLat, currentLon, false);
+</script>
+</body>
+</html>
