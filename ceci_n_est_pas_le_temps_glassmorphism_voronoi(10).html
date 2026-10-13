@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ceci n'est pas le temps - Observatorium</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --text-main: #f8fafc;
+            --text-muted: #cbd5e1;
+            --accent-green: #4ade80;
+            --accent-blue: #60a5fa;
+            --accent-red: #f87171;
+            --glass-bg: rgba(15, 23, 42, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.15);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: 'Courier Prime', monospace;
+            color: var(--text-main);
+        }
+
+        /* Voronoi Canvas Achtergrond */
+        #space-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        /* UI Container Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            pointer-events: none; /* Laat muisklikken door naar canvas waar geen UI is */
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        /* Glassmorphism Panel */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1rem; /* Aangepast voor mobiel */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255,255,255,0.05);
+            pointer-events: auto; /* UI is interactief */
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 2rem;
+        }
+        @media (min-width: 768px) {
+            .glass-panel { padding: 2rem; } /* Desktop padding hersteld via media query */
+        }
+
+        .title-serif { font-family: 'Playfair Display', serif; }
+        .value-mono { font-family: 'Roboto Mono', monospace; font-size: 0.95rem; }
+
+        /* Custom UI Elements */
+        .search-bar {
+            display: flex;
+            flex-wrap: wrap; /* Belangrijk voor mobiel: laat knop naar onder zakken als het niet past */
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            background: rgba(0,0,0,0.4);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+        }
+        
+        .search-bar input {
+            flex-grow: 1;
+            min-width: 200px; /* Voorkomt dat zoekbalk te klein wordt */
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-family: 'Courier Prime', monospace;
+            outline: none;
+        }
+        .search-bar input::placeholder { color: #94a3b8; }
+        .search-bar button { flex-grow: 1; } /* Knop vult op mobiel de breedte */
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            transition: background-color 0.2s, transform 0.1s;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+        .btn-custom:hover { background-color: rgba(255, 255, 255, 0.2); }
+        .btn-custom:active { transform: scale(0.98); }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.1);
+        }
+        .data-row:last-child { border-bottom: none; }
+        
+        .panel-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: 100%;
+        }
+
+        .section-header {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.4rem;
+            margin-bottom: 1rem;
+            margin-top: 1.5rem;
+        }
+        .section-header:first-child { margin-top: 0; }
+
+        .text-green { color: var(--accent-green); }
+        .text-blue { color: var(--accent-blue); }
+        .text-red { color: var(--accent-red); }
+        .text-grey { color: #94a3b8; }
+        
+        /* Filters for canvas */
+        .canvas-invert { filter: invert(1); }
+        .canvas-2bit { filter: grayscale(100%) contrast(500%); }
+        .canvas-invert-2bit { filter: invert(1) grayscale(100%) contrast(500%); }
+        
+        /* Planimeter specifieke styling */
+        .planimeter-display {
+            font-family: 'Roboto Mono', monospace;
+            background: #000;
+            color: #4ade80;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px inset #333;
+            text-align: right;
+            box-shadow: inset 0 0 10px rgba(0,255,0,0.1);
+        }
+
+        /* Scrollbar voor lange lijsten (zoals de nieuwe sterren lijst) */
+        .scroll-list {
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        .scroll-list::-webkit-scrollbar { width: 6px; }
+        .scroll-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .scroll-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        .scroll-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+    </style>
+</head>
+<body>
+
+    <canvas id="space-bg"></canvas>
+
+    <div id="ui-layer">
+        <!-- Zwevende knop om paneel weer te tonen (standaard verborgen) -->
+        <button id="btn-show-panel" style="display: none;" class="absolute top-6 right-6 btn-custom z-50 flex items-center gap-2 bg-black/50 backdrop-blur-md border border-white/20 shadow-lg pointer-events-auto">
+            <span>👁</span> Toon Observatorium
+        </button>
+
+        <div class="glass-panel relative" id="main-panel">
+            
+            <!-- Sluitkruisje voor het paneel -->
+            <button id="btn-close-panel" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors text-xl w-8 h-8 flex items-center justify-center rounded-full bg-black/30 border border-gray-500/50 hover:bg-red-500/50 hover:border-red-400 z-20 cursor-pointer" title="Verberg Paneel">
+                ✕
+            </button>
+
+            <!-- Zoekbalk voor Locatie -->
+            <div class="search-bar">
+                <input type="text" id="loc-search" placeholder="Zoek plaatsnaam of coördinaten...">
+                <button id="btn-search" class="btn-custom">Kalibreer Sensor</button>
+            </div>
+
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <!-- Tekstgrootte schaalt nu mee (text-3xl op mobiel, text-5xl op desktop) -->
+                <h1 class="text-3xl md:text-5xl title-serif italic font-semibold mb-2 drop-shadow-lg">Ceci n'est pas le temps.</h1>
+                <div id="location-subtitle" class="text-xs md:text-sm font-serif tracking-widest uppercase text-blue-300 mt-2">
+                    OBSERVATORIUM (Lokaliseren...)
+                </div>
+                <div id="simulated-clock" class="text-xl value-mono mt-3 font-bold text-white tracking-wider">
+                    --:--:--
+                </div>
+                <div class="flex justify-center gap-3 mt-4">
+                    <button id="btn-toggle-time" class="btn-custom text-sm">Synchroniseer naar Huidige Tijd</button>
+                    <button onclick="exportLogboek()" class="btn-custom text-sm">Exporteer Logboek</button>
+                </div>
+
+                <!-- Visual Controls -->
+                <div class="flex flex-wrap justify-center items-center gap-6 mt-5 bg-black/20 p-3 rounded-lg border border-gray-600/30 w-full max-w-md mx-auto">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-400 uppercase tracking-widest">Paneel Opaciteit</label>
+                        <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.15" class="w-24 accent-blue-500">
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-gray-400 uppercase cursor-pointer tracking-widest">
+                        <input type="checkbox" id="toggle-invert" class="accent-green-500"> Invert
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-gray-400 uppercase cursor-pointer tracking-widest">
+                        <input type="checkbox" id="toggle-2bit" class="accent-red-500"> 2-Bit
+                    </label>
+                </div>
+            </div>
+
+            <hr class="border-t border-gray-600 mb-6 opacity-50">
+
+            <!-- Data Grid: 3 Kolommen voor brede schermen -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Kolom 1: Hemellichamen -->
+                <div class="md:col-span-1">
+                    <h2 class="text-2xl title-serif font-bold text-white mb-3 flex items-center gap-2">
+                        <span>☄</span> Hemellichamen
+                    </h2>
+                    <div class="panel-box">
+                        <div class="section-header">Luminaries</div>
+                        <div id="luminary-list"></div>
+                        
+                        <div class="section-header">Planetaire Sferen</div>
+                        <div id="planet-list"></div>
+
+                        <div class="section-header">Vaste Sterren & Dierenriem</div>
+                        <div id="star-list" class="scroll-list"></div>
+                    </div>
+                </div>
+
+                <!-- Kolom 2: Planimeter Meetlat -->
+                <div class="md:col-span-1">
+                    <h2 class="text-2xl title-serif font-bold text-white mb-3 flex items-center gap-2">
+                        <span>∿</span> Planimeter Meetlat
+                    </h2>
+                    <div class="panel-box">
+                        <div class="section-header text-blue-300">A. Ott Compensatie-Poolplanimeter (Nr. 573)</div>
+                        <p class="text-xs text-gray-400 mb-4 italic">Mechanische integratie van het Voronoi-oppervlakte, geprojecteerd op het lokale zenith.</p>
+                        
+                        <div class="data-row">
+                            <span class="text-gray-300 text-sm">Poolarm lengte:</span> 
+                            <span class="value-mono">150.0 mm</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="text-gray-300 text-sm">F-arm hoek:</span> 
+                            <span id="farm-angle" class="value-mono">--°</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="text-gray-300 text-sm">Nonius-aflezing:</span> 
+                            <span id="nonius-read" class="value-mono planimeter-display w-24">0000</span>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <span class="text-gray-300 text-sm uppercase tracking-wider block mb-2">Geïntegreerde oppervlakte:</span>
+                            <div id="integrated-area" class="text-3xl value-mono text-green-400 font-bold text-right drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">
+                                -- cm²
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kolom 3: Chronometrie -->
+                <div class="md:col-span-1">
+                    <h2 class="text-2xl title-serif font-bold text-white mb-3 flex items-center gap-2">
+                        <span>◬</span> Chronometrie
+                    </h2>
+                    <div class="panel-box flex flex-col">
+                        <div class="section-header">I. MAYA TZOLK'IN</div>
+                        <div class="data-row">
+                            <span class="text-gray-300">Kin (Vector):</span> 
+                            <span id="maya-vec" class="value-mono font-bold text-white">--</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="text-gray-300">Signatuur:</span> 
+                            <span id="maya-sig" class="value-mono font-bold text-red-400">--</span>
+                        </div>
+
+                        <div class="section-header">II. DAO B(2,6) LFSR</div>
+                        <div class="data-row">
+                            <span class="text-gray-300">Dag v/h Jaar:</span> 
+                            <span id="dao-day" class="value-mono font-bold text-white">--</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="text-gray-300">Hexagram:</span> 
+                            <span id="dao-hex" class="value-mono font-bold text-white">--</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="text-gray-300">Vector:</span> 
+                            <span id="dao-vec" class="value-mono font-bold tracking-widest text-blue-400">--</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Kalender Onderzoek Tool -->
+            <div class="mt-6 panel-box">
+                <div class="section-header text-yellow-300 mb-3">Kalender Onderzoek Tool</div>
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div class="flex flex-col gap-1 w-full sm:w-auto flex-grow">
+                        <label class="text-xs text-gray-400 uppercase tracking-widest">Selecteer Datum & Tijd</label>
+                        <input type="datetime-local" id="research-date" class="bg-black/50 text-white border border-gray-600 rounded px-3 py-1.5 font-mono text-sm outline-none focus:border-blue-400 w-full">
+                    </div>
+                    <button id="btn-research-now" class="btn-custom text-sm w-full sm:w-auto bg-green-900/40 hover:bg-green-800/60 text-green-300 border-green-700/50">Kalibreer met Realtime Data</button>
+                    <button id="btn-research-calc" class="btn-custom text-sm w-full sm:w-auto">Bereken Vectors</button>
+                </div>
+                <div id="research-results" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 hidden">
+                    <div class="col-span-1 sm:col-span-2 text-center text-xs text-gray-400 mb-1 border-b border-gray-700/50 pb-2">
+                        Gekalibreerde Vector: <span id="res-location" class="text-white font-bold"></span> | Tijdstempel: <span id="res-time" class="text-white font-bold"></span>
+                    </div>
+                    <div class="bg-black/30 p-3 rounded border border-gray-700/50">
+                        <div class="text-xs text-gray-500 uppercase mb-1">Maya Tzolk'in</div>
+                        <div class="value-mono text-sm text-green-400">Kin: <span id="res-maya-kin"></span> | Sig: <span id="res-maya-sig"></span></div>
+                    </div>
+                    <div class="bg-black/30 p-3 rounded border border-gray-700/50">
+                        <div class="text-xs text-gray-500 uppercase mb-1">DAO B(2,6) LFSR</div>
+                        <div class="value-mono text-sm text-blue-400">Hexagram: <span id="res-dao-hex"></span> | Vector: <span id="res-dao-vec"></span></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- GLOBALE STAAT ---
+        let activeLat = 52.256; 
+        let activeLon = 5.226;
+        let activeCity = "Laren";
+        
+        const INITIAL_DATE = new Date("2026-08-12T19:15:00");
+        let currentDate = new Date(INITIAL_DATE.getTime());
+        let isRealtime = false;
+
+        // Astrometrische Constanten
+        const DEG_TO_RAD = Math.PI / 180;
+        const RAD_TO_DEG = 180 / Math.PI;
+        
+        // Data structure voor het Voronoi diagram
+        let celestialObjects = [];
+
+        // --- HULPFUNCTIES MATH ---
+        function mod(n, m) { return ((n % m) + m) % m; }
+
+        function getJulianDate(dateObj) {
+            return (dateObj.getTime() / 86400000) + 2440587.5;
+        }
+
+        function getLST(jd, lon) {
+            const d = jd - 2451545.0; 
+            let gmst = 18.697374558 + 24.06570982441908 * d;
+            gmst = mod(gmst, 24);
+            let lst = (gmst * 15) + lon;
+            return mod(lst, 360);
+        }
+
+        // Converteer RA/Dec naar Alt/Az
+        function getAltAz(ra, dec, lst, lat) {
+            const ha = (lst - ra) * DEG_TO_RAD;
+            const decRad = dec * DEG_TO_RAD;
+            const latRad = lat * DEG_TO_RAD;
+
+            const sinAlt = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(ha);
+            const altRad = Math.asin(sinAlt);
+            const altTrue = altRad * RAD_TO_DEG;
+
+            let cosAz = (Math.sin(decRad) - Math.sin(altRad) * Math.sin(latRad)) / (Math.cos(altRad) * Math.cos(latRad));
+            cosAz = Math.max(-1, Math.min(1, cosAz)); 
+            
+            let azRad = Math.acos(cosAz);
+            let az = azRad * RAD_TO_DEG;
+            
+            if (Math.sin(ha) > 0) az = 360 - az;
+            return { alt: altTrue, az: az };
+        }
+
+        // --- BENADERDE EPHEMERIDEN (Voor visuele simulatie) ---
+        // Zon
+        function getSunPosition(d_j2000) {
+            const L = mod(280.460 + 0.9856474 * d_j2000, 360);
+            const g = mod(357.528 + 0.9856003 * d_j2000, 360);
+            const lambda = L + 1.915 * Math.sin(g * DEG_TO_RAD) + 0.020 * Math.sin(2 * g * DEG_TO_RAD);
+            const obl = 23.439 - 0.0000004 * d_j2000;
+            const sinLambda = Math.sin(lambda * DEG_TO_RAD);
+            let ra = Math.atan2(Math.cos(obl * DEG_TO_RAD) * sinLambda, Math.cos(lambda * DEG_TO_RAD)) * RAD_TO_DEG;
+            let dec = Math.asin(Math.sin(obl * DEG_TO_RAD) * sinLambda) * RAD_TO_DEG;
+            return { ra: mod(ra, 360), dec: dec };
+        }
+
+        // Maan (versimpeld)
+        function getMoonPosition(d_j2000) {
+            const L = mod(13.1763966 * d_j2000 + 218.316, 360);
+            const M = mod(13.0649929509 * d_j2000 + 134.963, 360);
+            const F = mod(13.2293502605 * d_j2000 + 93.272, 360);
+            const lambda = L + 6.289 * Math.sin(M * DEG_TO_RAD);
+            const beta = 5.128 * Math.sin(F * DEG_TO_RAD);
+            const obl = 23.439;
+            const ra = Math.atan2(
+                Math.sin(lambda * DEG_TO_RAD) * Math.cos(obl * DEG_TO_RAD) - Math.tan(beta * DEG_TO_RAD) * Math.sin(obl * DEG_TO_RAD),
+                Math.cos(lambda * DEG_TO_RAD)
+            ) * RAD_TO_DEG;
+            const dec = Math.asin(
+                Math.sin(beta * DEG_TO_RAD) * Math.cos(obl * DEG_TO_RAD) + 
+                Math.cos(beta * DEG_TO_RAD) * Math.sin(obl * DEG_TO_RAD) * Math.sin(lambda * DEG_TO_RAD)
+            ) * RAD_TO_DEG;
+            return { ra: mod(ra, 360), dec: dec };
+        }
+
+        // Planeten (Zeer versimpelde benadering op de ecliptica voor visualisatie)
+        function getPlanetPosition(d_j2000, orbitPeriod, startL) {
+            const meanMotion = 360 / orbitPeriod;
+            const L = mod(startL + meanMotion * d_j2000, 360);
+            const obl = 23.439;
+            const sinL = Math.sin(L * DEG_TO_RAD);
+            let ra = Math.atan2(Math.cos(obl * DEG_TO_RAD) * sinL, Math.cos(L * DEG_TO_RAD)) * RAD_TO_DEG;
+            let dec = Math.asin(Math.sin(obl * DEG_TO_RAD) * sinL) * RAD_TO_DEG;
+            return { ra: mod(ra, 360), dec: dec };
+        }
+
+        // Vaste sterren & Dierenriem (Volledig Uitgebreid)
+        const fixedStars = [
+            // Dierenriem (Zodiac)
+            { id: "aries", name: "Ram (Aries)", ra: 31.7, dec: 23.5, color: "#fca5a5" },
+            { id: "taurus", name: "Stier (Aldebaran)", ra: 68.98, dec: 16.5, color: "#fcd34d" },
+            { id: "gemini", name: "Tweelingen (Pollux)", ra: 116.16, dec: 28.0, color: "#fef08a" },
+            { id: "cancer", name: "Kreeft (Cancer)", ra: 124.0, dec: 9.5, color: "#bfdbfe" },
+            { id: "leo", name: "Leeuw (Regulus)", ra: 152.1, dec: 11.9, color: "#93c5fd" },
+            { id: "virgo", name: "Maagd (Spica)", ra: 201.3, dec: -11.1, color: "#c4b5fd" },
+            { id: "libra", name: "Weegschaal (Libra)", ra: 229.2, dec: -9.3, color: "#86efac" },
+            { id: "scorpius", name: "Schorpioen (Antares)", ra: 247.3, dec: -26.4, color: "#f87171" },
+            { id: "sagittarius", name: "Boogschutter (Sgr)", ra: 276.0, dec: -34.3, color: "#fca5a5" },
+            { id: "capricornus", name: "Steenbok (Cap)", ra: 326.7, dec: -16.1, color: "#cbd5e1" },
+            { id: "aquarius", name: "Waterman (Aqr)", ra: 331.3, dec: -0.3, color: "#60a5fa" },
+            { id: "pisces", name: "Vissen (Pisces)", ra: 24.3, dec: 15.3, color: "#93c5fd" },
+            // Overige Prominente Sterren(beelden)
+            { id: "vega", name: "Wega (Lyra)", ra: 279.23, dec: 38.78, color: "#93c5fd" },
+            { id: "deneb", name: "Deneb (Cygnus)", ra: 310.36, dec: 45.28, color: "#bfdbfe" },
+            { id: "orion", name: "Orion (Betelgeuze)", ra: 88.79, dec: 7.41, color: "#fca5a5" },
+            { id: "sirius", name: "Sirius (Canis Maj)", ra: 101.3, dec: -16.7, color: "#ffffff" },
+            { id: "polaris", name: "Poolster (Ursa Min)", ra: 37.9, dec: 89.2, color: "#fef08a" },
+            { id: "ursamajor", name: "Grote Beer (Ursa Maj)", ra: 165.9, dec: 61.75, color: "#bfdbfe" },
+            { id: "cassiopeia", name: "Cassiopeia", ra: 10.1, dec: 56.5, color: "#e2e8f0" },
+            { id: "aquila", name: "Altaïr (Aquila)", ra: 297.7, dec: 8.9, color: "#ffffff" },
+            { id: "bootes", name: "Arcturus (Boötes)", ra: 213.9, dec: 19.1, color: "#fdba74" },
+            { id: "centaurus", name: "Alpha Centauri", ra: 219.9, dec: -60.8, color: "#fef08a" },
+            { id: "crux", name: "Zuiderkruis (Crux)", ra: 186.6, dec: -63.1, color: "#bfdbfe" },
+            { id: "pegasus", name: "Pegasus", ra: 346.1, dec: 15.2, color: "#e2e8f0" }
+        ];
+
+        // --- DRAGGABLE HORIZON ---
+        let horizonOffset = 0;
+        let isDraggingHorizon = false;
+        
+        // --- EXPORT LOGBOEK ---
+        function exportLogboek() {
+            const dateStr = currentDate.toLocaleString('nl-NL');
+            const data = `======================================\nVORTEX OS // OBSERVATORIUM LOGBOEK\n======================================\nDatum/Tijd: ${dateStr}\nLocatie: ${activeCity} (${activeLat.toFixed(3)}, ${activeLon.toFixed(3)})\n\nMAYA: ${document.getElementById('maya-vec').innerText} - ${document.getElementById('maya-sig').innerText}\nDAO: Hexagram ${document.getElementById('dao-hex').innerText}, Vector ${document.getElementById('dao-vec').innerText}\n\nPLANIMETER: ${planimeterArea.toFixed(2)} cm²\n======================================`;
+            const blob = new Blob([data], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `observatorium_logboek_${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- STREAMING_CHUNK:Chronometrie en UI Rendering Logica... ---
+        function calculateCalendars(dateObj) {
+            const tzolkinNames = ["Imix", "Ik", "Akbal", "Kan", "Chicchan", "Cimi", "Manik", "Lamat", "Muluc", "Oc", "Chuen", "Eb", "Ben", "Ix", "Men", "Cib", "Caban", "Etznab", "Cauac", "Ahau"];
+            const jd = getJulianDate(dateObj);
+            const daysSinceEpoch = Math.floor(jd - 584283 + 0.5);
+            const kin = mod(daysSinceEpoch, 260) === 0 ? 260 : mod(daysSinceEpoch, 260);
+            const toon = mod(kin, 13) === 0 ? 13 : mod(kin, 13);
+            const zegelName = tzolkinNames[(mod(kin, 20) === 0 ? 20 : mod(kin, 20)) - 1];
+
+            const startOfYear = new Date(dateObj.getFullYear(), 0, 0);
+            const diff = (dateObj - startOfYear) + ((startOfYear.getTimezoneOffset() - dateObj.getTimezoneOffset()) * 60 * 1000);
+            const dayOfYear = Math.floor(diff / 86400000);
+            const hexagram = dayOfYear % 64;
+            const binary = hexagram.toString(2).padStart(6, '0');
+
+            return { kin, toon, zegelName, dayOfYear, hexagram, binary };
+        }
+
+        function renderRow(label, pos, colorClass = "text-green-400") {
+            const altStr = pos.alt.toFixed(1);
+            const azStr = pos.az.toFixed(1);
+            let valHtml = pos.alt > 0 
+                ? `<span class="${colorClass}">${altStr}° Alt, ${azStr}° Az</span>` 
+                : `<span class="text-grey">Horizon (${altStr}°)</span>`;
+            return `
+                <div class="data-row">
+                    <span class="text-gray-300 text-sm">${label}:</span> 
+                    <span class="value-mono">${valHtml}</span>
+                </div>
+            `;
+        }
+
+        // --- STREAMING_CHUNK:Planimeter Simulatie Logica... ---
+        let planimeterArea = 0;
+        let planimeterTarget = 0;
+        
+        function updatePlanimeter(celestialObjects) {
+            // Bereken een 'mechanische' oppervlakte gebaseerd op de spreiding (bounding box) van zichtbare objecten
+            let minAz = 360, maxAz = 0, minAlt = 90, maxAlt = -90;
+            let visibleCount = 0;
+            
+            celestialObjects.forEach(obj => {
+                if(obj.alt > 0) {
+                    minAz = Math.min(minAz, obj.az);
+                    maxAz = Math.max(maxAz, obj.az);
+                    minAlt = Math.min(minAlt, obj.alt);
+                    maxAlt = Math.max(maxAlt, obj.alt);
+                    visibleCount++;
+                }
+            });
+
+            if(visibleCount > 2) {
+                // Fictieve integratie formule voor theatraal effect
+                planimeterTarget = ((maxAz - minAz) * (maxAlt - minAlt)) * 0.153; 
+            } else {
+                planimeterTarget = 42.1; // Basiswaarde
+            }
+
+            // Lerp voor mechanische naald beweging
+            planimeterArea += (planimeterTarget - planimeterArea) * 0.02;
+
+            // Simuleer Nonius (fictief radwieltje)
+            const nonius = Math.floor(mod(planimeterArea * 100, 10000)).toString().padStart(4, '0');
+            
+            // F-arm simulatie gebaseerd op tijd
+            const farmAngle = (15 + Math.sin(Date.now() / 2000) * 5).toFixed(1);
+
+            document.getElementById('integrated-area').innerText = planimeterArea.toFixed(2) + " cm²";
+            document.getElementById('nonius-read').innerText = nonius;
+            document.getElementById('farm-angle').innerText = farmAngle + "°";
+        }
+
+        // --- STREAMING_CHUNK:Hoofd Update Logica en Canvas Rendering... ---
+        function updateAll() {
+            if (isRealtime) currentDate = new Date();
+            
+            document.getElementById('simulated-clock').innerText = currentDate.toLocaleString('nl-NL');
+
+            const jd = getJulianDate(currentDate);
+            const d_j2000 = jd - 2451545.0;
+            const lst = getLST(jd, activeLon);
+
+            celestialObjects = [];
+
+            // 1. Luminaries
+            const sunRaw = getSunPosition(d_j2000);
+            const sunPos = getAltAz(sunRaw.ra, sunRaw.dec, lst, activeLat);
+            celestialObjects.push({ id: 'sun', name: 'Zon', alt: sunPos.alt, az: sunPos.az, type: 'luminary', color: '#fbbf24' });
+
+            const moonRaw = getMoonPosition(d_j2000);
+            const moonPos = getAltAz(moonRaw.ra, moonRaw.dec, lst, activeLat);
+            celestialObjects.push({ id: 'moon', name: 'Maan', alt: moonPos.alt, az: moonPos.az, type: 'luminary', color: '#e2e8f0' });
+
+            document.getElementById('luminary-list').innerHTML = 
+                renderRow('Zon', sunPos, 'text-yellow-400') + 
+                renderRow('Maan', moonPos, 'text-gray-300');
+
+            // 2. Planeten (Geschatte periodes: Merc 88d, Ven 225d, Mars 687d, Jup 4332d, Sat 10759d)
+            const planets = [
+                { id: 'mercury', name: 'Mercurius', p: 87.97, L0: 252, color: '#a3a3a3' },
+                { id: 'venus', name: 'Venus', p: 224.7, L0: 181, color: '#fef08a' },
+                { id: 'mars', name: 'Mars', p: 686.98, L0: 355, color: '#f87171' },
+                { id: 'jupiter', name: 'Jupiter', p: 4332.6, L0: 34, color: '#fdba74' },
+                { id: 'saturn', name: 'Saturnus', p: 10759.2, L0: 50, color: '#fef3c7' }
+            ];
+
+            let htmlPlanets = "";
+            planets.forEach(p => {
+                const raw = getPlanetPosition(d_j2000, p.p, p.L0);
+                const pos = getAltAz(raw.ra, raw.dec, lst, activeLat);
+                celestialObjects.push({ id: p.id, name: p.name, alt: pos.alt, az: pos.az, type: 'planet', color: p.color });
+                htmlPlanets += renderRow(p.name, pos, 'text-blue-300');
+            });
+            document.getElementById('planet-list').innerHTML = htmlPlanets;
+
+            // 3. Sterren
+            let htmlStars = "";
+            fixedStars.forEach(s => {
+                const pos = getAltAz(s.ra, s.dec, lst, activeLat);
+                celestialObjects.push({ id: s.id, name: s.name, alt: pos.alt, az: pos.az, type: 'star', color: s.color });
+                htmlStars += renderRow(s.name, pos, 'text-purple-300');
+            });
+            document.getElementById('star-list').innerHTML = htmlStars;
+
+            // 4. Chronometrie
+            const cals = calculateCalendars(currentDate);
+            document.getElementById('maya-vec').innerText = cals.kin;
+            document.getElementById('maya-sig').innerText = `${cals.toon} ${cals.zegelName}`;
+            document.getElementById('dao-day').innerText = cals.dayOfYear;
+            document.getElementById('dao-hex').innerText = cals.hexagram;
+            document.getElementById('dao-vec').innerText = `[${cals.binary}]`;
+
+            // 5. Update Planimeter
+            updatePlanimeter(celestialObjects);
+        }
+
+        // --- STREAMING_CHUNK:D3 Voronoi Setup en Tekenloop... ---
+        const canvas = document.getElementById('space-bg');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let randomNodes = [];
+
+        // --- DRAGGABLE HORIZON EVENT LISTENERS ---
+        canvas.addEventListener('mousedown', (e) => { isDraggingHorizon = true; });
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingHorizon) {
+                // Bereken afstand vanaf het midden van het scherm
+                horizonOffset = e.clientY - (height / 2);
+            }
+        });
+        window.addEventListener('mouseup', () => { isDraggingHorizon = false; });
+        
+        // Touch support voor horizon
+        canvas.addEventListener('touchstart', (e) => { isDraggingHorizon = true; });
+        window.addEventListener('touchmove', (e) => {
+            if (isDraggingHorizon) {
+                horizonOffset = e.touches[0].clientY - (height / 2);
+            }
+        });
+        window.addEventListener('touchend', () => { isDraggingHorizon = false; });
+
+        function initVoronoiNodes() {
+            randomNodes = [];
+            for (let i = 0; i < 40; i++) {
+                randomNodes.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    vx: (Math.random() - 0.5) * 0.1,
+                    vy: (Math.random() - 0.5) * 0.1,
+                    label: Math.random() > 0.5 ? 'P' : 'd',
+                    type: 'bg'
+                });
+            }
+        }
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initVoronoiNodes();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawVoronoi() {
+            // Laat achtergrond datapunten lichtjes driften
+            randomNodes.forEach(n => {
+                n.x += n.vx;
+                n.y += n.vy;
+                if(n.x < 0 || n.x > width) n.vx *= -1;
+                if(n.y < 0 || n.y > height) n.vy *= -1;
+            });
+
+            // Converteer Az/Alt naar Canvas X/Y, met verschuifbare horizon
+            const mapAzToX = (az) => (az / 360) * width;
+            const currentHorizonY = (height / 2) + horizonOffset;
+            const mapAltToY = (alt) => currentHorizonY - (alt / 90) * (height / 2);
+
+            let allPoints = [...randomNodes];
+            
+            celestialObjects.forEach(obj => {
+                allPoints.push({
+                    x: mapAzToX(obj.az),
+                    y: mapAltToY(obj.alt),
+                    label: obj.name,
+                    type: obj.type,
+                    color: obj.color,
+                    alt: obj.alt,
+                    az: obj.az
+                });
+            });
+
+            // Bouw Delaunay/Voronoi netwerk
+            const delaunay = d3.Delaunay.from(allPoints, d => d.x, d => d.y);
+            const voronoi = delaunay.voronoi([0, 0, width, height]);
+
+            // Wis frame (Donkere glas achtergrond)
+            ctx.fillStyle = "#020617";
+            ctx.fillRect(0, 0, width, height);
+
+            // Teken Cellen
+            for (let i = 0; i < allPoints.length; i++) {
+                const pt = allPoints[i];
+                
+                ctx.beginPath();
+                voronoi.renderCell(i, ctx);
+                
+                // Styling per cel type
+                if (pt.type !== 'bg') {
+                    ctx.fillStyle = pt.color + "1A"; 
+                    ctx.fill();
+                    ctx.strokeStyle = pt.color + "80"; 
+                    ctx.lineWidth = 1.5;
+                } else {
+                    ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+                    ctx.lineWidth = 1;
+                }
+                ctx.stroke();
+
+                // Teken Labels / Kernen
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2); // Bolletje iets groter gemaakt (van 2 naar 3)
+                
+                if (pt.type !== 'bg') {
+                    ctx.fillStyle = pt.color;
+                    ctx.fill();
+                    
+                    // Schaduw toevoegen voor drastisch betere leesbaarheid op lichte cellen
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+                    ctx.shadowBlur = 4;
+                    ctx.shadowOffsetX = 1;
+                    ctx.shadowOffsetY = 1;
+
+                    ctx.font = "bold 15px 'Courier Prime'"; // Lettertype flink vergroot
+                    
+                    let prefix = "";
+                    if(pt.type === 'luminary') prefix = pt.label === 'Zon' ? '☼ ' : '☾ ';
+                    else if(pt.type === 'planet') prefix = '⚲ ';
+                    else if(pt.type === 'star') prefix = '✦ ';
+
+                    ctx.fillText(prefix + pt.label, pt.x + 10, pt.y + 5);
+                    
+                    // Alt/Az text groter en solide (zonder CC transparantie)
+                    ctx.font = "12px 'Courier Prime'";
+                    ctx.fillStyle = pt.color; 
+                    ctx.fillText(`Alt:${pt.alt.toFixed(1)}° Az:${pt.az.toFixed(1)}°`, pt.x + 10, pt.y + 22);
+                    
+                    // Reset schaduw voor volgende iteraties
+                    ctx.shadowColor = "transparent";
+                    ctx.shadowBlur = 0;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                } else {
+                    ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
+                    ctx.fill();
+                    ctx.font = "10px 'Courier Prime'";
+                    ctx.fillText(pt.label, pt.x + 5, pt.y + 3);
+                }
+            }
+
+            // Teken de horizonlijn
+            ctx.beginPath();
+            ctx.moveTo(0, currentHorizonY);
+            ctx.lineTo(width, currentHorizonY);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.setLineDash([10, 10]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.font = "bold 14px 'Courier Prime'";
+            ctx.fillText("HORIZON (0° Alt) ⇕ VERSLEEPBAAR", 20, currentHorizonY - 10);
+        }
+
+        // --- STREAMING_CHUNK:Event Listeners en Initialisatie... ---
+        // Locatie Zoeken (Nominatim API)
+        document.getElementById('btn-search').addEventListener('click', async () => {
+            const query = document.getElementById('loc-search').value;
+            if(!query) return;
+            
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if(data && data.length > 0) {
+                    activeLat = parseFloat(data[0].lat);
+                    activeLon = parseFloat(data[0].lon);
+                    activeCity = data[0].display_name.split(',')[0]; 
+                    document.getElementById('location-subtitle').innerText = `OBSERVATORIUM ${activeCity.toUpperCase()} (${activeLat.toFixed(3)}, ${activeLon.toFixed(3)})`;
+                    
+                    // Direct tijd en astronomie kalibreren op de nieuwe coördinaten
+                    updateAll();
+                    document.getElementById('btn-research-now').click();
+                } else {
+                    console.warn("Locatie niet gevonden.");
+                }
+            } catch (err) {
+                console.error("Geocoding fout:", err);
+            }
+        });
+
+        // Tijd Controle (Real-time toggle)
+        document.getElementById('btn-toggle-time').addEventListener('click', (e) => {
+            isRealtime = !isRealtime;
+            if(isRealtime) {
+                e.target.innerText = "Pauzeer Simulatie";
+                e.target.style.backgroundColor = "rgba(74, 222, 128, 0.2)"; // Greenish hint
+                e.target.style.borderColor = "#4ade80";
+            } else {
+                e.target.innerText = "Synchroniseer naar Huidige Tijd";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                e.target.style.borderColor = "var(--glass-border)";
+            }
+        });
+
+        // Visual Controls (Opaciteit, Invert, 2-Bit)
+        document.getElementById('opacity-slider').addEventListener('input', (e) => {
+            const panel = document.querySelector('.glass-panel');
+            panel.style.backgroundColor = `rgba(15, 23, 42, ${e.target.value})`;
+        });
+
+        const updateCanvasFilters = () => {
+            const inv = document.getElementById('toggle-invert').checked;
+            const bit = document.getElementById('toggle-2bit').checked;
+            let filterString = "";
+            if (inv) filterString += "invert(1) ";
+            if (bit) filterString += "grayscale(100%) contrast(500%) ";
+            canvas.style.filter = filterString.trim();
+        };
+
+        document.getElementById('toggle-invert').addEventListener('change', updateCanvasFilters);
+        document.getElementById('toggle-2bit').addEventListener('change', updateCanvasFilters);
+
+        // UI Paneel Zichtbaarheid (Verbergen / Tonen)
+        const mainPanel = document.getElementById('main-panel');
+        const btnClosePanel = document.getElementById('btn-close-panel');
+        const btnShowPanel = document.getElementById('btn-show-panel');
+
+        btnClosePanel.addEventListener('click', () => {
+            mainPanel.style.display = 'none';
+            btnShowPanel.style.display = 'flex';
+        });
+
+        btnShowPanel.addEventListener('click', () => {
+            mainPanel.style.display = 'flex';
+            btnShowPanel.style.display = 'none';
+        });
+
+        // Kalender Onderzoek Tool (Aangepast voor datum + tijd via datetime-local)
+        document.getElementById('btn-research-calc').addEventListener('click', () => {
+            const dateVal = document.getElementById('research-date').value;
+            if (!dateVal) return;
+            
+            // Nu parsen we direct de inheemse Tijd+Datum van datetime-local
+            const resDate = new Date(dateVal);
+            const cals = calculateCalendars(resDate);
+            
+            // Toon de locatie en tijd waarop gekalibreerd is
+            document.getElementById('res-location').innerText = `${activeCity.toUpperCase()} (${activeLat.toFixed(3)}, ${activeLon.toFixed(3)})`;
+            document.getElementById('res-time').innerText = resDate.toLocaleString('nl-NL');
+            
+            document.getElementById('res-maya-kin').innerText = cals.kin;
+            document.getElementById('res-maya-sig').innerText = `${cals.toon} ${cals.zegelName}`;
+            document.getElementById('res-dao-hex').innerText = cals.hexagram;
+            document.getElementById('res-dao-vec').innerText = `[${cals.binary}]`;
+            document.getElementById('research-results').classList.remove('hidden');
+        });
+
+        // Koppel onderzoekstool aan de actieve simulatietijd
+        document.getElementById('btn-research-now').addEventListener('click', () => {
+            // Formatteer de globale currentDate naar YYYY-MM-DDTHH:mm (vereist voor datetime-local input)
+            const pad = (n) => n.toString().padStart(2, '0');
+            const d = currentDate;
+            // Omdat datetime-local de lokale tijdzone van de browser gebruikt, moeten we de get-functies gebruiken
+            const formatted = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            
+            document.getElementById('research-date').value = formatted;
+            document.getElementById('btn-research-calc').click(); // Simuleer klik op berekenen
+        });
+
+        // Main Loop
+        function tick() {
+            updateAll();
+            drawVoronoi();
+            requestAnimationFrame(tick);
+        }
+
+        // Init
+        window.onload = () => {
+            resizeCanvas();
+            tick();
+            
+            // Automatisch Geolocatie opvragen bij het inladen
+            if ("geolocation" in navigator) {
+                document.getElementById('location-subtitle').innerText = "OBSERVATORIUM (Zoeken naar huidige locatie...)";
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    activeLat = position.coords.latitude;
+                    activeLon = position.coords.longitude;
+                    
+                    // Reverse geocoding om de plaatsnaam te bepalen
+                    try {
+                        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${activeLat}&lon=${activeLon}`);
+                        const data = await response.json();
+                        if(data && data.address) {
+                            // Kies de meest logische naam (stad, dorp of gemeente)
+                            activeCity = data.address.city || data.address.town || data.address.village || data.address.municipality || "Mijn Locatie";
+                        } else {
+                            activeCity = "Mijn Locatie";
+                        }
+                        document.getElementById('location-subtitle').innerText = `OBSERVATORIUM ${activeCity.toUpperCase()} (${activeLat.toFixed(3)}, ${activeLon.toFixed(3)})`;
+                        document.getElementById('btn-research-now').click(); // Auto-kalibreer de onderzoekstool met nieuwe locatie
+                    } catch (err) {
+                        console.error("Locatie naam kon niet worden opgehaald:", err);
+                        activeCity = "Mijn Locatie";
+                        document.getElementById('location-subtitle').innerText = `OBSERVATORIUM (${activeLat.toFixed(3)}, ${activeLon.toFixed(3)})`;
+                        document.getElementById('btn-research-now').click(); // Auto-kalibreer fallback
+                    }
+                }, (error) => {
+                    console.warn("Geolocatie geweigerd of mislukt. We gebruiken de standaard locatie (Laren).");
+                    document.getElementById('location-subtitle').innerText = `OBSERVATORIUM LAREN (52.256, 5.226)`;
+                    document.getElementById('btn-research-now').click(); // Auto-kalibreer standaard
+                });
+            } else {
+                document.getElementById('btn-research-now').click(); // Auto-kalibreer indien geen geo
+            }
+        };
+
+    </script>
+</body>
+</html>
