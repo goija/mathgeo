@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX C2 NEXUS - Archeo-Geodetische Assen</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --text-main: #f8fafc;
+            --text-muted: #cbd5e1;
+            --accent-green: #4ade80;
+            --accent-blue: #60a5fa;
+            --accent-red: #f87171;
+            --accent-gold: #d4af37;
+            --accent-orange: #fb923c;
+            --glass-bg: rgba(15, 23, 42, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --ui-tint: hue-rotate(0deg); 
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #020617; font-family: 'Courier Prime', monospace; color: var(--text-main); }
+        #space-bg { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; filter: var(--ui-tint); transition: filter 0.3s ease; }
+        #app-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; display: flex; flex-direction: row; pointer-events: none; }
+
+        /* LINKER ZONE - 3D Nebra Schijf & Assen */
+        #left-zone { flex: 1.2; display: flex; justify-content: center; align-items: center; perspective: 1200px; pointer-events: auto; cursor: grab; position: relative; }
+        #left-zone:active { cursor: grabbing; }
+        #nebra-3d-container { width: 600px; height: 600px; transform-style: preserve-3d; transition: transform 0.05s linear; }
+
+        /* RECHTER ZONE - Dashboard */
+        #right-zone { width: 550px; min-width: 450px; max-width: 100%; height: 100%; padding: 1.5rem; overflow-y: auto; pointer-events: auto; border-left: 1px solid rgba(255,255,255,0.1); background: linear-gradient(90deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.95) 100%); backdrop-filter: blur(10px); filter: var(--ui-tint); transition: filter 0.3s ease; }
+        #right-zone::-webkit-scrollbar { width: 6px; }
+        #right-zone::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        #right-zone::-webkit-scrollbar-thumb { background: rgba(96, 165, 250, 0.5); border-radius: 3px; }
+
+        /* UI Panelen */
+        .glass-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1.2rem; box-shadow: 0 10px 20px -5px rgba(0,0,0,0.5), inset 0 0 15px rgba(255,255,255,0.02); margin-bottom: 1.5rem; position: relative; }
+        .title-serif { font-family: 'Playfair Display', serif; }
+        .value-mono { font-family: 'Roboto Mono', monospace; }
+        .btn-custom { border: 1px solid var(--glass-border); border-radius: 4px; transition: all 0.2s; cursor: pointer; padding: 4px 10px; background: rgba(255,255,255,0.05); color: white; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .btn-custom:hover { background-color: rgba(255,255,255,0.2); }
+        .btn-custom:active { transform: scale(0.98); }
+        .data-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 0.35rem 0; border-bottom: 1px dashed rgba(255,255,255,0.05); font-size: 0.8rem; }
+        .data-row:last-child { border-bottom: none; }
+        .section-header { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.15em; text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.3rem; margin-bottom: 0.6rem; margin-top: 1rem; }
+        .section-header:first-child { margin-top: 0; }
+        
+        .radar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; font-size: 0.75rem; }
+        .radar-box { background: rgba(0,0,0,0.3); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); }
+
+        /* Sliders */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--accent-blue); cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.2); border-radius: 2px; }
+        #axis-slider::-webkit-slider-thumb { background: var(--accent-gold); }
+
+        .scroll-list { max-height: 250px; overflow-y: auto; padding-right: 0.5rem; margin-top: 0.5rem; }
+        .scroll-list::-webkit-scrollbar { width: 4px; }
+        .scroll-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 2px; }
+        .geo-item { display: flex; justify-content: space-between; font-size: 0.75rem; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .geo-item:hover { background: rgba(255,255,255,0.05); cursor: crosshair; }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="space-bg"></canvas>
+
+    <div id="app-container">
+        
+        <!-- LINKER ZONE: 3D Geodetische Nebra Schijf met Historische Assen -->
+        <div id="left-zone">
+            <div id="nebra-3d-container">
+                <svg id="nebra-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+                    <defs>
+                        <radialGradient id="patina" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#3b695e" />
+                            <stop offset="70%" stop-color="#24453b" />
+                            <stop offset="100%" stop-color="#142b27" />
+                        </radialGradient>
+                        <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#ffdf73" />
+                            <stop offset="50%" stop-color="#d4af37" />
+                            <stop offset="100%" stop-color="#aa7c11" />
+                        </linearGradient>
+                        <g id="star">
+                            <circle cx="0" cy="0" r="4.5" fill="url(#gold)" stroke="#aa7c11" stroke-width="0.5"/>
+                        </g>
+                    </defs>
+
+                    <!-- Roterende Groep (Z-as rotatie via Siderische tijd) -->
+                    <g id="nebra-rotation-group" transform="translate(300, 300) rotate(0) translate(-300, -300)">
+                        
+                        <!-- MACRO ASSEN VAN DE OUDE & NIEUWE WERELD -->
+                        <g stroke-width="1.5" stroke-dasharray="6 6">
+                            <!-- Primaire Meridiaan As (N-Z) -->
+                            <line x1="300" y1="0" x2="300" y2="600" stroke="rgba(96, 165, 250, 0.4)"/>
+                            <!-- Ecliptica As (O-W Equatoriaal) -->
+                            <line x1="0" y1="300" x2="600" y2="300" stroke="rgba(248, 113, 113, 0.4)"/>
+                            
+                            <!-- Oude Wereld As (Archeologische Uitlijning) -->
+                            <line x1="300" y1="300" x2="600" y2="600" stroke="rgba(168, 85, 247, 0.6)" id="svg-old-world-line"/> 
+                            
+                            <!-- Geodetische As (Standaard 108°) -->
+                            <line x1="300" y1="300" x2="585" y2="511" stroke="rgba(212, 175, 55, 0.8)" stroke-width="2.5" id="svg-108-line"/> 
+                        </g>
+
+                        <!-- Basis Brons & Randgaten -->
+                        <circle cx="300" cy="300" r="260" fill="url(#patina)" stroke="#0a1512" stroke-width="5"/>
+                        <circle cx="300" cy="300" r="250" fill="none" stroke="#000" stroke-width="3" stroke-dasharray="3 36"/>
+                        
+                        <!-- Zon & Maansikkel -->
+                        <circle cx="190" cy="280" r="50" fill="url(#gold)"/>
+                        <path d="M 370 210 A 75 75 0 1 1 380 380 A 60 60 0 1 0 370 210 Z" fill="url(#gold)"/>
+                        
+                        <!-- Plejaden (Zenit) -->
+                        <g transform="translate(300, 180)">
+                            <use href="#star" x="0" y="0"/> <use href="#star" x="16" y="-10"/> <use href="#star" x="18" y="10"/>
+                            <use href="#star" x="-14" y="-14"/> <use href="#star" x="-16" y="8"/> <use href="#star" x="4" y="-24"/> <use href="#star" x="0" y="18"/>
+                        </g>
+                        
+                        <!-- Horizonbogen 82° -->
+                        <path d="M 85 240 A 215 215 0 0 0 85 430" fill="none" stroke="url(#gold)" stroke-width="16" stroke-linecap="round"/>
+                        <path d="M 515 240 A 215 215 0 0 1 515 430" fill="none" stroke="url(#gold)" stroke-width="16" stroke-linecap="round"/>
+                        
+                        <!-- Zonneboot -->
+                        <g transform="translate(0, 30)">
+                            <path d="M 200 480 Q 300 520 400 480" fill="none" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
+                        </g>
+
+                        <!-- Dynamische Constellaties (Geodetische Ankers) -->
+                        <g id="dynamic-constellations"></g>
+                    </g>
+                </svg>
+            </div>
+            <div class="absolute bottom-6 text-xs text-gray-500 font-mono tracking-widest text-center pointer-events-none drop-shadow-md">
+                <span class="text-gold" id="axis-display">GEODETISCHE AS: 108° (OUDE WERELD)</span><br>SLEEP OM 3D PERSPECTIEF TE ROTEREN
+            </div>
+        </div>
+
+        <!-- RECHTER ZONE: VORTEX Dashboard -->
+        <div id="right-zone">
+            
+            <div class="mb-4 border-b border-gray-600/50 pb-3 flex justify-between items-end">
+                <div>
+                    <h1 class="text-2xl title-serif italic font-semibold text-white tracking-wide">VORTEX C2 NEXUS</h1>
+                    <div class="text-[0.65rem] font-mono tracking-widest text-orange-400 mt-1 font-bold">OMNI-BRIDGE // ARCHEO-GEODETIC NODE</div>
+                </div>
+                <button id="btn-toggle-time" class="btn-custom border-red-500/50 text-red-300 hover:bg-red-900/30">PAUZE</button>
+            </div>
+
+            <!-- MODULE 1: Archeo-Chronometrie & Precessie -->
+            <div class="glass-panel">
+                <div class="section-header text-blue-300">Chronometrie & Kosmische Precessie</div>
+                
+                <div class="text-[0.7rem] text-gray-300 mb-3 leading-relaxed">
+                    Axiale rotatie offset gecalibreerd. Precessie van de equinox met retrograde vector: <span class="text-accent-gold font-bold">1° / 72 yr</span>. Verschuiving geverifieerd via Oude Wereld meridianen.
+                </div>
+
+                <div class="data-row"><span class="text-gray-300">Topocentrisch Anker:</span> <span id="ui-city" class="value-mono font-bold text-white">LAREN (52.25°, 5.22°)</span></div>
+                <div class="data-row"><span class="text-gray-300">Lokale Tijd (CEST):</span> <span id="time-local" class="value-mono text-white">--:--:--</span></div>
+                <div class="data-row"><span class="text-gray-300">LST (Siderisch):</span> <span id="time-lst" class="value-mono text-purple-300 font-bold">--h --m --s</span></div>
+                
+                <hr class="border-gray-600/50 my-2">
+                
+                <div class="radar-grid">
+                    <div>
+                        <div class="text-[0.65rem] text-gray-400 mb-1">OMNI-BRIDGE VECTOR</div>
+                        <div class="data-row"><span class="text-gray-300">Stasis Lock:</span> <span class="value-mono text-white">Hexagram 63</span></div>
+                        <div class="data-row"><span class="text-gray-300">Netwerk Ping:</span> <span class="value-mono text-gray-400">25 ms (UDP)</span></div>
+                    </div>
+                    <div>
+                        <div class="text-[0.65rem] text-gray-400 mb-1">DAO MATRIX</div>
+                        <div class="data-row"><span class="text-gray-300">Binaire Poort:</span> <span class="value-mono text-blue-300">[011110]</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE 2: Oude Wereld Geodetische Ankers -->
+            <div class="glass-panel">
+                <div class="section-header text-purple-300 flex justify-between items-center">
+                    <span>Oude Wereld Observatoria</span>
+                    <span class="text-gray-500 text-[0.6rem]">KUTIL OVERLAY ACTIEF</span>
+                </div>
+                <p class="text-[0.65rem] text-gray-400 mb-2 leading-tight">Archeologische locaties en historische geodetische assen. Direct omgezet en geprojecteerd op de 3D Nebra-schijf t.o.v. de Plejaden.</p>
+                
+                <div class="scroll-list" id="geo-list">
+                    <!-- Javascript vult deze lijst -->
+                </div>
+            </div>
+
+            <!-- MODULE 3: Topocentrische As-Configuratie -->
+            <div class="glass-panel">
+                <div class="section-header text-gold flex justify-between">
+                    <span>Primaire Geodetische As</span>
+                </div>
+                
+                <div class="data-row"><span class="text-gray-300">Actieve Azimuth Hoek:</span> <span id="ui-axis-val" class="value-mono font-bold text-white">108°</span></div>
+                <div class="data-row"><span class="text-gray-300">Referentie:</span> <span class="value-mono text-gray-400">Oude Zonsopkomstlijn</span></div>
+                
+                <div class="mt-3">
+                    <input type="range" id="axis-slider" min="0" max="360" value="108">
+                    <div class="flex justify-between text-[0.6rem] text-gray-500 mt-1">
+                        <span>0° (N)</span> <span>90° (O)</span> <span>180° (Z)</span> <span>270° (W)</span> <span>360°</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center text-[0.6rem] font-mono text-gray-600 mt-2">
+                SYSTEM CALIBRATION // 1° PER 72 YEARS // PLATONIC YEAR: 25.920Y
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // GLOBALE STATUS & CONSTANTEN
+        // ==========================================
+        let activeLat = 52.256, activeLon = 5.226; // Basis
+        let currentDate = new Date(); 
+        let isRealtime = true;
+        let localSiderealTimeDeg = 0;
+        let geodeticAxis = 108; 
+
+        const DEG_TO_RAD = Math.PI / 180;
+
+        // Oude Wereld Geodetische Ankers (Met topocentrische vertaling)
+        const historicalSites = [
+            { name: "Babylonië (Mesopotamië)", lat: 32.53, lon: 44.42, type: "Wieg vd Dierenriem (ca. 450 v.Chr)" },
+            { name: "Goseck (Duitsland)", lat: 51.19, lon: 11.88, type: "Oudste Zonne-observatorium" },
+            { name: "Stonehenge (Engeland)", lat: 51.17, lon: -1.82, type: "Megalithisch Kalendercomplex" },
+            { name: "Alexandrië (Egypte)", lat: 31.20, lon: 29.91, type: "Meting aardomtrek door Eratosthenes" },
+            { name: "Uruk (Irak)", lat: 31.32, lon: 45.63, type: "Vroege Sumerische Astronomie" },
+            { name: "Pömmelte (Duitsland)", lat: 52.01, lon: 11.82, type: "Ringheiligdom" },
+            { name: "Athene (Griekenland)", lat: 37.98, lon: 23.72, type: "Aristoteles & Euktemon (Rampunt)" },
+            { name: "Belchen Systeem", lat: 47.82, lon: 7.82, type: "Keltisch viziersysteem (Zonsopkomst)" },
+            { name: "Luoyang (China)", lat: 34.66, lon: 112.45, type: "Aardbeving magnetisme (ca. 132 n.Chr)" }
+        ];
+
+        // ==========================================
+        // 3D QUATERNION ENGINE (Nebra Schijf)
+        // ==========================================
+        class Quaternion {
+            constructor(w=1, x=0, y=0, z=0) { this.w=w; this.x=x; this.y=y; this.z=z; }
+            multiply(q) {
+                return new Quaternion(
+                    this.w*q.w - this.x*q.x - this.y*q.y - this.z*q.z,
+                    this.w*q.x + this.x*q.w + this.y*q.z - this.z*q.y,
+                    this.w*q.y - this.x*q.z + this.y*q.w + this.z*q.x,
+                    this.w*q.z + this.x*q.y - this.y*q.x + this.z*q.w
+                );
+            }
+            normalize() {
+                let mag = Math.sqrt(this.w**2 + this.x**2 + this.y**2 + this.z**2);
+                if(mag === 0) return new Quaternion(1,0,0,0);
+                return new Quaternion(this.w/mag, this.x/mag, this.y/mag, this.z/mag);
+            }
+            toMatrix3d() {
+                const x2 = this.x + this.x, y2 = this.y + this.y, z2 = this.z + this.z;
+                const xx = this.x * x2, xy = this.x * y2, xz = this.x * z2;
+                const yy = this.y * y2, yz = this.y * z2, zz = this.z * z2;
+                const wx = this.w * x2, wy = this.w * y2, wz = this.w * z2;
+                return `matrix3d(${1 - (yy + zz)}, ${xy + wz}, ${xz - wy}, 0, ${xy - wz}, ${1 - (xx + zz)}, ${yz + wx}, 0, ${xz + wy}, ${yz - wx}, ${1 - (xx + yy)}, 0, 0, 0, 0, 1)`;
+            }
+            static fromAxisAngle(x, y, z, angleRad) {
+                const halfAngle = angleRad / 2, s = Math.sin(halfAngle);
+                return new Quaternion(Math.cos(halfAngle), x * s, y * s, z * s);
+            }
+        }
+
+        let currentRotation = new Quaternion();
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        const nebraContainer = document.getElementById('nebra-3d-container');
+        const dragZone = document.getElementById('left-zone');
+        
+        function onPointerDown(e) { isDragging = true; previousMousePosition = { x: e.clientX || e.touches[0].clientX, y: e.clientY || e.touches[0].clientY }; }
+        function onPointerMove(e) {
+            if (!isDragging) return;
+            const currentX = e.clientX || (e.touches ? e.touches[0].clientX : previousMousePosition.x);
+            const currentY = e.clientY || (e.touches ? e.touches[0].clientY : previousMousePosition.y);
+            const deltaX = currentX - previousMousePosition.x, deltaY = currentY - previousMousePosition.y;
+            const qX = Quaternion.fromAxisAngle(1, 0, 0, -deltaY * 0.01);
+            const qY = Quaternion.fromAxisAngle(0, 1, 0, deltaX * 0.01);
+            currentRotation = qY.multiply(qX).multiply(currentRotation).normalize();
+            nebraContainer.style.transform = currentRotation.toMatrix3d();
+            previousMousePosition = { x: currentX, y: currentY };
+        }
+        function onPointerUp(e) { isDragging = false; }
+
+        dragZone.addEventListener('mousedown', onPointerDown); window.addEventListener('mousemove', onPointerMove); window.addEventListener('mouseup', onPointerUp);
+        dragZone.addEventListener('touchstart', onPointerDown, {passive: true}); window.addEventListener('touchmove', onPointerMove, {passive: true}); window.addEventListener('touchend', onPointerUp);
+
+        // ==========================================
+        // UI & CONTROLS
+        // ==========================================
+        document.getElementById('axis-slider').addEventListener('input', function(e) {
+            geodeticAxis = parseInt(e.target.value);
+            document.getElementById('ui-axis-val').innerText = `${geodeticAxis}°`;
+            document.getElementById('axis-display').innerText = `GEODETISCHE AS: ${geodeticAxis}°`;
+            
+            // Verplaats de visuele SVG As
+            const rad = geodeticAxis * DEG_TO_RAD;
+            const line = document.getElementById('svg-108-line');
+            // Offset vanuit midden (300,300)
+            line.setAttribute('x2', 300 + 285 * Math.sin(rad));
+            line.setAttribute('y2', 300 - 285 * Math.cos(rad));
+        });
+
+        function populateGeoList() {
+            const list = document.getElementById('geo-list');
+            historicalSites.forEach(site => {
+                list.innerHTML += `
+                    <div class="geo-item">
+                        <div>
+                            <span class="text-purple-300 font-bold block">${site.name}</span>
+                            <span class="text-gray-500 text-[0.65rem]">${site.type}</span>
+                        </div>
+                        <span class="text-gray-400 value-mono">${site.lat.toFixed(2)}°, ${site.lon.toFixed(2)}°</span>
+                    </div>`;
+            });
+        }
+
+        function renderConstellations() {
+            const svgGroup = document.getElementById('dynamic-constellations');
+            let uHtml = ''; const cx = 300, cy = 300, scale = 4; // Schaal geoptimaliseerd voor macro-weergave
+            
+            historicalSites.forEach((f, idx) => {
+                const x = cx + ((f.lon - activeLon) * scale * Math.cos(activeLat * DEG_TO_RAD));
+                const y = cy - ((f.lat - activeLat) * scale);
+                
+                if(Math.hypot(x-cx, y-cy) < 280) {
+                    uHtml += `<line x1="${cx}" y1="${cy-20}" x2="${x}" y2="${y}" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="2 6" opacity="0.4"/>`;
+                    uHtml += `<circle cx="${x}" cy="${y}" r="5" fill="url(#gold)" stroke="#d4af37" stroke-width="1"/>
+                              <text x="${x+8}" y="${y+4}" font-family="monospace" font-size="10" fill="#e9d5ff" filter="drop-shadow(1px 1px 1px rgb(0 0 0 / 1))">${f.name.split(' ')[0]}</text>`;
+                    
+                    if(idx > 0) {
+                        const prevF = historicalSites[idx-1];
+                        const pX = cx + ((prevF.lon - activeLon) * scale * Math.cos(activeLat * DEG_TO_RAD));
+                        const pY = cy - ((prevF.lat - activeLat) * scale);
+                        if(Math.hypot(x-pX, y-pY) < 180) {
+                            uHtml += `<line x1="${pX}" y1="${pY}" x2="${x}" y2="${y}" stroke="#60a5fa" stroke-width="1" opacity="0.3"/>`;
+                        }
+                    }
+                }
+            });
+            svgGroup.innerHTML = uHtml;
+        }
+
+        // ==========================================
+        // MATH & CHRONOMETRIE
+        // ==========================================
+        function mod(n, m) { return ((n % m) + m) % m; }
+        function getJulianDate(d) { return (d.getTime() / 86400000) + 2440587.5; }
+        
+        function calculateLST(jd, lon) {
+            let gmst = 18.697374558 + 24.06570982441908 * (jd - 2451545.0);
+            return mod((mod(gmst, 24) * 15) + lon, 360);
+        }
+        
+        function degreesToHMS(deg) {
+            let h = Math.floor(deg / 15), m = Math.floor((deg / 15 - h) * 60), s = Math.floor((((deg / 15 - h) * 60) - m) * 60);
+            return `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+        }
+
+        function updateData() {
+            if (isRealtime) currentDate = new Date();
+            
+            document.getElementById('time-local').innerText = currentDate.toLocaleTimeString('nl-NL');
+            const jd = getJulianDate(currentDate);
+            
+            localSiderealTimeDeg = calculateLST(jd, activeLon);
+            document.getElementById('time-lst').innerText = degreesToHMS(localSiderealTimeDeg);
+            
+            // Nebra Z-rotatie gebaseerd op LST en Geodetische Modificator
+            const totalRotation = -(localSiderealTimeDeg + geodeticAxis);
+            document.getElementById('nebra-rotation-group').setAttribute('transform', `translate(300, 300) rotate(${totalRotation}) translate(-300, -300)`);
+        }
+
+        // ==========================================
+        // VORONOI ACHTERGROND & LOOP
+        // ==========================================
+        const canvasBg = document.getElementById('space-bg');
+        const ctxBg = canvasBg.getContext('2d');
+        let width, height, randomBgNodes = [];
+
+        function initVoronoiNodes() {
+            width = canvasBg.width = window.innerWidth; height = canvasBg.height = window.innerHeight;
+            randomBgNodes = Array.from({length: 40}, () => ({ x: Math.random() * width, y: Math.random() * height, vx: (Math.random()-0.5)*0.1, vy: (Math.random()-0.5)*0.1 }));
+        }
+
+        function drawVoronoiBg() {
+            randomBgNodes.forEach(n => { n.x += n.vx; n.y += n.vy; if(n.x < 0 || n.x > width) n.vx *= -1; if(n.y < 0 || n.y > height) n.vy *= -1; });
+            const delaunay = d3.Delaunay.from(randomBgNodes, d => d.x, d => d.y);
+            const voronoi = delaunay.voronoi([0, 0, width, height]);
+            ctxBg.clearRect(0, 0, width, height);
+            for (let i = 0; i < randomBgNodes.length; i++) {
+                ctxBg.beginPath(); voronoi.renderCell(i, ctxBg);
+                ctxBg.strokeStyle = "rgba(148, 163, 184, 0.05)"; ctxBg.stroke();
+            }
+        }
+
+        function tick() {
+            updateData(); drawVoronoiBg(); requestAnimationFrame(tick);
+        }
+
+        window.addEventListener('resize', initVoronoiNodes);
+        document.getElementById('btn-toggle-time').addEventListener('click', (e) => {
+            isRealtime = !isRealtime; e.target.innerText = isRealtime ? "PAUZE" : "HERVAT"; e.target.style.color = isRealtime ? "#fca5a5" : "#4ade80";
+        });
+        
+        window.onload = () => { 
+            initVoronoiNodes(); 
+            populateGeoList();
+            renderConstellations();
+            
+            // Initialiseer de 108° lijn
+            const rad = 108 * DEG_TO_RAD;
+            const line = document.getElementById('svg-108-line');
+            line.setAttribute('x2', 300 + 285 * Math.sin(rad));
+            line.setAttribute('y2', 300 - 285 * Math.cos(rad));
+
+            // Voeg pre-rotatie toe om Nebra beter in 3D te tonen (lichte kanteling)
+            const initialRotation = Quaternion.fromAxisAngle(1, 0, 0, -0.3).multiply(Quaternion.fromAxisAngle(0, 1, 0, 0.1));
+            currentRotation = initialRotation;
+            nebraContainer.style.transform = currentRotation.toMatrix3d();
+
+            tick(); 
+        };
+    </script>
+</body>
+</html>
