@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="nl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX OS: CryptPad Integratie</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons voor moderne document iconen -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        vortex: {
+                            cyan: '#06b6d4',
+                            orange: '#f97316',
+                            dark: '#0f172a',
+                            panel: '#1e293b',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; overflow: hidden; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+
+        /* Cyber UI Elements */
+        .accent-gradient { background: linear-gradient(90deg, #06b6d4 0%, #f97316 100%); }
+        
+        .nav-btn {
+            transition: all 0.2s ease-in-out;
+            position: relative;
+            overflow: hidden;
+        }
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0; width: 2px;
+            background: #06b6d4;
+            transform: scaleY(0);
+            transition: transform 0.2s ease-in-out;
+            transform-origin: left;
+        }
+        .nav-btn:hover::before, .nav-btn.active::before {
+            transform: scaleY(1);
+        }
+        .nav-btn.active {
+            background-color: rgba(6, 182, 212, 0.1);
+            border-color: #06b6d4;
+        }
+        .nav-btn.active .icon-container { color: #06b6d4; }
+
+        /* CRT / Terminal Animation */
+        .scanline {
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(6,182,212,0.2) 50%, rgba(0,0,0,0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+
+        .terminal-text::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Loader Glitch Effect */
+        .glitch { position: relative; }
+        .glitch::before, .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+        }
+        .glitch::before {
+            left: 2px;
+            text-shadow: -1px 0 red;
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+        .glitch::after {
+            left: -2px;
+            text-shadow: -1px 0 blue;
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim 2.5s infinite linear alternate-reverse;
+        }
+        @keyframes glitch-anim {
+            0% { clip: rect(10px, 9999px, 80px, 0); }
+            20% { clip: rect(50px, 9999px, 30px, 0); }
+            40% { clip: rect(90px, 9999px, 100px, 0); }
+            60% { clip: rect(20px, 9999px, 60px, 0); }
+            80% { clip: rect(70px, 9999px, 20px, 0); }
+            100% { clip: rect(30px, 9999px, 90px, 0); }
+        }
+    </style>
+</head>
+
+<body class="flex flex-col md:flex-row h-screen w-full font-sans antialiased bg-vortex-dark text-slate-300">
+
+    <!-- Sidebar / Launcher -->
+    <aside class="w-full md:w-80 h-auto md:h-full bg-vortex-panel border-b md:border-b-0 md:border-r border-vortex-border flex flex-col z-20 shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.5)] relative">
+        
+        <!-- Header -->
+        <div class="p-6 border-b border-vortex-border">
+            <h1 class="text-2xl font-bold tracking-tight text-white uppercase flex items-center gap-2">
+                <i class="ph-fill ph-shield-check text-vortex-cyan"></i>
+                VORTEX <span class="text-vortex-cyan">OS</span>
+            </h1>
+            <p class="text-slate-400 mt-1 font-mono text-[10px] uppercase tracking-widest flex justify-between">
+                <span>CryptPad Relay</span>
+                <span class="text-emerald-400">E2EE: ACTIEF</span>
+            </p>
+            <div class="h-0.5 w-full accent-gradient mt-4 opacity-70"></div>
+        </div>
+
+        <!-- Document Types Grid -->
+        <div class="p-4 flex-1 overflow-y-auto">
+            <div class="mb-4 px-2">
+                <span class="font-mono text-xs text-slate-500 uppercase tracking-wider">Beschikbare Modules</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3" id="launcher-grid">
+                <!-- Dynamically generated via JS, but written here for structural integrity -->
+                <button onclick="launchApp('blad', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-emerald-500 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-table"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Blad</span>
+                </button>
+
+                <button onclick="launchApp('document', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-blue-500 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-file-text"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Document</span>
+                </button>
+
+                <button onclick="launchApp('presentatie', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-orange-500 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-presentation-chart"></i></div>
+                    <span class="text-xs font-medium text-slate-300 text-center">Presentatie</span>
+                </button>
+
+                <button onclick="launchApp('modeltekst', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-blue-400 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-article"></i></div>
+                    <span class="text-xs font-medium text-slate-300 text-center leading-tight">Opgemaakte<br>modeltekst</span>
+                </button>
+
+                <button onclick="launchApp('kanban', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-green-400 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-kanban"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Kanban-bord</span>
+                </button>
+
+                <button onclick="launchApp('code', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-yellow-500 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-code"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Code</span>
+                </button>
+
+                <button onclick="launchApp('formulier', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-teal-400 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-textbox"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Formulier</span>
+                </button>
+
+                <button onclick="launchApp('diagram', this)" class="nav-btn bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center gap-3 hover:bg-slate-800 group">
+                    <div class="icon-container text-purple-400 text-3xl group-hover:scale-110 transition-transform"><i class="ph ph-graph"></i></div>
+                    <span class="text-xs font-medium text-slate-300">Diagram</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-vortex-border bg-slate-900/50">
+            <div class="flex items-center gap-3 text-xs font-mono text-slate-500">
+                <i class="ph-fill ph-hard-drives text-lg"></i>
+                <div class="flex-1">
+                    <div class="flex justify-between mb-1"><span>STORAGE</span> <span>ENC_FR</span></div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5">
+                        <div class="bg-vortex-cyan h-1.5 rounded-full" style="width: 45%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 relative bg-[#0B1120] flex flex-col overflow-hidden">
+        
+        <!-- Top status bar -->
+        <div class="h-10 border-b border-vortex-border bg-vortex-panel flex items-center justify-between px-4 z-10 shrink-0">
+            <div class="flex items-center gap-4 text-xs font-mono text-slate-400">
+                <span id="target-url" class="text-vortex-cyan">AWAITING_INPUT</span>
+                <span class="hidden md:inline-block px-2 py-0.5 bg-slate-800 rounded border border-slate-700">AES-256</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="h-2 w-2 rounded-full bg-slate-600" id="status-indicator"></div>
+                <span class="font-mono text-xs uppercase" id="status-text">Standby</span>
+            </div>
+        </div>
+
+        <!-- Content Container -->
+        <div class="flex-1 relative w-full h-full">
+            
+            <!-- Scanline Overlay -->
+            <div class="scanline"></div>
+
+            <!-- Loader / Terminal (Shown when switching apps) -->
+            <div id="loader-overlay" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#0B1120] bg-opacity-95 transition-opacity duration-300">
+                <div class="max-w-md w-full p-8 font-mono">
+                    <div class="flex justify-center mb-8 text-vortex-cyan opacity-80">
+                        <i class="ph-fill ph-shield-lock text-7xl animate-pulse"></i>
+                    </div>
+                    <div id="terminal-lines" class="text-sm space-y-2 text-slate-400">
+                        <!-- Terminal lines injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Placeholder (Initial state) -->
+            <div id="placeholder" class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center p-8">
+                <div class="w-32 h-32 mb-6 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-600 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
+                    <i class="ph ph-infinity text-6xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2 tracking-wide uppercase">VORTEX OS Data Relay</h2>
+                <p class="text-slate-400 max-w-md font-mono text-sm">Selecteer een CryptPad module in de launcher aan de linkerkant om een end-to-end versleutelde sessie te initiëren.</p>
+            </div>
+
+            <!-- The Iframe -->
+            <iframe id="cryptpad-frame" src="about:blank" class="absolute inset-0 w-full h-full border-0 hidden z-0 bg-white" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+        </div>
+    </main>
+
+    <script>
+        // Mapping of document types to CryptPad URLs
+        const cryptpadApps = {
+            'blad': { url: 'https://cryptpad.fr/sheet/', name: 'SPREADSHEET', color: '#10b981' },
+            'document': { url: 'https://cryptpad.fr/pad/', name: 'DOCUMENT', color: '#3b82f6' },
+            'presentatie': { url: 'https://cryptpad.fr/slide/', name: 'PRESENTATION', color: '#f97316' },
+            'modeltekst': { url: 'https://cryptpad.fr/doc/', name: 'RICH_TEXT', color: '#60a5fa' },
+            'kanban': { url: 'https://cryptpad.fr/kanban/', name: 'KANBAN_BOARD', color: '#4ade80' },
+            'code': { url: 'https://cryptpad.fr/code/', name: 'CODE_EDITOR', color: '#eab308' },
+            'formulier': { url: 'https://cryptpad.fr/form/', name: 'FORM_BUILDER', color: '#2dd4bf' },
+            'diagram': { url: 'https://cryptpad.fr/whiteboard/', name: 'WHITEBOARD', color: '#c084fc' } // Using whiteboard as closest equivalent to diagram on .fr
+        };
+
+        const iframe = document.getElementById('cryptpad-frame');
+        const loaderOverlay = document.getElementById('loader-overlay');
+        const placeholder = document.getElementById('placeholder');
+        const terminalLines = document.getElementById('terminal-lines');
+        const targetUrlText = document.getElementById('target-url');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+
+        // Note: Due to cross-origin policies (CORS) and iframe restrictions, 
+        // some CryptPad instances might block being embedded via X-Frame-Options or CSP.
+        // For the sake of this OSINT simulation dashboard, we set the src normally.
+
+        function launchApp(appId, btnElement) {
+            // Update UI Button states
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            const appData = cryptpadApps[appId];
+            
+            // Hide placeholder, show loader, hide iframe
+            placeholder.classList.add('hidden');
+            iframe.classList.add('hidden');
+            loaderOverlay.classList.remove('hidden');
+            loaderOverlay.style.opacity = '1';
+
+            // Reset Terminal
+            terminalLines.innerHTML = '';
+            targetUrlText.innerText = `CONNECTING: ${appData.url}`;
+            targetUrlText.style.color = appData.color;
+            
+            statusIndicator.className = 'h-2 w-2 rounded-full bg-yellow-500 animate-pulse';
+            statusText.innerText = 'NEGOTIATING...';
+            statusText.className = 'font-mono text-xs uppercase text-yellow-500';
+
+            // Matrix / Terminal loading sequence
+            const sequence = [
+                `> INITIATING SECURE RELAY TO FR.CRYPTPAD...`,
+                `> MODULE: <span style="color:${appData.color}">${appData.name}</span>`,
+                `> ESTABLISHING END-TO-END ENCRYPTION...`,
+                `> EXCHANGING KEYS... <span class="text-emerald-400">OK</span>`,
+                `> MOUNTING IFRAME SANDBOX...`
+            ];
+
+            let delay = 0;
+            sequence.forEach((line, index) => {
+                setTimeout(() => {
+                    const p = document.createElement('p');
+                    p.innerHTML = line;
+                    
+                    // Add terminal cursor effect to the last line
+                    if (index === sequence.length - 1) {
+                        p.classList.add('terminal-text', 'glitch');
+                        p.setAttribute('data-text', line.replace(/<[^>]*>?/gm, ''));
+                    }
+                    
+                    terminalLines.appendChild(p);
+                }, delay);
+                delay += 300 + Math.random() * 400; // Random delay between lines
+            });
+
+            // Set the actual iframe source and finish loading
+            setTimeout(() => {
+                // Change iframe src
+                iframe.src = appData.url;
+                
+                // Finalize terminal
+                const finalP = document.createElement('p');
+                finalP.innerHTML = `> CONNECTION ESTABLISHED.`;
+                finalP.className = 'text-emerald-400 font-bold mt-4';
+                terminalLines.appendChild(finalP);
+
+                // Update Status Bar
+                statusIndicator.className = 'h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]';
+                statusText.innerText = 'CONNECTED';
+                statusText.className = 'font-mono text-xs uppercase text-emerald-500';
+
+                // Fade out loader and show iframe
+                setTimeout(() => {
+                    loaderOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        loaderOverlay.classList.add('hidden');
+                        iframe.classList.remove('hidden');
+                        // Add fade-in to iframe
+                        iframe.style.animation = 'fadeIn 0.5s ease-in';
+                    }, 300);
+                }, 800);
+
+            }, delay + 500);
+        }
+
+        // Add a simple fade-in keyframe to document head
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
