@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="nl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX OS: OSINT & Geodetische Rapportage</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter (UI) & JetBrains Mono (Data) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        vortex: {
+                            cyan: '#06b6d4',
+                            orange: '#f97316',
+                            dark: '#0f172a',
+                            panel: '#1e293b',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        /* Custom scrollbar for data tables */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .accent-gradient {
+            background: linear-gradient(90deg, #06b6d4 0%, #f97316 100%);
+        }
+        .callout-gradient-border {
+            position: relative;
+            background: #1e293b;
+            background-clip: padding-box;
+            border: 2px solid transparent;
+            border-radius: 0.75rem;
+        }
+        .callout-gradient-border::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            z-index: -1;
+            margin: -2px;
+            border-radius: inherit;
+            background: linear-gradient(135deg, #06b6d4, #f97316);
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <!-- Header -->
+        <header class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-white uppercase">
+                        VORTEX <span class="text-vortex-cyan">OS</span>
+                    </h1>
+                    <p class="text-slate-400 mt-1 font-mono text-sm uppercase tracking-widest">OSINT & Geodetische Rapportage</p>
+                </div>
+                <div class="hidden md:flex flex-col items-end font-mono text-xs text-slate-500">
+                    <span>SYS.STATUS: <span class="text-emerald-400">ONLINE</span></span>
+                    <span>SEC.LEVEL: <span class="text-vortex-orange">OMEGA</span></span>
+                </div>
+            </div>
+            <div class="h-1 w-full accent-gradient rounded-full"></div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex space-x-2 border-b border-vortex-border pb-px">
+            <button onclick="switchTab('osint')" id="tab-btn-osint" class="px-6 py-3 font-medium text-sm rounded-t-lg transition-colors bg-vortex-panel text-white border-t border-l border-r border-vortex-border shadow-[0_2px_0_0_#06b6d4]">
+                Deel I: OSINT Framework
+            </button>
+            <button onclick="switchTab('vortex')" id="tab-btn-vortex" class="px-6 py-3 font-medium text-sm rounded-t-lg transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800">
+                Deel II: Geodetische & Netwerk Telemetrie
+            </button>
+        </nav>
+
+        <!-- TAB 1: OSINT FRAMEWORK -->
+        <main id="tab-osint" class="space-y-8 animate-fade-in block">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Card 1 -->
+                <div class="bg-vortex-panel border border-vortex-border rounded-xl p-6 hover:border-vortex-cyan transition-colors">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <svg class="w-6 h-6 text-vortex-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <h3 class="font-semibold text-lg text-white">1.1 Search Tools</h3>
+                    </div>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        <span class="font-bold text-white">Geautomatiseerde Search Tools:</span> Methodiek en werkwijze voor het verifiëren van aliassen en accounthergebruik via CLI-tools (<code class="font-mono text-vortex-orange bg-slate-900 px-1 py-0.5 rounded">Sherlock</code>, <code class="font-mono text-vortex-orange bg-slate-900 px-1 py-0.5 rounded">Maigret</code>) en web-aggregators.
+                    </p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="bg-vortex-panel border border-vortex-border rounded-xl p-6 hover:border-vortex-cyan transition-colors">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <svg class="w-6 h-6 text-vortex-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                        <h3 class="font-semibold text-lg text-white">1.2 Geavanceerd Zoeken</h3>
+                    </div>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        <span class="font-bold text-white">Geavanceerde Zoekmachinetechnieken:</span> Praktische inzet van zoekoperatoren (exact matching, platform-inperking en bestandsformaat-filtering) via geavanceerd dorking.
+                    </p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-vortex-panel border border-vortex-border rounded-xl p-6 hover:border-vortex-cyan transition-colors">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <svg class="w-6 h-6 text-vortex-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                        <h3 class="font-semibold text-lg text-white">1.3 Verificatie</h3>
+                    </div>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        <span class="font-bold text-white">Archivering & Verificatie:</span> Borging en historische profielreconstructie via het Internet Archive (Wayback Machine).
+                    </p>
+                </div>
+            </div>
+
+            <!-- Table 1 -->
+            <div class="bg-vortex-panel border border-vortex-border rounded-xl overflow-hidden">
+                <div class="bg-slate-800 px-6 py-4 border-b border-vortex-border flex justify-between items-center">
+                    <h3 class="font-semibold text-white uppercase tracking-wide text-sm">Tabel 1 — OSINT Workflow & Protocol</h3>
+                    <span class="font-mono text-xs text-vortex-cyan px-2 py-1 bg-cyan-900/30 rounded">4-FASENPLAN</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="bg-slate-800/50 font-mono text-xs uppercase text-slate-400">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border">Fase</th>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border">Omschrijving</th>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border">Doel</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-vortex-border font-mono">
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-4 font-bold text-white">1. Discovery</td>
+                                <td class="px-6 py-4">Breed scannen en verzamelen van initiële sporen.</td>
+                                <td class="px-6 py-4 text-vortex-cyan">Identificatie</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-4 font-bold text-white">2. Contextualisatie</td>
+                                <td class="px-6 py-4">Pivoting en het in kaart brengen van kruisverbanden.</td>
+                                <td class="px-6 py-4 text-vortex-cyan">Patroonherkenning</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-4 font-bold text-white">3. Corroboratie</td>
+                                <td class="px-6 py-4">Bevestigen van bevindingen via onafhankelijke bronnen.</td>
+                                <td class="px-6 py-4 text-vortex-cyan">Validatie</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-4 font-bold text-white">4. Archivering</td>
+                                <td class="px-6 py-4">Forensisch vastleggen van de status quo.</td>
+                                <td class="px-6 py-4 text-vortex-cyan">Borging</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 2: VORTEX MATRIX -->
+        <main id="tab-vortex" class="space-y-8 hidden animate-fade-in">
+            
+            <!-- Callout Box -->
+            <div class="callout-gradient-border p-6 shadow-2xl">
+                <div class="flex items-start space-x-4">
+                    <div class="p-3 bg-slate-900 rounded-lg shrink-0">
+                        <svg class="w-8 h-8 text-vortex-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white mb-2 uppercase tracking-wide">Trans-Atlantische 3D Zichtlijn</h2>
+                        <p class="text-slate-300 leading-relaxed font-mono text-sm">
+                            Grootcirkelvector vanaf het <span class="text-vortex-cyan font-bold">Laren Global Anchor</span> naar <span class="text-vortex-cyan font-bold">WTC New York</span>.
+                        </p>
+                        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
+                            <div class="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                <span class="block text-slate-500 mb-1">Afstand</span>
+                                <span class="text-white text-base">5.877 km</span>
+                            </div>
+                            <div class="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                <span class="block text-slate-500 mb-1">Vertrek-Azimut</span>
+                                <span class="text-white text-base">287,5°</span>
+                            </div>
+                            <div class="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                <span class="block text-slate-500 mb-1">Optische Lift</span>
+                                <span class="text-vortex-orange text-base font-bold">+378 km</span>
+                            </div>
+                            <div class="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                <span class="block text-slate-500 mb-1">Type</span>
+                                <span class="text-white text-base">Refractielift</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Sections Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Section 2.1 -->
+                <div class="bg-vortex-panel border border-vortex-border rounded-xl p-6">
+                    <h3 class="font-semibold text-lg text-white mb-4 border-b border-slate-700 pb-2">2.1 Atmosferische Refractie & Schattenverkorting</h3>
+                    <ul class="space-y-3 font-mono text-sm text-slate-300">
+                        <li class="flex items-start">
+                            <span class="text-vortex-cyan mr-2">▶</span>
+                            <span>Wiskundige Saemundsson/Bennett-doorrekening van de <span class="text-white font-bold">21,74' opbuiging</span> bij zonsondergang op de Gooise heide.</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-vortex-cyan mr-2">▶</span>
+                            <span><span class="text-white font-bold">29,8 m</span> schaduwverkorting op de 3° helling.</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-vortex-cyan mr-2">▶</span>
+                            <span><span class="text-white font-bold">151,8 m</span> zijdelingse dislocatie over 24 km.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Section 2.2 -->
+                <div class="bg-vortex-panel border border-vortex-border rounded-xl p-6">
+                    <h3 class="font-semibold text-lg text-white mb-4 border-b border-slate-700 pb-2">2.3 Phase-Shift 002 & Kwantum-Netwerkfideliteit</h3>
+                    <ul class="space-y-3 font-mono text-sm text-slate-300">
+                        <li class="flex items-start">
+                            <span class="text-vortex-orange mr-2">■</span>
+                            <span>Inversie-telemetrie van <span class="text-white font-bold">Hexagram 63</span> naar <span class="text-white font-bold">Hexagram 64</span> over de 103-stappenmetronoom.</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-vortex-orange mr-2">■</span>
+                            <span>Behoud van <span class="text-white font-bold">98,6%</span> minimale netwerkfideliteit.</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-vortex-orange mr-2">■</span>
+                            <span><span class="text-white font-bold">25,0 ± 1,2 ms</span> UDP-pacing.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Table 2 -->
+            <div class="bg-vortex-panel border border-vortex-border rounded-xl overflow-hidden">
+                <div class="bg-slate-800 px-6 py-4 border-b border-vortex-border flex justify-between items-center">
+                    <h3 class="font-semibold text-white uppercase tracking-wide text-sm">Tabel 2 — Telemetrie-Overzicht</h3>
+                    <span class="font-mono text-xs text-vortex-orange px-2 py-1 bg-orange-900/30 rounded">DATA MATRIX</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-sm text-slate-300">
+                        <thead class="bg-slate-800/50 font-mono text-xs uppercase text-slate-400 text-left">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border">Zonne-elevatie</th>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border text-right">Saemundsson Refractie</th>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border text-right">Bennett Delta</th>
+                                <th scope="col" class="px-6 py-3 border-b border-vortex-border text-right">Netwerk Variantie</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-vortex-border font-mono text-left">
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-3 font-bold text-white">0,10°</td>
+                                <td class="px-6 py-3 text-right">32,15'</td>
+                                <td class="px-6 py-3 text-right text-vortex-cyan">+0,02'</td>
+                                <td class="px-6 py-3 text-right">± 1,4 ms</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-3 font-bold text-white">1,00°</td>
+                                <td class="px-6 py-3 text-right">24,30'</td>
+                                <td class="px-6 py-3 text-right text-vortex-cyan">+0,01'</td>
+                                <td class="px-6 py-3 text-right">± 1,1 ms</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-3 font-bold text-white">5,00°</td>
+                                <td class="px-6 py-3 text-right">9,47'</td>
+                                <td class="px-6 py-3 text-right text-vortex-cyan">0,00'</td>
+                                <td class="px-6 py-3 text-right">± 0,8 ms</td>
+                            </tr>
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-6 py-3 font-bold text-white">10,00°</td>
+                                <td class="px-6 py-3 text-right">5,15'</td>
+                                <td class="px-6 py-3 text-right text-vortex-cyan">-0,01'</td>
+                                <td class="px-6 py-3 text-right">± 0,5 ms</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+        
+    </div>
+
+    <script>
+        /**
+         * Schakelt tussen de weergave van Tab 1 (OSINT) en Tab 2 (VORTEX)
+         */
+        function switchTab(tabId) {
+            const osintTab = document.getElementById('tab-osint');
+            const vortexTab = document.getElementById('tab-vortex');
+            const btnOsint = document.getElementById('tab-btn-osint');
+            const btnVortex = document.getElementById('tab-btn-vortex');
+
+            // Active classes voor knoppen
+            const activeClasses = ['bg-vortex-panel', 'text-white', 'border-t', 'border-l', 'border-r', 'border-vortex-border', 'shadow-[0_2px_0_0_#06b6d4]'];
+            const inactiveClasses = ['text-slate-400', 'hover:text-slate-200', 'hover:bg-slate-800', 'border-transparent'];
+
+            if (tabId === 'osint') {
+                // Toon OSINT, verberg VORTEX
+                osintTab.classList.remove('hidden');
+                osintTab.classList.add('block');
+                vortexTab.classList.add('hidden');
+                vortexTab.classList.remove('block');
+
+                // Update knop OSINT
+                btnOsint.classList.remove(...inactiveClasses);
+                btnOsint.classList.add(...activeClasses);
+                
+                // Update knop VORTEX
+                btnVortex.classList.remove(...activeClasses);
+                btnVortex.classList.add(...inactiveClasses);
+            } else {
+                // Toon VORTEX, verberg OSINT
+                vortexTab.classList.remove('hidden');
+                vortexTab.classList.add('block');
+                osintTab.classList.add('hidden');
+                osintTab.classList.remove('block');
+
+                // Update knop VORTEX (pas shadow kleur aan naar oranje voor thema consistency)
+                const activeVortexClasses = [...activeClasses];
+                activeVortexClasses[6] = 'shadow-[0_2px_0_0_#f97316]'; // Oranje shadow voor VORTEX tab
+
+                btnVortex.classList.remove(...inactiveClasses);
+                btnVortex.classList.add(...activeVortexClasses);
+                
+                // Update knop OSINT
+                btnOsint.classList.remove(...activeClasses, 'shadow-[0_2px_0_0_#06b6d4]');
+                btnOsint.classList.add(...inactiveClasses);
+            }
+        }
+    </script>
+</body>
+</html>
