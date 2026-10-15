@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX OS - Open Geokaarten, Verschuifbare Planimeter Box & 245.91° Synthese</title>
+    
+    <!-- MapLibre GL JS v4 (100% Open-Source, geen Mapbox/API-key) -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Turf.js (Geodesie) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    
+    <!-- Astronomy Engine & SunCalc -->
+    <script src="https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #05131f; font-family: 'Courier New', Courier, monospace; overflow: hidden; color: #e0e0e0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; background: radial-gradient(circle, #0a192f 0%, #020810 100%); }
+        
+        /* Zwevende panelen */
+        .glass-panel {
+            position: absolute; background: rgba(10, 25, 47, 0.86);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 255, 218, 0.3); border-radius: 8px;
+            z-index: 10; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.7);
+            max-height: 87vh; display: flex; flex-direction: column;
+            transition: opacity 0.3s ease;
+        }
+        
+        .panel-content { padding: 13px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #64ffda #05131f; }
+        .drag-handle {
+            background: rgba(100, 255, 218, 0.16); border-bottom: 1px solid rgba(100, 255, 218, 0.3);
+            padding: 6px; text-align: center; font-size: 10px; color: #64ffda;
+            cursor: grab; border-radius: 8px 8px 0 0; user-select: none;
+            text-transform: uppercase; letter-spacing: 2px; font-weight: bold;
+        }
+        .drag-handle:active { cursor: grabbing; background: rgba(100, 255, 218, 0.35); }
+
+        /* Posities Panelen */
+        #panel-left { top: 60px; left: 20px; width: 320px; }
+        #panel-layers { top: 60px; left: 355px; width: 375px; }
+        #panel-astro { top: 60px; right: 370px; width: 350px; } 
+        #panel-right { top: 60px; right: 20px; width: 335px; }
+        #panel-planimeter { bottom: 20px; right: 20px; width: 355px; }
+        
+        /* WebRTC Paneel */
+        #panel-webrtc { top: 120px; left: calc(50% - 160px); width: 320px; display: none; z-index: 100; }
+        #webrtc-video { width: 100%; border-radius: 4px; border: 1px solid #64ffda; background: #000; }
+
+        h2, h3 { margin-top: 0; font-weight: bold; color: #64ffda; text-transform: uppercase; font-size: 11.5px; letter-spacing: 1.1px; border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 4px; }
+        p, li { font-size: 11px; line-height: 1.45; margin: 6px 0; }
+        .highlight { color: #ffca28; font-weight: bold; }
+        .fraunhofer { color: #ffd700; text-shadow: 0 0 6px rgba(255, 215, 0, 0.6); font-weight: bold; }
+        
+        /* Input & Buttons */
+        .loc-input {
+            width: 100%; padding: 7px 9px; margin-bottom: 7px;
+            background: rgba(5, 19, 31, 0.92); border: 1px solid #64ffda; color: #fff;
+            border-radius: 4px; font-family: monospace; font-size: 11px; outline: none; box-sizing: border-box;
+        }
+        input[type="file"].loc-input { padding: 5px; cursor: pointer; color: #64ffda; }
+        .loc-btn, .mode-btn {
+            background: #ffca28; color: #05131f; border: none; padding: 8px; width: 100%;
+            border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace;
+            margin-bottom: 7px; transition: 0.2s; font-size: 11px;
+        }
+        .loc-btn { background: #64ffda; margin-bottom: 9px; }
+        .loc-btn:hover { background: #4cd3b6; }
+        
+        #drag-btn.active { background: #ff5252; color: #fff; }
+        #flag-btn { background: #3498db; color: #fff; }
+        #flag-btn.active { background: #e84393; color: #fff; }
+        
+        .action-row { display: flex; gap: 6px; margin-bottom: 8px; }
+        .action-btn { flex: 1; padding: 7px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: monospace; font-size: 10px; color: #fff; transition: 0.2s; }
+        #save-btn { background: #2ecc71; } #save-btn:hover { background: #27ae60; }
+        #load-btn { background: #f39c12; } #load-btn:hover { background: #e67e22; }
+        #clear-flags-btn { background: #e74c3c; display: none; } #clear-flags-btn:hover { background: #c0392b; }
+
+        /* Actieve Lagen & Sliders */
+        .layer-item {
+            background: rgba(255,255,255,0.06); padding: 8px; margin-bottom: 8px;
+            border-radius: 4px; font-size: 11px; border-left: 3px solid #64ffda;
+        }
+        .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-weight: bold; color: #ffca28; gap: 4px; }
+        .layer-controls { display: flex; flex-direction: column; gap: 5px; font-size: 10px; color: #c9d1d9; }
+        .slider-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .slider-row span { min-width: 125px; }
+        .slider-row input[type="range"] { flex: 1; accent-color: #64ffda; cursor: pointer; }
+        .layer-item-btn { background: #e74c3c; border: none; color: white; cursor: pointer; border-radius: 3px; padding: 3px 6px; font-weight: bold; font-size: 10px; }
+        .layer-zoom-btn { background: #3498db; border: none; color: white; cursor: pointer; border-radius: 3px; padding: 3px 6px; font-weight: bold; font-size: 10px; }
+        .layer-toggle-btn { background: #2ecc71; border: none; color: #05131f; cursor: pointer; border-radius: 3px; padding: 3px 6px; font-weight: bold; font-size: 10px; }
+        .layer-toggle-btn.off { background: #7f8c8d; color: #fff; }
+
+        /* Verschuifknoppen voor Afbeelding Box */
+        .nudge-row { display: flex; gap: 4px; margin-top: 3px; }
+        .nudge-btn { flex: 1; background: rgba(100, 255, 218, 0.18); border: 1px solid #64ffda; color: #64ffda; border-radius: 3px; padding: 4px; cursor: pointer; font-family: monospace; font-size: 10px; font-weight: bold; }
+        .nudge-btn:hover { background: #64ffda; color: #05131f; }
+
+        /* Versleepbare Afbeelding-Handle op de kaart */
+        .img-drag-handle-marker {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(255, 202, 40, 0.92); color: #05131f;
+            border: 2px solid #05131f; box-shadow: 0 0 12px #ffca28;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 15px; cursor: move; user-select: none;
+        }
+
+        /* Popup Formulier */
+        .maplibregl-popup-content { background: rgba(10, 25, 47, 0.95); color: #e0e0e0; border: 1px solid #64ffda; border-radius: 6px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.7); }
+        .maplibregl-popup-close-button { color: #64ffda; font-size: 16px; }
+        .popup-textarea { width: 100%; height: 60px; background: #05131f; color: #64ffda; border: 1px solid #64ffda; border-radius: 4px; margin: 8px 0; padding: 5px; font-family: monospace; font-size: 11px; resize: none; box-sizing: border-box; }
+        .popup-save-btn { background: #3498db; color: white; border: none; padding: 6px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; margin-bottom: 5px; }
+        .remove-flag-btn { background: #e74c3c; color: white; border: none; padding: 6px; width: 100%; border-radius: 3px; cursor: pointer; font-family: monospace; font-weight: bold; }
+
+        /* Planimeter Wieltjes */
+        .wheel-container { display: flex; justify-content: space-around; padding: 8px 0; align-items: center; }
+        .wheel-box { display: flex; flex-direction: column; align-items: center; cursor: ns-resize; user-select: none; }
+        .wheel-label { font-size: 9px; color: #8b949e; margin-bottom: 5px; text-transform: uppercase; text-align: center; }
+        .wheel { width: 46px; height: 46px; border: 3px dashed #64ffda; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 12px rgba(100,255,218,0.25); pointer-events: none; }
+        .wheel-inner { width: 18px; height: 18px; border: 2px dotted #ff5252; border-radius: 50%; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th { border-bottom: 1px solid rgba(100, 255, 218, 0.3); padding-bottom: 4px; color: #64ffda; text-transform: uppercase; font-size: 10px; text-align: left; }
+        td { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 10.5px; }
+
+        #ui-toggle-btn { position: absolute; top: 15px; left: 20px; z-index: 20; background: rgba(10, 25, 47, 0.85); border: 1px solid #64ffda; color: #64ffda; padding: 7px 14px; border-radius: 4px; font-family: monospace; cursor: pointer; font-weight: bold; }
+        #ui-toggle-btn:hover { background: #64ffda; color: #05131f; }
+        #drag-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; cursor: grab; }
+        #drag-overlay:active { cursor: grabbing; }
+        #watermark { position: absolute; bottom: 25px; left: 20px; z-index: 4; font-family: 'Georgia', serif; font-style: italic; font-size: 22px; color: rgba(255, 255, 255, 0.35); pointer-events: none; text-shadow: 0 2px 8px #000; }
+
+        /* Kompas */
+        #compass-container { position: absolute; top: 15px; left: calc(50% - 60px); width: 120px; z-index: 10; display: flex; flex-direction: column; align-items: center; pointer-events: auto; transition: opacity 0.3s ease; }
+        #compass-3d-wrapper { width: 88px; height: 88px; perspective: 800px; margin-bottom: 6px; pointer-events: none; }
+        #compass { width: 100%; height: 100%; border-radius: 50%; background: rgba(10, 25, 47, 0.75); border: 2px solid rgba(100, 255, 218, 0.5); transform-style: preserve-3d; display: flex; justify-content: center; align-items: center; color: #64ffda; font-weight: bold; font-size: 13px; box-shadow: 0 10px 25px rgba(0,0,0,0.6), inset 0 0 15px rgba(100, 255, 218, 0.2); }
+        .compass-n { position: absolute; top: 6px; color: #ff5252; text-shadow: 0 0 5px #ff5252; }
+        .compass-s { position: absolute; bottom: 6px; }
+        .compass-e { position: absolute; right: 10px; }
+        .compass-w { position: absolute; left: 10px; }
+        .compass-center { width: 8px; height: 8px; background: #ffca28; border-radius: 50%; box-shadow: 0 0 8px #ffca28; z-index: 2; }
+        .compass-arrow { position: absolute; top: 14px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 26px solid #ff5252; transform-origin: bottom center; z-index: 1; }
+        #compass-coords { background: rgba(10, 25, 47, 0.9); border: 1px solid rgba(100, 255, 218, 0.4); padding: 4px 8px; border-radius: 4px; font-size: 10px; color: #ffca28; white-space: nowrap; font-family: monospace; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <div id="drag-overlay"></div>
+    <div id="watermark">Ceci n'est pas une carte.</div>
+
+    <button id="ui-toggle-btn">👁️ UI Tonen/Verbergen</button>
+
+    <!-- Kompas -->
+    <div id="compass-container" class="ui-element">
+        <div class="drag-handle" style="width: 100%; border-radius: 8px; margin-bottom: 6px; background: rgba(10, 25, 47, 0.85); box-sizing: border-box;">≡ Kompas ≡</div>
+        <div id="compass-3d-wrapper">
+            <div id="compass">
+                <div class="compass-n">N</div>
+                <div class="compass-e">E</div>
+                <div class="compass-s">S</div>
+                <div class="compass-w">W</div>
+                <div class="compass-arrow"></div>
+                <div class="compass-center"></div>
+            </div>
+        </div>
+        <div id="compass-coords">52.2500° N, 5.2200° E</div>
+    </div>
+
+    <!-- PANEEL LINKS (Invoer, VORTEX Schakelaars & Opslag) -->
+    <div id="panel-left" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Navigatie, Knooppunten & Modi ≡</div>
+        <div class="panel-content">
+            <h2>🔍 Locatie & Coördinaten</h2>
+            <input type="text" id="loc-input" class="loc-input" placeholder="Bijv: 46.25, -1.25 of Bourges...">
+            <button id="loc-btn" class="loc-btn">Zoek & Vlieg naar Coördinaat</button>
+
+            <h2>🧭 VORTEX 245,91° & Knooppunten</h2>
+            <div class="action-row">
+                <button id="toggle-nodes-btn" class="action-btn" style="background:#2ecc71; color:#05131f;">📍 KNOOPPUNTEN: AAN</button>
+                <button id="toggle-vortex-btn" class="action-btn" style="background:#2ecc71; color:#05131f;">⚡ 245,91° LIJNEN: AAN</button>
+            </div>
+            <div class="action-row">
+                <button id="toggle-rings-btn" class="action-btn" style="background:#16a085;">⭕ HORIZON RINGEN: AAN</button>
+                <button id="vortex-inversie-btn" class="action-btn" style="background:#9b59b6;">🔄 157° INVERSIE</button>
+            </div>
+
+            <h2>💾 Geheugen Module (Vlaggen)</h2>
+            <div class="action-row">
+                <button id="save-btn" class="action-btn">💾 OPSLAAN</button>
+                <button id="load-btn" class="action-btn">📂 LADEN</button>
+            </div>
+
+            <button id="drag-btn" class="mode-btn">🖐 MODUS: HANDJE (UIT)</button>
+            <button id="flag-btn" class="mode-btn">🚩 VLAG PLAATSEN (UIT)</button>
+            <button id="clear-flags-btn" class="action-btn" style="width: 100%; margin-top:4px;">🗑️ WIS ALLE VLAGGEN</button>
+        </div>
+    </div>
+
+    <!-- PANEEL KAARTEN, AFBEELDING BOX & GEOJSON/KML -->
+    <div id="panel-layers" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Open Geokaarten, Afbeeldingen & URL's ≡</div>
+        <div class="panel-content">
+            <h2>🌍 Open Provider-Vrije Geokaarten (Geen Key)</h2>
+            <select id="basemap-select" class="loc-input">
+                <option value="osm">OpenStreetMap Standard (100% Vrij)</option>
+                <option value="topo">OpenTopoMap (Vrije Hoogtelijnen & Reliëf)</option>
+                <option value="pdok-brt">PDOK / Kadaster BRT Achtergrondkaart (NL/EU)</option>
+                <option value="pdok-luchtfoto">PDOK Open Luchtfoto Actueel (25cm RGB)</option>
+                <option value="eox-sentinel">EOX Sentinel-2 Cloudless Satelliet (ESA Open)</option>
+                <option value="osm-nautical">⚓ OpenStreetMap + OpenSeaMap Zeekaart</option>
+            </select>
+
+            <h2 style="margin-top: 10px;">🖼️ Upload Afbeelding / JSON / KML</h2>
+            <input type="text" id="file-layer-name" class="loc-input" placeholder="Laagnaam (optioneel)">
+            <input type="file" id="file-upload-input" class="loc-input" accept=".png,.jpg,.jpeg,.svg,.webp,.gif,.json,.geojson,.kml">
+            <button id="upload-file-btn" class="loc-btn" style="background:#f39c12; color:#05131f; margin-bottom:6px;">📥 Plaats Bestand op Kaart (met Planimeter Box)</button>
+            <p style="font-size:9.5px; color:#64ffda; margin:0 0 8px 0;">💡 Tip: Versleep het gele <b>✥</b> anker midden op de afbeelding om deze direct over de kaart te verschuiven!</p>
+
+            <h2 style="margin-top: 8px;">🔗 Externe URL Overlay (Auto-Detectie)</h2>
+            <input type="text" id="overlay-name" class="loc-input" placeholder="Naam (bijv: Mijn Kaart, GeoJSON of Foto)">
+            <input type="text" id="overlay-url" class="loc-input" placeholder="Plak URL: .../{z}/{x}/{y}.png, .geojson, .kml of .png/.jpg">
+            <select id="overlay-type" class="loc-input">
+                <option value="auto">✨ Automatisch Herkennen (Aanbevolen)</option>
+                <option value="raster">XYZ Raster Tiles ({z}/{x}/{y})</option>
+                <option value="geojson">GeoJSON / JSON URL</option>
+                <option value="kml">KML URL</option>
+                <option value="image-url">Afbeelding URL (in Planimeter Box)</option>
+            </select>
+            <button id="add-overlay-btn" class="loc-btn">➕ Voeg URL Laag Toe</button>
+
+            <h2 style="margin-top: 8px;">Actieve Lagen, Verschuiving & Transparantie</h2>
+            <div id="active-overlays-list"></div>
+
+            <h2 style="margin-top: 10px;">📹 WebRTC Camera Overlay</h2>
+            <button id="start-webrtc-btn" class="loc-btn" style="background:#e84393; color:#fff; margin-bottom:2px;">Start Lokale Camera Feed</button>
+        </div>
+    </div>
+
+    <!-- PANEEL WEBRTC CAMERA -->
+    <div id="panel-webrtc" class="glass-panel ui-element">
+        <div class="drag-handle">≡ WebRTC Camera Feed ≡</div>
+        <div class="panel-content" style="text-align: center;">
+            <video id="webrtc-video" autoplay playsinline muted></video>
+            <button id="stop-webrtc-btn" class="action-btn" style="background:#e74c3c; width:100%; margin-top:10px;">Stop Camera</button>
+        </div>
+    </div>
+
+    <!-- PANEEL ASTRONOMIE & 245.91° VECTOR -->
+    <div id="panel-astro" class="glass-panel ui-element">
+        <div class="drag-handle">≡ 245,91° As, Astronomie & BepiColombo ≡</div>
+        <div class="panel-content">
+            <h2 id="astro-date-title">Lokale Hemel & Resonantie</h2>
+            <div id="astro-sun-moon" style="font-size:11px; margin-bottom: 10px; line-height:1.5;">Laden...</div>
+            <h2 style="color: #64ffda;">Planeten (15 okt 2026 Lock)</h2>
+            <div id="astro-planets" style="margin-bottom: 10px;">Laden...</div>
+            <h2 style="color: #ffca28;">245,91° Vector & Eclips 12 Aug 2026</h2>
+            <p id="bepi-colombo-data" style="font-size:11px; color:#c9d1d9; margin-top:4px;"></p>
+        </div>
+    </div>
+
+    <!-- PANEEL RECHTS (Geodetisch Dossier & Knooppunten) -->
+    <div id="panel-right" class="glass-panel ui-element">
+        <div class="drag-handle">≡ Geodetisch & Matrix Dossier ≡</div>
+        <div class="panel-content">
+            <h2>1. 245,91° Knooppunten (Klik = Vlieg)</h2>
+            <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:10px;">
+                <button class="action-btn" style="background:#1abc9c; text-align:left;" onclick="flyToNode(5.22, 52.25, 'Poolanker P (Laren / NL)')">📍 P: Poolanker NL (52.25°N, 5.22°E)</button>
+                <button class="action-btn" style="background:#e67e22; text-align:left;" onclick="flyToNode(1.85, 47.25, 'N² Kern: Dept. 41/18 (det J = -1.00)')">📍 N²: Dept. 41/18 Kern (47.25°N, 1.85°E)</button>
+                <button class="action-btn" style="background:#9b59b6; text-align:left;" onclick="flyToNode(-1.25, 46.25, 'Uittreedpunt Matrix: Dept. 17/85')">📍 Uittreedpunt: Dept. 17/85 (46.25°N, 1.25°W)</button>
+                <button class="action-btn" style="background:#e74c3c; text-align:left;" onclick="flyToNode(-6.50, 43.55, 'Eclips 12 Aug 2026 Landfall (Asturië/Galicië)')">🌑 Eclips Landfall: Noord-Spanje (43.55°N, 6.50°W)</button>
+            </div>
+            <h2>2. Locatie & Planimeter Analyse</h2>
+            <div id="story-content" style="color: #c9d1d9; font-size:11px;">
+                <p>Selecteer een knooppunt, plaats een vlaggetje of upload en verschuif een afbeelding met het gele <b>✥</b> ankerpunt.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEEL PLANIMETER (A. Ott Nr. 573) -->
+    <div id="panel-planimeter" class="glass-panel ui-element">
+        <div class="drag-handle">≡ A. Ott Nr. 573 Planimeter & Optica ≡</div>
+        <div class="panel-content">
+            <h2>Planimeter Wieltjes (Scroll op wieltjes)</h2>
+            <div class="wheel-container">
+                <div class="wheel-box" id="ctrl-az" title="Scroll: Roteer Actieve Afbeelding Box of Kaart Azimut">
+                    <div class="wheel-label">Poolarm α<br>↕ Hoek/Azimut</div>
+                    <div id="wheel-az" class="wheel"><div class="wheel-inner"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-pt" title="Scroll: Kantel Kaart / Scharnier γ">
+                    <div class="wheel-label">Rijarm γ<br>↕ Kanteling</div>
+                    <div id="wheel-pt" class="wheel" style="border-color:#ff5252;"><div class="wheel-inner" style="border-color:#64ffda;"></div></div>
+                </div>
+                <div class="wheel-box" id="ctrl-sc" title="Scroll: Schaal Actieve Afbeelding Box of Zoom">
+                    <div class="wheel-label">Box / Zoom<br>↕ Planimeter</div>
+                    <div id="wheel-sc" class="wheel" style="border-color:#ffd700;"><div class="wheel-inner" style="border-color:#3498db;"></div></div>
+                </div>
+            </div>
+            <div id="ott-telemetry" style="font-size:10.5px; line-height:1.45; border-top: 1px dotted rgba(100,255,218,0.3); padding-top:8px;">
+                <div>Poolarm <b>R = 15,00 cm</b> | Rijarm <b>L = 16,67 cm</b></div>
+                <div>Optisch Pad: <span class="fraunhofer">16,675 cm (Fraunhofer D 589 nm)</span></div>
+                <div id="ott-angles">Hoeken (Dept. 17/85): <b>α = 167,12° | β = 307,88° | γ = 39,24°</b></div>
+                <div>Meetcirkel: <span class="highlight">363,00 cm²</span> | Nonius: <span class="highlight" id="ott-nonius">3.630</span> | Staat: <b>010101 (01)</b></div>
+                <div style="margin-top:4px;">Actueel Stramien: <span class="highlight" id="pl-integral">0</span> <b>∬ dA</b> (km²)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 100% OPEN, PROVIDER-VRIJE GEOKAARTEN (GEEN API-KEYS / GEEN MAPBOX / GEEN CARTO/ESRI) ---
+        const OPEN_BASEMAP_TILES = {
+            'osm': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            'topo': ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
+            'pdok-brt': ['https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png'],
+            'pdok-luchtfoto': ['https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg'],
+            'eox-sentinel': ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg']
+        };
+
+        const initialStyle = {
+            version: 8,
+            sources: {
+                'base-raster-src': {
+                    type: 'raster',
+                    tiles: OPEN_BASEMAP_TILES['osm'],
+                    tileSize: 256,
+                    attribution: 'OpenStreetMap Contributors | PDOK | EOX Sentinel-2'
+                },
+                'seamark-src': {
+                    type: 'raster',
+                    tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
+                    tileSize: 256
+                }
+            },
+            layers: [
+                {
+                    id: 'background-fill',
+                    type: 'background',
+                    paint: { 'background-color': '#05131f' }
+                },
+                {
+                    id: 'base-raster-layer',
+                    type: 'raster',
+                    source: 'base-raster-src',
+                    paint: { 'raster-opacity': 1 }
+                },
+                {
+                    id: 'seamark-layer',
+                    type: 'raster',
+                    source: 'seamark-src',
+                    paint: { 'raster-opacity': 0 }
+                }
+            ]
+        };
+
+        // Kern-coördinaten VORTEX 245,91° Synthese
+        const P_ANCHOR = [5.2200, 52.2500];          // Poolanker P (Laren / NL)
+        const N2_CORE = [1.8500, 47.2500];           // Dept. 41 / Dept. 18 (Bourges), det J = -1.00
+        const EXIT_17_85 = [-1.2500, 46.2500];       // Uittreedpunt Dept. 17 / Dept. 85
+        const ECLIPSE_LANDFALL = [-6.5000, 43.5500]; // 12 aug 2026 Umbra Landfall (Noord-Spanje)
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: initialStyle,
+            center: [1.85, 48.20],
+            zoom: 5.0,
+            pitch: 45,
+            bearing: 0,
+            maxPitch: 85,
+            preserveDrawingBuffer: true
+        });
+
+        const customLayersRegistry = {};
+        let activeImageBoxId = null;
+        let fixedNodeMarkers = [];
+        let nodesVisible = true;
+        let vortexVisible = true;
+        let horizonRingsVisible = true;
+
+        map.on('style.load', () => {
+            try {
+                if (typeof map.setProjection === 'function') {
+                    map.setProjection({ type: 'globe' });
+                }
+            } catch (err) {}
+        });
+
+        map.on('load', () => {
+            // 1. Horizon & Planimeter Ringen
+            map.addSource('horizon-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({
+                id: 'horizon-rings-layer',
+                type: 'line',
+                source: 'horizon-rings',
+                paint: { 'line-color': '#64ffda', 'line-width': 1.2, 'line-opacity': 0.35, 'line-dasharray': [4, 4] }
+            });
+
+            // 2. VORTEX 245,91° Synthese & Knooppunten
+            initVortex245Synthesis();
+
+            updateVisualWidgets();
+            updateHorizonRings();
+            updateAstroDashboard();
+        });
+
+        // --- 2. VORTEX 245,91° GEODETISCHE & OPTISCHE LAAG + AAN/UIT SCHAKELAARS ---
+        function initVortex245Synthesis() {
+            const dest245 = turf.destination(P_ANCHOR, 1800, 245.91 - 360, { units: 'kilometers' });
+            const vortexAxisLine = turf.greatCircle(P_ANCHOR, dest245.geometry.coordinates, { npoints: 128 });
+            vortexAxisLine.properties = { name: "245,91° VORTEX Hoofdas (Fraunhofer 589 nm)", color: "#ffd700", width: 3.5 };
+
+            const anchorTrajectory = turf.lineString([P_ANCHOR, N2_CORE, EXIT_17_85, ECLIPSE_LANDFALL], {
+                name: "Geodetische Keten (P → N² → Dept 17/85 → Eclips)",
+                color: "#64ffda",
+                width: 2.5
+            });
+
+            const matrixPolygon = turf.polygon([[
+                [-1.25, 49.85], [4.95, 49.85], [4.95, 46.25], [-1.25, 46.25], [-1.25, 49.85]
+            ]], { name: "6×6 Franse Departementale Matrix" });
+
+            const eclipseCenterline = turf.lineString([
+                [-12.0, 45.8], [-8.5, 44.3], ECLIPSE_LANDFALL, [-3.8, 42.6], [0.5, 40.8], [3.0, 39.6]
+            ], { name: "12 Aug 2026 Totale Eclips Pad (Umbra)", color: "#ff5252", width: 4 });
+
+            const ottCircle = turf.circle(P_ANCHOR, 818.4, { steps: 96, units: 'kilometers', properties: { name: "Ott Nr. 573 Meetcirkel (363,00 cm²)", color: "#e84393", width: 1.8 } });
+
+            const vortexCollection = turf.featureCollection([
+                vortexAxisLine,
+                anchorTrajectory,
+                eclipseCenterline,
+                ottCircle
+            ]);
+
+            map.addSource('vortex-245-src', { type: 'geojson', data: vortexCollection });
+            map.addLayer({
+                id: 'vortex-245-lines',
+                type: 'line',
+                source: 'vortex-245-src',
+                paint: {
+                    'line-color': ['coalesce', ['get', 'color'], '#ffd700'],
+                    'line-width': ['coalesce', ['get', 'width'], 3],
+                    'line-opacity': 0.9
+                }
+            });
+
+            map.addSource('french-matrix-src', { type: 'geojson', data: matrixPolygon });
+            map.addLayer({
+                id: 'french-matrix-fill',
+                type: 'fill',
+                source: 'french-matrix-src',
+                paint: { 'fill-color': '#64ffda', 'fill-opacity': 0.08 }
+            });
+            map.addLayer({
+                id: 'french-matrix-outline',
+                type: 'line',
+                source: 'french-matrix-src',
+                paint: { 'line-color': '#64ffda', 'line-width': 1.5, 'line-dasharray': [3, 2] }
+            });
+
+            const fixedNodes = [
+                { coords: P_ANCHOR, color: '#1abc9c', title: 'Poolanker P (NL - 52,25°N, 5,22°E)', desc: 'Oorsprong 245,91°-vector & Ott Nr. 573 Pool (R = 15,00 cm).' },
+                { coords: N2_CORE, color: '#ffca28', title: 'N²-Kern: Dept. 41/18 (Loir-et-Cher / Bourges)', desc: 'Centraal snijpunt 6×6 Franse Matrix. Oorsprong-inversie det J = -1,00.' },
+                { coords: EXIT_17_85, color: '#9b59b6', title: 'Uittreedpunt Matrix: Dept. 17 / Dept. 85', desc: 'Zuidwestelijk hoekanker Golf van Biskaje. Ott hoeken: α=167,12°, β=307,88°, γ=39,24°.' },
+                { coords: ECLIPSE_LANDFALL, color: '#ff5252', title: '12 Aug 2026 Eclips Landfall (Noord-Spanje)', desc: 'Europese intrede kernschaduw (Galicië/Asturië/Cantabrië) gesneden door de 245,91°-vector.' }
+            ];
+
+            fixedNodes.forEach(node => {
+                const p = new maplibregl.Popup({ offset: 18 }).setHTML(
+                    `<h3 style="color:${node.color}; margin:0 0 4px 0;">${node.title}</h3><p style="margin:0; font-size:11px;">${node.desc}</p>`
+                );
+                const m = new maplibregl.Marker({ color: node.color }).setLngLat(node.coords).setPopup(p).addTo(map);
+                fixedNodeMarkers.push(m);
+            });
+
+            customLayersRegistry['vortex-245-lines'] = {
+                name: '⚡ 245,91° VORTEX Synthese & Matrix',
+                type: 'vortex-core',
+                opacity: 0.9,
+                visible: true
+            };
+            renderOverlayList();
+        }
+
+        // Knooppunten (Markers) Aan/Uit zetten
+        document.getElementById('toggle-nodes-btn').addEventListener('click', (e) => {
+            nodesVisible = !nodesVisible;
+            fixedNodeMarkers.forEach(m => {
+                m.getElement().style.display = nodesVisible ? 'block' : 'none';
+            });
+            e.target.innerText = nodesVisible ? "📍 KNOOPPUNTEN: AAN" : "📍 KNOOPPUNTEN: UIT";
+            e.target.style.background = nodesVisible ? "#2ecc71" : "#7f8c8d";
+            e.target.style.color = nodesVisible ? "#05131f" : "#ffffff";
+        });
+
+        // 245,91° Vectorlijnen & 6x6 Matrix Aan/Uit zetten
+        function setVortexVisibility(visible) {
+            vortexVisible = visible;
+            const visValue = visible ? 'visible' : 'none';
+            ['vortex-245-lines', 'french-matrix-fill', 'french-matrix-outline'].forEach(layerId => {
+                if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visValue);
+            });
+            if (customLayersRegistry['vortex-245-lines']) {
+                customLayersRegistry['vortex-245-lines'].visible = visible;
+            }
+            const btn = document.getElementById('toggle-vortex-btn');
+            btn.innerText = visible ? "⚡ 245,91° LIJNEN: AAN" : "⚡ 245,91° LIJNEN: UIT";
+            btn.style.background = visible ? "#2ecc71" : "#7f8c8d";
+            btn.style.color = visible ? "#05131f" : "#ffffff";
+            renderOverlayList();
+        }
+
+        document.getElementById('toggle-vortex-btn').addEventListener('click', () => {
+            setVortexVisibility(!vortexVisible);
+        });
+
+        // Horizon Ringen Aan/Uit zetten
+        document.getElementById('toggle-rings-btn').addEventListener('click', (e) => {
+            horizonRingsVisible = !horizonRingsVisible;
+            if (map.getLayer('horizon-rings-layer')) {
+                map.setLayoutProperty('horizon-rings-layer', 'visibility', horizonRingsVisible ? 'visible' : 'none');
+            }
+            e.target.innerText = horizonRingsVisible ? "⭕ HORIZON RINGEN: AAN" : "⭕ HORIZON RINGEN: UIT";
+            e.target.style.background = horizonRingsVisible ? "#16a085" : "#7f8c8d";
+        });
+
+        window.flyToNode = function(lng, lat, label) {
+            map.flyTo({ center: [lng, lat], zoom: 6.5, pitch: 52, essential: true, speed: 1.4 });
+            document.getElementById('story-content').innerHTML =
+                `<p><b class="highlight">${label}</b><br>Coördinaten: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E</p>` +
+                `<p>Azimut-lock: <span class="fraunhofer">245,91° WZW (589 nm)</span><br>Binaire staat: <b>010101 (01)</b></p>`;
+        };
+
+        document.getElementById('vortex-inversie-btn').addEventListener('click', () => {
+            map.flyTo({ center: [0.5, 47.5], zoom: 5.0, bearing: 157.5, pitch: 55, speed: 1.2, essential: true });
+            document.getElementById('story-content').innerHTML =
+                `<p><b class="highlight">MapLibre Inversie-Modus Actief (157,5° ZZW-Boven)</b></p>` +
+                `<p><i>"Ceci n'est pas une carte."</i> Vanaf Poolanker P (rechtsonder) kijk je nu rechtstreeks langs de 245,91°-laserstraal naar de Eclips-landfall in Noord-Spanje (linksboven).</p>`;
+        });
+
+        // --- 3. OPEN BASISKAART WISSELAAR ---
+        document.getElementById('basemap-select').addEventListener('change', (e) => {
+            const val = e.target.value;
+            const tileKey = val === 'osm-nautical' ? 'osm' : val;
+            const newTiles = OPEN_BASEMAP_TILES[tileKey] || OPEN_BASEMAP_TILES['osm'];
+
+            const baseSource = map.getSource('base-raster-src');
+            if (baseSource && typeof baseSource.setTiles === 'function') {
+                baseSource.setTiles(newTiles);
+            } else {
+                if (map.getLayer('base-raster-layer')) map.removeLayer('base-raster-layer');
+                if (map.getSource('base-raster-src')) map.removeSource('base-raster-src');
+                map.addSource('base-raster-src', { type: 'raster', tiles: newTiles, tileSize: 256 });
+                map.addLayer({
+                    id: 'base-raster-layer',
+                    type: 'raster',
+                    source: 'base-raster-src',
+                    paint: { 'raster-opacity': 1 }
+                }, 'seamark-layer');
+            }
+
+            if (map.getLayer('seamark-layer')) {
+                map.setPaintProperty('seamark-layer', 'raster-opacity', val === 'osm-nautical' ? 1 : 0);
+            }
+        });
+
+        // --- 4. VERSCHUIFBARE AFBEELDING BOX (MET DRAG-ANKER & PLANIMETER) ---
+        function computeImageBoxCoords(centerLng, centerLat, radiusKm, aspect = 1.0, rotationDeg = 0) {
+            const halfW = radiusKm * aspect;
+            const halfH = radiusKm;
+            const diagKm = Math.sqrt(halfW * halfW + halfH * halfH);
+            const baseAngle = Math.atan2(halfW, halfH) * (180 / Math.PI);
+
+            const bearings = [
+                -baseAngle + rotationDeg,
+                baseAngle + rotationDeg,
+                (180 - baseAngle) + rotationDeg,
+                (-180 + baseAngle) + rotationDeg
+            ];
+
+            return bearings.map(b => turf.destination([centerLng, centerLat], diagKm, b, { units: 'kilometers' }).geometry.coordinates);
+        }
+
+        function addImageBoxOverlay(name, imageUrl) {
+            const img = new Image();
+            // Alleen crossOrigin zetten bij http(s), NIET op data:/blob: of wanneer file:// problemen geeft
+            if (/^https?:\/\//i.test(imageUrl)) {
+                img.crossOrigin = "anonymous";
+            }
+
+            img.onload = () => {
+                const aspect = (img.naturalWidth && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.0;
+                const c = map.getCenter();
+                const defaultRadiusKm = Math.max(5, Math.min(500, 1000 / Math.pow(2, map.getZoom() - 2)));
+                const quadCoords = computeImageBoxCoords(c.lng, c.lat, defaultRadiusKm, aspect, 0);
+
+                const id = 'imgbox-' + Date.now();
+                const frameSrcId = id + '-frame-src';
+                const frameLayerId = id + '-frame-layer';
+
+                map.addSource(id, {
+                    type: 'image',
+                    url: imageUrl,
+                    coordinates: quadCoords
+                });
+                map.addLayer({
+                    id: id,
+                    type: 'raster',
+                    source: id,
+                    paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0 }
+                });
+
+                const framePoly = turf.polygon([[...quadCoords, quadCoords[0]]]);
+                map.addSource(frameSrcId, { type: 'geojson', data: framePoly });
+                map.addLayer({
+                    id: frameLayerId,
+                    type: 'line',
+                    source: frameSrcId,
+                    paint: { 'line-color': '#ffd700', 'line-width': 2, 'line-dasharray': [3, 2] }
+                });
+
+                // Maak een versleepbaar ankerpunt (✥) midden op de afbeelding zodat je de afbeelding direct kunt verschuiven
+                const handleEl = document.createElement('div');
+                handleEl.className = 'img-drag-handle-marker';
+                handleEl.innerHTML = '✥';
+                handleEl.title = `Sleep om "${name}" over de kaart te verschuiven`;
+
+                const dragMarker = new maplibregl.Marker({ element: handleEl, draggable: true })
+                    .setLngLat([c.lng, c.lat])
+                    .addTo(map);
+
+                dragMarker.on('drag', () => {
+                    const pos = dragMarker.getLngLat();
+                    const item = customLayersRegistry[id];
+                    if (item) {
+                        item.center = [pos.lng, pos.lat];
+                        activeImageBoxId = id;
+                        updateImageBoxGeometry(id, false);
+                    }
+                });
+
+                dragMarker.on('dragend', () => {
+                    renderOverlayList();
+                });
+
+                customLayersRegistry[id] = {
+                    name: '🖼️ ' + name,
+                    type: 'image-box',
+                    opacity: 0.85,
+                    visible: true,
+                    center: [c.lng, c.lat],
+                    radiusKm: defaultRadiusKm,
+                    aspect: aspect,
+                    rotation: 0,
+                    frameSrcId: frameSrcId,
+                    frameLayerId: frameLayerId,
+                    dragMarker: dragMarker
+                };
+
+                activeImageBoxId = id;
+                renderOverlayList();
+                updatePlanimeterForImageBox(id);
+            };
+
+            img.onerror = () => {
+                alert(
+                    "Kon de afbeelding niet als WebGL-textuur laden.\n\n" +
+                    "Oorzaak: De externe server blokkeert directe beeldtoegang (CORS) of de URL is geen directe afbeelding (.png/.jpg).\n" +
+                    "Oplossing: Gebruik de 'Upload Afbeelding' knop bovenaan om het bestand vanaf je schijf in te laden, of kies bij een kaartserver voor 'XYZ Raster Tiles'."
+                );
+            };
+            img.src = imageUrl;
+        }
+
+        function updateImageBoxGeometry(id, updateMarkerPos = true) {
+            const item = customLayersRegistry[id];
+            if (!item || item.type !== 'image-box') return;
+
+            if (updateMarkerPos && item.dragMarker) {
+                item.dragMarker.setLngLat(item.center);
+            }
+
+            const newCoords = computeImageBoxCoords(item.center[0], item.center[1], item.radiusKm, item.aspect, item.rotation);
+            const imgSrc = map.getSource(id);
+            if (imgSrc && typeof imgSrc.setCoordinates === 'function') {
+                imgSrc.setCoordinates(newCoords);
+            }
+            const frameSrc = map.getSource(item.frameSrcId);
+            if (frameSrc) {
+                frameSrc.setData(turf.polygon([[...newCoords, newCoords[0]]]));
+            }
+            updatePlanimeterForImageBox(id);
+        }
+
+        function updatePlanimeterForImageBox(id) {
+            const item = customLayersRegistry[id];
+            if (!item || item.type !== 'image-box') return;
+            const widthKm = item.radiusKm * 2 * item.aspect;
+            const heightKm = item.radiusKm * 2;
+            const areaKm2 = widthKm * heightKm;
+            document.getElementById('pl-integral').innerText = areaKm2.toLocaleString('nl-NL', { maximumFractionDigits: 1 });
+            document.getElementById('story-content').innerHTML =
+                `<p><b class="highlight">${item.name} (Planimeter Box)</b></p>` +
+                `<p>Ankerpositie: <b>${item.center[1].toFixed(4)}° N, ${item.center[0].toFixed(4)}° E</b><br>` +
+                `Afmeting Box: <b>${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km</b><br>` +
+                `Oppervlakte: <span class="fraunhofer">${areaKm2.toFixed(2)} km²</span><br>` +
+                `Rotatie: <b>${item.rotation.toFixed(1)}°</b> | Transparantie: <b>${Math.round(item.opacity * 100)}%</b></p>`;
+        }
+
+        // KML Parser & GeoJSON Laag-functie
+        function parseKMLToGeoJSON(kmlText) {
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(kmlText, "text/xml");
+            const features = [];
+
+            const parseCoordList = (rawText) => {
+                return rawText.trim().split(/\s+/).map(pair => {
+                    const parts = pair.split(',').map(Number);
+                    return (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) ? [parts[0], parts[1]] : null;
+                }).filter(Boolean);
+            };
+
+            const placemarks = xml.getElementsByTagName("Placemark");
+            for (let i = 0; i < placemarks.length; i++) {
+                const pm = placemarks[i];
+                const nameNode = pm.getElementsByTagName("name")[0];
+                const descNode = pm.getElementsByTagName("description")[0];
+                const props = {
+                    name: nameNode ? nameNode.textContent.trim() : `KML Object ${i + 1}`,
+                    description: descNode ? descNode.textContent.trim() : ""
+                };
+
+                const ptNodes = pm.getElementsByTagName("Point");
+                for (let j = 0; j < ptNodes.length; j++) {
+                    const cNode = ptNodes[j].getElementsByTagName("coordinates")[0];
+                    if (cNode) {
+                        const coords = parseCoordList(cNode.textContent);
+                        if (coords.length > 0) features.push(turf.point(coords[0], props));
+                    }
+                }
+
+                const lsNodes = pm.getElementsByTagName("LineString");
+                for (let j = 0; j < lsNodes.length; j++) {
+                    const cNode = lsNodes[j].getElementsByTagName("coordinates")[0];
+                    if (cNode) {
+                        const coords = parseCoordList(cNode.textContent);
+                        if (coords.length >= 2) features.push(turf.lineString(coords, props));
+                    }
+                }
+
+                const polyNodes = pm.getElementsByTagName("Polygon");
+                for (let j = 0; j < polyNodes.length; j++) {
+                    const cNode = polyNodes[j].getElementsByTagName("coordinates")[0];
+                    if (cNode) {
+                        const coords = parseCoordList(cNode.textContent);
+                        if (coords.length >= 3) {
+                            const first = coords[0], last = coords[coords.length - 1];
+                            if (first[0] !== last[0] || first[1] !== last[1]) coords.push(first);
+                            features.push(turf.polygon([coords], props));
+                        }
+                    }
+                }
+            }
+            return turf.featureCollection(features);
+        }
+
+        function addGeoJSONDataLayer(name, geojsonData) {
+            let fc = geojsonData;
+            if (geojsonData.type === 'Feature') {
+                fc = turf.featureCollection([geojsonData]);
+            } else if (geojsonData.type !== 'FeatureCollection') {
+                fc = turf.featureCollection([turf.feature(geojsonData)]);
+            }
+
+            if (!fc.features || fc.features.length === 0) {
+                alert("Geen geldige geometrieën gevonden in het bestand of de URL.");
+                return;
+            }
+
+            const baseId = 'vector-' + Date.now();
+            const fillId = baseId + '-fill';
+            const lineId = baseId + '-line';
+            const pointId = baseId + '-point';
+
+            map.addSource(baseId, { type: 'geojson', data: fc });
+            map.addLayer({ id: fillId, type: 'fill', source: baseId, filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#64ffda', 'fill-opacity': 0.28 } });
+            map.addLayer({ id: lineId, type: 'line', source: baseId, paint: { 'line-color': '#ffca28', 'line-width': 2.5, 'line-opacity': 0.9 } });
+            map.addLayer({ id: pointId, type: 'circle', source: baseId, filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 6, 'circle-color': '#e84393', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': 0.9 } });
+
+            let totalAreaKm2 = 0, totalLengthKm = 0;
+            try {
+                totalAreaKm2 = turf.area(fc) / 1e6;
+                totalLengthKm = turf.length(fc, { units: 'kilometers' });
+            } catch (err) {}
+
+            const bbox = turf.bbox(fc);
+            customLayersRegistry[baseId] = {
+                name: '📐 ' + name,
+                type: 'geojson-group',
+                subLayers: [fillId, lineId, pointId],
+                opacity: 0.9,
+                visible: true,
+                bbox: bbox
+            };
+
+            renderOverlayList();
+            if (bbox && bbox.length === 4 && isFinite(bbox[0])) {
+                map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 60, maxZoom: 13 });
+            }
+
+            document.getElementById('story-content').innerHTML =
+                `<p><b class="highlight">${name} ingeladen</b></p>` +
+                `<p>Objecten: <b>${fc.features.length}</b><br>` +
+                `Planimeter Oppervlakte: <span class="fraunhofer">${totalAreaKm2.toFixed(2)} km²</span><br>` +
+                `Trajectlengte: <b>${totalLengthKm.toFixed(2)} km</b></p>`;
+        }
+
+        // --- 5. UPLOAD BESTAND & SLIMME URL-LAAG TOEVOEGEN ---
+        document.getElementById('upload-file-btn').addEventListener('click', () => {
+            const fileInput = document.getElementById('file-upload-input');
+            const customName = document.getElementById('file-layer-name').value.trim();
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                return alert("Klik eerst op 'Bladeren...' en kies een afbeelding (.png, .jpg, .svg, .webp), .json/.geojson of .kml bestand.");
+            }
+
+            const file = fileInput.files[0];
+            const layerName = customName || file.name;
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'].includes(ext) || file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    addImageBoxOverlay(layerName, e.target.result);
+                    fileInput.value = '';
+                    document.getElementById('file-layer-name').value = '';
+                };
+                reader.readAsDataURL(file);
+            } else if (ext === 'kml' || file.type.includes('kml') || file.type.includes('xml')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const geojson = parseKMLToGeoJSON(e.target.result);
+                        addGeoJSONDataLayer(layerName, geojson);
+                        fileInput.value = '';
+                        document.getElementById('file-layer-name').value = '';
+                    } catch (err) {
+                        alert("Fout bij verwerken van KML-bestand: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        addGeoJSONDataLayer(layerName, parsed);
+                        fileInput.value = '';
+                        document.getElementById('file-layer-name').value = '';
+                    } catch (err) {
+                        alert("Ongeldig JSON/GeoJSON-formaat: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Slimme URL-herkenning zodat 'Voeg URL Laag Toe' nooit faalt op een verkeerde dropdown-selectie
+        function detectUrlType(url, selectedType) {
+            const lower = url.toLowerCase();
+            if (lower.includes('{z}') && (lower.includes('{x}') || lower.includes('{y}'))) return 'raster';
+            if (lower.includes('wmts') || lower.includes('wms') || lower.includes('tiles')) {
+                if (lower.includes('{z}')) return 'raster';
+            }
+            if (selectedType !== 'auto') return selectedType;
+            if (lower.endsWith('.kml') || lower.includes('format=kml')) return 'kml';
+            if (lower.endsWith('.geojson') || lower.endsWith('.json') || lower.includes('outputformat=application/json') || lower.includes('f=geojson')) return 'geojson';
+            if (/\.(png|jpg|jpeg|webp|svg|gif)(\?.*)?$/i.test(lower) || lower.startsWith('data:image/')) return 'image-url';
+            return 'raster';
+        }
+
+        document.getElementById('add-overlay-btn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('overlay-name').value.trim();
+            let url = document.getElementById('overlay-url').value.trim();
+            const selectedType = document.getElementById('overlay-type').value;
+
+            if (!url) {
+                return alert("Plak eerst een geldige URL in het URL-veld (of gebruik 'Bladeren...' hierboven voor een lokaal bestand).");
+            }
+
+            const name = nameInput || 'URL Laag ' + Math.floor(Math.random() * 900 + 100);
+            const effectiveType = detectUrlType(url, selectedType);
+
+            try {
+                if (effectiveType === 'raster') {
+                    // Als een gebruiker een basis-tegelserver plakt zonder {z}/{x}/{y}, voeg standaard template toe indien nodig
+                    if (!url.includes('{z}') && !url.includes('{bbox-epsg-3857}')) {
+                        url = url.replace(/\/$/, '') + '/{z}/{x}/{y}.png';
+                    }
+                    const id = 'raster-' + Date.now();
+                    map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256 });
+                    map.addLayer({ id: id, type: 'raster', source: id, paint: { 'raster-opacity': 0.85 } });
+                    customLayersRegistry[id] = { name: '🗺️ ' + name, type: 'raster', opacity: 0.85, visible: true };
+                    renderOverlayList();
+                } else if (effectiveType === 'image-url') {
+                    addImageBoxOverlay(name, url);
+                } else if (effectiveType === 'geojson') {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    addGeoJSONDataLayer(name, data);
+                } else if (effectiveType === 'kml') {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const kmlText = await res.text();
+                    const geojson = parseKMLToGeoJSON(kmlText);
+                    addGeoJSONDataLayer(name, geojson);
+                }
+
+                document.getElementById('overlay-url').value = '';
+                document.getElementById('overlay-name').value = '';
+            } catch (err) {
+                alert("Kon URL-laag niet ophalen (" + err.message + "). Controleer of de URL publiek toegankelijk is.");
+            }
+        });
+
+        // --- 6. RENDER ACTIEVE LAGENLIJST MET VERSCHUIFKNOPPEN, AAN/UIT & SLIDERS ---
+        function renderOverlayList() {
+            const container = document.getElementById('active-overlays-list');
+            container.innerHTML = '';
+            const keys = Object.keys(customLayersRegistry);
+
+            if (keys.length === 0) {
+                container.innerHTML = '<p style="color:rgba(255,255,255,0.5); font-style:italic;">Geen lagen actief.</p>';
+                return;
+            }
+
+            keys.forEach(id => {
+                const item = customLayersRegistry[id];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'layer-item';
+
+                const header = document.createElement('div');
+                header.className = 'layer-header';
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = item.name;
+                titleSpan.style.wordBreak = 'break-all';
+
+                const btnGroup = document.createElement('div');
+                btnGroup.style.display = 'flex';
+                btnGroup.style.gap = '4px';
+
+                // Aan/Uit knop per laag
+                const visBtn = document.createElement('button');
+                visBtn.className = 'layer-toggle-btn' + (item.visible === false ? ' off' : '');
+                visBtn.textContent = item.visible === false ? 'UIT' : 'AAN';
+                visBtn.title = 'Zet deze laag aan of uit';
+                visBtn.onclick = () => toggleLayerVisibility(id);
+                btnGroup.appendChild(visBtn);
+
+                if (item.type === 'image-box' || item.type === 'geojson-group') {
+                    const zoomBtn = document.createElement('button');
+                    zoomBtn.className = 'layer-zoom-btn';
+                    zoomBtn.textContent = '🔍';
+                    zoomBtn.title = 'Vlieg naar deze laag';
+                    zoomBtn.onclick = () => {
+                        if (item.type === 'image-box') {
+                            activeImageBoxId = id;
+                            map.flyTo({ center: item.center, zoom: map.getZoom() });
+                            updatePlanimeterForImageBox(id);
+                        } else if (item.bbox) {
+                            map.fitBounds([[item.bbox[0], item.bbox[1]], [item.bbox[2], item.bbox[3]]], { padding: 50 });
+                        }
+                    };
+                    btnGroup.appendChild(zoomBtn);
+                }
+
+                if (item.type !== 'vortex-core') {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'layer-item-btn';
+                    delBtn.textContent = '✕';
+                    delBtn.title = 'Verwijder laag';
+                    delBtn.onclick = () => removeCustomLayer(id);
+                    btnGroup.appendChild(delBtn);
+                }
+
+                header.appendChild(titleSpan);
+                header.appendChild(btnGroup);
+                wrapper.appendChild(header);
+
+                const controls = document.createElement('div');
+                controls.className = 'layer-controls';
+
+                // 1. Transparantie Slider
+                const opRow = document.createElement('div');
+                opRow.className = 'slider-row';
+                const opLabel = document.createElement('span');
+                opLabel.textContent = `Transparantie (${Math.round(item.opacity * 100)}%)`;
+                const opSlider = document.createElement('input');
+                opSlider.type = 'range';
+                opSlider.min = '0';
+                opSlider.max = '100';
+                opSlider.value = String(Math.round(item.opacity * 100));
+
+                opSlider.addEventListener('input', (e) => {
+                    const val = parseInt(e.target.value, 10) / 100;
+                    item.opacity = val;
+                    opLabel.textContent = `Transparantie (${e.target.value}%)`;
+                    applyLayerOpacity(id, val);
+                });
+
+                opRow.appendChild(opLabel);
+                opRow.appendChild(opSlider);
+                controls.appendChild(opRow);
+
+                // 2. Specifieke controls voor Geüploade Afbeeldingen (Verschuiven, Schalen & Roteren)
+                if (item.type === 'image-box') {
+                    // Straal / Grootte Slider
+                    const szRow = document.createElement('div');
+                    szRow.className = 'slider-row';
+                    const szLabel = document.createElement('span');
+                    szLabel.textContent = `Box Straal (${item.radiusKm.toFixed(0)} km)`;
+                    const szSlider = document.createElement('input');
+                    szSlider.type = 'range';
+                    szSlider.min = '1';
+                    szSlider.max = '1200';
+                    szSlider.value = String(Math.round(item.radiusKm));
+
+                    szSlider.addEventListener('input', (e) => {
+                        item.radiusKm = parseFloat(e.target.value);
+                        szLabel.textContent = `Box Straal (${item.radiusKm.toFixed(0)} km)`;
+                        activeImageBoxId = id;
+                        updateImageBoxGeometry(id, false);
+                    });
+
+                    szRow.appendChild(szLabel);
+                    szRow.appendChild(szSlider);
+                    controls.appendChild(szRow);
+
+                    // Rotatie / Hoek Slider
+                    const rotRow = document.createElement('div');
+                    rotRow.className = 'slider-row';
+                    const rotLabel = document.createElement('span');
+                    rotLabel.textContent = `Box Hoek (${item.rotation.toFixed(0)}°)`;
+                    const rotSlider = document.createElement('input');
+                    rotSlider.type = 'range';
+                    rotSlider.min = '-180';
+                    rotSlider.max = '180';
+                    rotSlider.value = String(Math.round(item.rotation));
+
+                    rotSlider.addEventListener('input', (e) => {
+                        item.rotation = parseFloat(e.target.value);
+                        rotLabel.textContent = `Box Hoek (${item.rotation.toFixed(0)}°)`;
+                        activeImageBoxId = id;
+                        updateImageBoxGeometry(id, false);
+                    });
+
+                    rotRow.appendChild(rotLabel);
+                    rotRow.appendChild(rotSlider);
+                    controls.appendChild(rotRow);
+
+                    // Verschuif-knoppen (West, Noord, Zuid, Oost + Zet op huidig kaartcentrum)
+                    const nudgeRow = document.createElement('div');
+                    nudgeRow.className = 'nudge-row';
+
+                    const stepDeg = () => Math.max(0.01, item.radiusKm / 450);
+
+                    const btnW = document.createElement('button');
+                    btnW.className = 'nudge-btn';
+                    btnW.textContent = '🠔 West';
+                    btnW.onclick = () => { item.center[0] -= stepDeg(); updateImageBoxGeometry(id, true); };
+
+                    const btnN = document.createElement('button');
+                    btnN.className = 'nudge-btn';
+                    btnN.textContent = '🠕 Noord';
+                    btnN.onclick = () => { item.center[1] += stepDeg(); updateImageBoxGeometry(id, true); };
+
+                    const btnS = document.createElement('button');
+                    btnS.className = 'nudge-btn';
+                    btnS.textContent = '🠗 Zuid';
+                    btnS.onclick = () => { item.center[1] -= stepDeg(); updateImageBoxGeometry(id, true); };
+
+                    const btnE = document.createElement('button');
+                    btnE.className = 'nudge-btn';
+                    btnE.textContent = '🠖 Oost';
+                    btnE.onclick = () => { item.center[0] += stepDeg(); updateImageBoxGeometry(id, true); };
+
+                    const btnCenter = document.createElement('button');
+                    btnCenter.className = 'nudge-btn';
+                    btnCenter.style.background = '#ffca28';
+                    btnCenter.style.color = '#05131f';
+                    btnCenter.textContent = '📍 Hierheen';
+                    btnCenter.title = 'Verplaats afbeelding naar het huidige midden van de kaart';
+                    btnCenter.onclick = () => {
+                        const c = map.getCenter();
+                        item.center = [c.lng, c.lat];
+                        updateImageBoxGeometry(id, true);
+                    };
+
+                    nudgeRow.appendChild(btnW);
+                    nudgeRow.appendChild(btnN);
+                    nudgeRow.appendChild(btnS);
+                    nudgeRow.appendChild(btnE);
+                    nudgeRow.appendChild(btnCenter);
+                    controls.appendChild(nudgeRow);
+                }
+
+                wrapper.appendChild(controls);
+                container.appendChild(wrapper);
+            });
+        }
+
+        function toggleLayerVisibility(id) {
+            const item = customLayersRegistry[id];
+            if (!item) return;
+
+            if (item.type === 'vortex-core') {
+                setVortexVisibility(!item.visible);
+                return;
+            }
+
+            item.visible = !item.visible;
+            const vis = item.visible ? 'visible' : 'none';
+
+            if (item.type === 'image-box') {
+                if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+                if (map.getLayer(item.frameLayerId)) map.setLayoutProperty(item.frameLayerId, 'visibility', vis);
+                if (item.dragMarker) item.dragMarker.getElement().style.display = item.visible ? 'flex' : 'none';
+            } else if (item.type === 'geojson-group') {
+                item.subLayers.forEach(sub => { if (map.getLayer(sub)) map.setLayoutProperty(sub, 'visibility', vis); });
+            } else if (map.getLayer(id)) {
+                map.setLayoutProperty(id, 'visibility', vis);
+            }
+            renderOverlayList();
+        }
+
+        function applyLayerOpacity(id, val) {
+            const item = customLayersRegistry[id];
+            if (!item) return;
+
+            if (item.type === 'raster' || item.type === 'image-box') {
+                if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', val);
+                if (item.frameLayerId && map.getLayer(item.frameLayerId)) {
+                    map.setPaintProperty(item.frameLayerId, 'line-opacity', val);
+                }
+            } else if (item.type === 'vortex-core') {
+                if (map.getLayer('vortex-245-lines')) map.setPaintProperty('vortex-245-lines', 'line-opacity', val);
+                if (map.getLayer('french-matrix-fill')) map.setPaintProperty('french-matrix-fill', 'fill-opacity', val * 0.12);
+                if (map.getLayer('french-matrix-outline')) map.setPaintProperty('french-matrix-outline', 'line-opacity', val);
+            } else if (item.type === 'geojson-group') {
+                const [fillId, lineId, pointId] = item.subLayers;
+                if (map.getLayer(fillId)) map.setPaintProperty(fillId, 'fill-opacity', val * 0.35);
+                if (map.getLayer(lineId)) map.setPaintProperty(lineId, 'line-opacity', val);
+                if (map.getLayer(pointId)) map.setPaintProperty(pointId, 'circle-opacity', val);
+            }
+        }
+
+        function removeCustomLayer(id) {
+            const item = customLayersRegistry[id];
+            if (!item) return;
+
+            if (item.type === 'image-box') {
+                if (item.dragMarker) item.dragMarker.remove();
+                if (map.getLayer(id)) map.removeLayer(id);
+                if (map.getSource(id)) map.removeSource(id);
+                if (map.getLayer(item.frameLayerId)) map.removeLayer(item.frameLayerId);
+                if (map.getSource(item.frameSrcId)) map.removeSource(item.frameSrcId);
+                if (activeImageBoxId === id) activeImageBoxId = null;
+            } else if (item.type === 'geojson-group') {
+                item.subLayers.forEach(sub => { if (map.getLayer(sub)) map.removeLayer(sub); });
+                if (map.getSource(id)) map.removeSource(id);
+            } else {
+                if (map.getLayer(id)) map.removeLayer(id);
+                if (map.getSource(id)) map.removeSource(id);
+            }
+
+            delete customLayersRegistry[id];
+            renderOverlayList();
+        }
+
+        // --- 7. WEBRTC CAMERA LOGICA ---
+        let webrtcStream = null;
+        document.getElementById('start-webrtc-btn').addEventListener('click', async () => {
+            try {
+                webrtcStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                document.getElementById('webrtc-video').srcObject = webrtcStream;
+                const panel = document.getElementById('panel-webrtc');
+                panel.style.display = 'flex';
+                panel.style.zIndex = 30;
+            } catch (err) {
+                alert("WebRTC Camera niet beschikbaar: " + err.message);
+            }
+        });
+
+        document.getElementById('stop-webrtc-btn').addEventListener('click', () => {
+            if (webrtcStream) {
+                webrtcStream.getTracks().forEach(t => t.stop());
+                webrtcStream = null;
+            }
+            document.getElementById('webrtc-video').srcObject = null;
+            document.getElementById('panel-webrtc').style.display = 'none';
+        });
+
+        // --- 8. LOCATIE ZOEKFUNCTIE ---
+        async function executeLocationSearch() {
+            const val = document.getElementById('loc-input').value.trim();
+            if (!val) return;
+            const coordsMatch = val.match(/^([-+]?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*([-+]?\d{1,3}(?:\.\d+)?)$/);
+            if (coordsMatch) {
+                map.flyTo({ center: [parseFloat(coordsMatch[2]), parseFloat(coordsMatch[1])], zoom: 8.5, pitch: 45 });
+            } else {
+                try {
+                    document.getElementById('loc-btn').innerText = "Zoeken...";
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        map.flyTo({ center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], zoom: 8.5, pitch: 45 });
+                    } else {
+                        alert("Locatie niet gevonden.");
+                    }
+                } catch (e) {
+                    alert("Netwerkfout bij zoeken.");
+                } finally {
+                    document.getElementById('loc-btn').innerText = "Zoek & Vlieg naar Coördinaat";
+                }
+            }
+        }
+        document.getElementById('loc-btn').addEventListener('click', executeLocationSearch);
+        document.getElementById('loc-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') executeLocationSearch(); });
+
+        // --- 9. UI TOGGLE & SLEEPBARE VENSTERS ---
+        let uiVisible = true;
+        document.getElementById('ui-toggle-btn').addEventListener('click', () => {
+            uiVisible = !uiVisible;
+            document.querySelectorAll('.ui-element').forEach(el => {
+                el.style.opacity = uiVisible ? '1' : '0';
+                el.style.pointerEvents = uiVisible ? 'auto' : 'none';
+            });
+        });
+
+        function makeDraggable(element) {
+            const handle = element.querySelector('.drag-handle');
+            if (!handle) return;
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            handle.onmousedown = (e) => {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                const rect = element.getBoundingClientRect();
+                element.style.left = rect.left + "px";
+                element.style.top = rect.top + "px";
+                element.style.right = "auto";
+                element.style.bottom = "auto";
+
+                document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+                document.onmousemove = (ev) => {
+                    ev.preventDefault();
+                    pos1 = pos3 - ev.clientX;
+                    pos2 = pos4 - ev.clientY;
+                    pos3 = ev.clientX;
+                    pos4 = ev.clientY;
+                    element.style.top = Math.max(0, element.offsetTop - pos2) + "px";
+                    element.style.left = Math.max(0, element.offsetLeft - pos1) + "px";
+                };
+                document.querySelectorAll('.ui-element').forEach(el => { if (el.id !== 'panel-webrtc') el.style.zIndex = 10; });
+                element.style.zIndex = 18;
+            };
+        }
+        document.querySelectorAll('.glass-panel, #compass-container').forEach(makeDraggable);
+
+        // --- 10. KOMPAS, PLANIMETER WIELTJES & OTT NR. 573 TELEMETRIE ---
+        const compass = document.getElementById('compass');
+        const coordsDisplay = document.getElementById('compass-coords');
+        const wheelAz = document.getElementById('wheel-az');
+        const wheelPt = document.getElementById('wheel-pt');
+        const wheelSc = document.getElementById('wheel-sc');
+        const plIntegral = document.getElementById('pl-integral');
+
+        function updateVisualWidgets() {
+            const center = map.getCenter();
+            const bearing = map.getBearing();
+            const pitch = map.getPitch();
+            const zoom = map.getZoom();
+
+            compass.style.transform = `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`;
+            coordsDisplay.innerText = `${center.lat.toFixed(4)}° N, ${center.lng.toFixed(4)}° E`;
+
+            wheelAz.style.transform = `rotate(${bearing * 2}deg)`;
+            wheelPt.style.transform = `rotate(${pitch * 4}deg)`;
+            wheelSc.style.transform = `rotate(${zoom * 45}deg)`;
+
+            if (typeof turf !== 'undefined') {
+                const distKm = turf.distance(P_ANCHOR, [center.lng, center.lat], { units: 'kilometers' });
+                const azFromP = (turf.bearing(P_ANCHOR, [center.lng, center.lat]) + 360) % 360;
+                const d_cm = Math.max(2.0, Math.min(31.4, (distKm / 818.4) * 10.749));
+                const R = 15.00, L = 16.67;
+                const cosGamma = Math.max(-1, Math.min(1, (R * R + L * L - d_cm * d_cm) / (2 * R * L)));
+                const gammaDeg = Math.acos(cosGamma) * (180 / Math.PI);
+                const cosDelta = Math.max(-1, Math.min(1, (R * R + d_cm * d_cm - L * L) / (2 * R * d_cm)));
+                const deltaDeg = Math.acos(cosDelta) * (180 / Math.PI);
+                const alphaDeg = (azFromP - deltaDeg + 360) % 360;
+                const betaDeg = (alphaDeg + (180 - gammaDeg)) % 360;
+
+                document.getElementById('ott-angles').innerHTML =
+                    `Hoeken: <b>α = ${alphaDeg.toFixed(2)}° | β = ${betaDeg.toFixed(2)}° | γ = ${gammaDeg.toFixed(2)}°</b>`;
+                document.getElementById('ott-nonius').innerText = ((d_cm / 10.749) * 3.630).toFixed(3);
+            }
+
+            if (!activeImageBoxId) {
+                const area = Math.PI * Math.pow(40000 / Math.pow(2, zoom), 2);
+                plIntegral.innerText = area.toLocaleString('nl-NL', { maximumFractionDigits: 0 });
+            }
+        }
+
+        function updateHorizonRings() {
+            const source = map.getSource('horizon-rings');
+            if (!source || typeof turf === 'undefined') return;
+            const center = map.getCenter();
+            const pt = [center.lng, center.lat];
+            const features = [];
+
+            for (let r = 500; r <= 2500; r += 500) {
+                features.push(turf.circle(pt, r, { steps: 64, units: 'kilometers' }));
+            }
+            [0, 90, 180, -90, 245.91 - 360].forEach(d => {
+                const dest = turf.destination(pt, 2500, d, { units: 'kilometers' });
+                features.push(turf.lineString([pt, dest.geometry.coordinates]));
+            });
+
+            source.setData(turf.featureCollection(features));
+        }
+
+        // 1e Wieltje: Roteer actieve afbeelding-box (indien aanwezig), anders roteer kaart
+        document.getElementById('ctrl-az').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (activeImageBoxId && customLayersRegistry[activeImageBoxId]) {
+                const item = customLayersRegistry[activeImageBoxId];
+                item.rotation = ((item.rotation + (e.deltaY > 0 ? -3 : 3) + 540) % 360) - 180;
+                updateImageBoxGeometry(activeImageBoxId, false);
+                renderOverlayList();
+            } else {
+                map.setBearing(map.getBearing() + (e.deltaY > 0 ? -4 : 4));
+            }
+        }, { passive: false });
+
+        document.getElementById('ctrl-pt').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            let p = map.getPitch() + (e.deltaY > 0 ? -3 : 3);
+            map.setPitch(Math.max(0, Math.min(85, p)));
+        }, { passive: false });
+
+        // 3e Wieltje: Schaal actieve afbeelding-box, anders zoom kaart
+        document.getElementById('ctrl-sc').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (activeImageBoxId && customLayersRegistry[activeImageBoxId]) {
+                const item = customLayersRegistry[activeImageBoxId];
+                item.radiusKm = Math.max(1, Math.min(1500, item.radiusKm * (e.deltaY > 0 ? 0.92 : 1.08)));
+                updateImageBoxGeometry(activeImageBoxId, false);
+                renderOverlayList();
+            } else {
+                map.setZoom(map.getZoom() + (e.deltaY > 0 ? -0.35 : 0.35));
+            }
+        }, { passive: false });
+
+        // --- 11. ASTRONOMIE ENGINE & 15 OKTOBER 2026 MERCURIUS LOCK ---
+        const constellNL = {
+            'Ari': 'Ram', 'Tau': 'Stier', 'Gem': 'Tweelingen', 'Cnc': 'Kreeft',
+            'Leo': 'Leeuw', 'Vir': 'Maagd', 'Lib': 'Weegschaal', 'Sco': 'Schorpioen',
+            'Sgr': 'Boogschutter', 'Cap': 'Steenbok', 'Aqr': 'Waterman', 'Psc': 'Vissen',
+            'Oph': 'Slangendrager'
+        };
+        const planetNamesNL = {
+            'Mercury': 'Mercurius', 'Venus': 'Venus', 'Mars': 'Mars',
+            'Jupiter': 'Jupiter', 'Saturn': 'Saturnus', 'Uranus': 'Uranus'
+        };
+
+        function updateAstroDashboard() {
+            if (typeof Astronomy === 'undefined' || typeof SunCalc === 'undefined') return;
+            const center = map.getCenter();
+            const lockDate = new Date('2026-10-15T18:15:00Z');
+
+            document.getElementById('astro-date-title').innerText = `Hemel Resonantie (15-10-2026 20:15 CEST)`;
+            const times = SunCalc.getTimes(lockDate, center.lat, center.lng);
+            const moonTimes = SunCalc.getMoonTimes(lockDate, center.lat, center.lng);
+            const formatTime = (d) => d && !isNaN(d) ? d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+            document.getElementById('astro-sun-moon').innerHTML =
+                `<b>Zon</b> | Op: <span class="highlight">${formatTime(times.sunrise)}</span> / Onder: <span class="highlight">${formatTime(times.sunset)}</span><br>` +
+                `<b>Maan</b> | Op: <span class="highlight">${formatTime(moonTimes.rise)}</span> / Onder: <span class="highlight">${formatTime(moonTimes.set)}</span>`;
+
+            const observer = new Astronomy.Observer(center.lat, center.lng, 0);
+            const bodies = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus'];
+            let html = '<table><tr><th>Planeet</th><th>Azimut</th><th>Hoogte</th><th>Sterrenbeeld</th></tr>';
+
+            bodies.forEach(body => {
+                const eq = Astronomy.Equator(body, lockDate, observer, true, true);
+                const hor = Astronomy.Horizon(lockDate, observer, eq.ra, eq.dec, 'normal');
+                const constell = Astronomy.Constellation(eq.ra, eq.dec);
+                const sterrenbeeld = constellNL[constell.symbol] || constell.name || constell.symbol;
+                const planeetNaam = planetNamesNL[body] || body;
+
+                html += `<tr style="${body === 'Mercury' ? 'background: rgba(255, 202, 40, 0.22);' : ''}">` +
+                        `<td><b>${planeetNaam}</b></td>` +
+                        `<td>${hor.azimuth.toFixed(2)}°</td>` +
+                        `<td>${hor.altitude.toFixed(1)}°</td>` +
+                        `<td class="highlight">${sterrenbeeld}</td></tr>`;
+            });
+
+            document.getElementById('astro-planets').innerHTML = html + '</table>';
+            document.getElementById('bepi-colombo-data').innerHTML =
+                `<b>Mercurius / BepiColombo Lock (Poolanker P):</b><br>` +
+                `Vastgezet Azimut: <span class="fraunhofer">245,91° WZW</span> | Hoogte: <b>-4,2°</b> (Libra)<br>` +
+                `Eclips Resonantie: <b>12 aug 2026 Landfall (Galicië / Asturië)</b>`;
+        }
+
+        let lastHeavyUpdate = 0;
+        map.on('render', updateVisualWidgets);
+        map.on('move', () => {
+            const now = Date.now();
+            if (now - lastHeavyUpdate > 120) {
+                updateHorizonRings();
+                updateAstroDashboard();
+                lastHeavyUpdate = now;
+            }
+        });
+
+        // --- 12. VLAGGEN, NOTITIES & HANDJE-MODUS ---
+        const dragBtn = document.getElementById('drag-btn');
+        const flagBtn = document.getElementById('flag-btn');
+        const clearFlagsBtn = document.getElementById('clear-flags-btn');
+        const dragOverlay = document.getElementById('drag-overlay');
+        let handMode = false, flagMode = false, userFlags = [];
+
+        function disableModes() {
+            handMode = false;
+            dragBtn.classList.remove('active');
+            dragBtn.innerText = "🖐 MODUS: HANDJE (UIT)";
+            flagMode = false;
+            flagBtn.classList.remove('active');
+            flagBtn.innerText = "🚩 VLAG PLAATSEN (UIT)";
+            dragOverlay.style.display = "none";
+            map.dragPan.enable();
+            map.touchZoomRotate.enable();
+            map.getCanvas().style.cursor = '';
+        }
+
+        dragBtn.addEventListener('click', () => {
+            const wasActive = handMode;
+            disableModes();
+            if (!wasActive) {
+                handMode = true;
+                dragBtn.classList.add('active');
+                dragBtn.innerText = "🖐 MODUS: HANDJE (AAN)";
+                dragOverlay.style.display = "block";
+                map.dragPan.disable();
+                map.touchZoomRotate.disable();
+            }
+        });
+
+        flagBtn.addEventListener('click', () => {
+            const wasActive = flagMode;
+            disableModes();
+            if (!wasActive) {
+                flagMode = true;
+                flagBtn.classList.add('active');
+                flagBtn.innerText = "🚩 VLAG PLAATSEN (AAN)";
+                map.getCanvas().style.cursor = 'crosshair';
+            }
+        });
+
+        function fetchLocationStory(lat, lng) {
+            const storyContent = document.getElementById('story-content');
+            const distFromP = turf.distance(P_ANCHOR, [lng, lat], { units: 'kilometers' });
+            const bearingFromP = (turf.bearing(P_ANCHOR, [lng, lat]) + 360) % 360;
+            storyContent.innerHTML =
+                `<p><b class="highlight">Geplaatst Anker</b> (${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E)</p>` +
+                `<p>Afstand tot Poolanker P: <b>${distFromP.toFixed(2)} km</b><br>` +
+                `Azimut vanaf P: <b>${bearingFromP.toFixed(2)}°</b> (Δ t.o.v. 245,91°: ${(bearingFromP - 245.91).toFixed(2)}°)</p>`;
+        }
+
+        function addCustomFlag(lng, lat, savedNote = "") {
+            const popupContent = document.createElement('div');
+            popupContent.style.width = '185px';
+            popupContent.innerHTML = `
+                <h3 style="color:#e84393; margin:0 0 5px 0; font-size:12px;">Locatie Dossier</h3>
+                <p style="margin:0 0 5px 0; color:#ffca28; font-size:10px; font-weight:bold;">${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E</p>
+                <textarea class="popup-textarea" placeholder="Typ notities..."></textarea>
+                <button class="popup-save-btn">Notitie Opslaan</button>
+                <button class="remove-flag-btn">Verwijder Vlag</button>
+            `;
+            const textArea = popupContent.querySelector('.popup-textarea');
+            textArea.value = savedNote;
+
+            const popup = new maplibregl.Popup({ offset: 22 }).setDOMContent(popupContent);
+            const marker = new maplibregl.Marker({ color: '#e84393' }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+            marker.customNote = savedNote;
+            userFlags.push(marker);
+            clearFlagsBtn.style.display = 'block';
+
+            const saveNoteBtn = popupContent.querySelector('.popup-save-btn');
+            saveNoteBtn.addEventListener('click', () => {
+                marker.customNote = textArea.value;
+                saveNoteBtn.innerText = "✓ Opgeslagen";
+                saveNoteBtn.style.background = "#2ecc71";
+                setTimeout(() => { saveNoteBtn.innerText = "Notitie Opslaan"; saveNoteBtn.style.background = "#3498db"; }, 1200);
+                fetchLocationStory(lat, lng);
+            });
+
+            popupContent.querySelector('.remove-flag-btn').addEventListener('click', () => {
+                marker.remove();
+                userFlags = userFlags.filter(m => m !== marker);
+                if (userFlags.length === 0) clearFlagsBtn.style.display = 'none';
+            });
+            return marker;
+        }
+
+        map.on('click', (e) => {
+            if (flagMode) {
+                const marker = addCustomFlag(e.lngLat.lng, e.lngLat.lat, "");
+                marker.togglePopup();
+                fetchLocationStory(e.lngLat.lat, e.lngLat.lng);
+            }
+        });
+
+        clearFlagsBtn.addEventListener('click', () => {
+            userFlags.forEach(m => m.remove());
+            userFlags = [];
+            clearFlagsBtn.style.display = 'none';
+        });
+
+        document.getElementById('save-btn').addEventListener('click', () => {
+            const payload = userFlags.map(m => ({ lat: m.getLngLat().lat, lng: m.getLngLat().lng, note: m.customNote || "" }));
+            localStorage.setItem('vortex_245_flags', JSON.stringify(payload));
+            document.getElementById('save-btn').innerText = "✓ OPGESLAGEN";
+            setTimeout(() => { document.getElementById('save-btn').innerText = "💾 OPSLAAN"; }, 1500);
+        });
+
+        document.getElementById('load-btn').addEventListener('click', () => {
+            const savedData = localStorage.getItem('vortex_245_flags');
+            if (!savedData) return alert("Geen opgeslagen vlaggen gevonden.");
+            try {
+                const parsed = JSON.parse(savedData);
+                userFlags.forEach(m => m.remove());
+                userFlags = [];
+                parsed.forEach(item => addCustomFlag(item.lng, item.lat, item.note));
+            } catch (e) {
+                alert("Fout bij laden.");
+            }
+        });
+
+        // Handje 3D-Rotatie & Kanteling
+        let isDraggingMap = false, startX = 0, startY = 0, absoluteBearing = 0, absolutePitch = 45;
+        dragOverlay.addEventListener('mousedown', (e) => {
+            isDraggingMap = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            absoluteBearing = map.getBearing();
+            absolutePitch = map.getPitch();
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingMap) return;
+            absoluteBearing += ((e.clientX - startX) * 0.4);
+            absolutePitch = Math.max(0, Math.min(85, absolutePitch - ((e.clientY - startY) * 0.4)));
+            startX = e.clientX;
+            startY = e.clientY;
+            map.setBearing(absoluteBearing);
+            map.setPitch(absolutePitch);
+        });
+        window.addEventListener('mouseup', () => { isDraggingMap = false; });
+    </script>
+</body>
+</html>
