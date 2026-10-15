@@ -1,0 +1,28 @@
+{
+  "system": "VORTEX OS",
+  "deployment_target": "mathgeo-seven.vercel.app",
+  "vector": {
+    "azimuth_deg": 245.91,
+    "origin_anchor": "Netherlands (52.25N, 5.22E)",
+    "central_node": "Department 41/18 (Loir-et-Cher / Cher)",
+    "exit_anchor": "Department 17/85 (Charente-Maritime / Vendée)",
+    "jacobian_determinant": -1.00
+  },
+  "ott_planimeter_573": {
+    "pool_arm_cm": 15.00,
+    "tracer_arm_cm": 16.67,
+    "circle_area_cm2": 363.00,
+    "kinematic_angles": {
+      "alpha": 64.09,
+      "beta": 118.45,
+      "gamma": 63.37
+    },
+    "laser_fraunhofer_nm": 589.0,
+    "nonius": "245° 54' 36\""
+  },
+  "hud_inversion": {
+    "maplibre_rotation_deg": 157.5,
+    "binary_state": "010101",
+    "operator": "N^2"
+  }
+}
